@@ -96,7 +96,15 @@ python GradioMain.py
 - `SendMessageOnce.py`：发送消息的主要逻辑💬
 - `WechatLocale.py`：微信语言映射🌐
 
-## 6.感谢
+## 6.一些问题的解决方法
+### 1. 打开程序没有反应
+- windows的bug，有的时候需要在控制台（小黑黑窗口那个）按一下回车
+
+### 2.` Find Control Timcoutll0s): {Dcpth: 15, Name:'发送(S)'ControlType: ButtonControl}`这种错误
+参考[#5](https://github.com/xieyumc/YuYuWechat/issues/5)，这个问题一般是微信版本问题，当前最新版本`3.9.10.27`(2024/6/5)是没问题的，遇到问题先更新一下微信版本
+
+
+## 7.感谢
 感谢以下项目的启发和帮助
 
 [easyChat](https://github.com/LTEnjoy/easyChat)
