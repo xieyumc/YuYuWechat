@@ -103,6 +103,8 @@ python GradioMain.py
 ### 2.` Find Control Timcoutll0s): {Dcpth: 15, Name:'发送(S)'ControlType: ButtonControl}`这种错误
 参考[#5](https://github.com/xieyumc/YuYuWechat/issues/5)，这个问题一般是微信版本问题，当前最新版本`3.9.10.27`(2024/6/5)是没问题的，遇到问题先更新一下微信版本
 
+### 3.关于发送微信群消息
+发送微信群消息和给好友发送消息是一样的，接受人那一列填群名就可以了，不过在微信群@特定的人，这个功能目前还无法使用
 
 ## 7.感谢
 感谢以下项目的启发和帮助
