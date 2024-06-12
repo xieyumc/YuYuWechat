@@ -41,7 +41,7 @@ def double_click(element):
     element.DoubleClick()
 
 
-# 微信的控件介绍。注意"depth"是直接调用auto进行控件搜索的深度（见函数内部代码示例）
+# 微信的控件介绍，注意"depth"是直接调用auto进行控件搜索的深度（见函数内部代码示例）
 # 以群名“测试”为例：
 # 左侧聊天列表“测试”群               Name: '测试'     ControlType: ListItemControl    depth: 10
 # 左侧聊天列表“测试”群               Name: '测试'     ControlType: ButtonControl      depth: 12
@@ -327,7 +327,7 @@ class WeChat:
     def get_dialogs(self, name: str, n_msg: int) -> List:
         """
         Args:
-            name: 聊天窗口的姓名
+            name: 聊天窗口的姓名1
             n_msg: 获取聊天记录的最大数量（从最后一条往上算）
 
         Return:
