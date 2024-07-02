@@ -54,4 +54,4 @@ with gr.Blocks(theme=gr.themes.Soft()) as demo:
         )
 
 
-demo.launch(inbrowser=True,show_api=False)
+demo.launch(inbrowser=True,show_api=False,server_name="0.0.0.0",server_port=7860)

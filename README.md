@@ -87,7 +87,12 @@ python GradioMain.py
 >在`自动发送消息`中的`发送时间`格式为HH:MM，如`08:00`，`18:00`，`23:59`等
 
 
-## 5.每个文件详细作用
+## 5.额外功能
+### 局域网内访问
+服务器启动YuYuWechat后，同时会监听本机端口，局域网内的其他设备只需要访问ip:7860即可，如`192.168.50.62:7860`
+
+如果想要自定义端口，请在`GradioMain.py`里的`demo.launch(inbrowser=True,show_api=False,server_name="0.0.0.0",server_port=7860)`自行修改
+## 6.每个文件详细作用
 - `GradioMain.py`：主程序，运行此文件即可打开前端🖥️
 - `GradioMain.spec`：Pyinstaller编译配置文件，可以直接运行`pyinstaller GradioMain.spec`编译🔧
 - `AutoSendMessage.py`：自动发送消息定时器⏲️
@@ -96,7 +101,7 @@ python GradioMain.py
 - `SendMessageOnce.py`：发送消息的主要逻辑💬
 - `WechatLocale.py`：微信语言映射🌐
 
-## 6.一些问题的解决方法
+## 7.一些问题的解决方法
 ### 1. 打开程序没有反应
 - windows的bug，有的时候需要在控制台（小黑黑窗口那个）按一下回车
 
@@ -106,7 +111,7 @@ python GradioMain.py
 ### 3.关于发送微信群消息
 发送微信群消息和给好友发送消息是一样的，接受人那一列填群名就可以了，不过在微信群@特定的人，这个功能目前还无法使用
 
-## 7.感谢
+## 8.感谢
 感谢以下项目的启发和帮助
 
 [easyChat](https://github.com/LTEnjoy/easyChat)
