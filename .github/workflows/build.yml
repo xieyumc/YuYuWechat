@@ -1,0 +1,51 @@
+name: Build and Release EXE
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'  # Specify your Python version
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt 
+
+      - name: Build EXE
+        run: |
+          pyinstaller --onefile GradioMain.spec
+
+      - name: Upload EXE to release
+        uses: actions/upload-artifact@v2
+        with:
+          name: GradioMain.exe
+          path: dist/GradioMain.exe  # 确保路径与生成的exe文件相对应
+
+  upload-release-asset:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download EXE artifact
+        uses: actions/download-artifact@v2
+        with:
+          name: GradioMain.exe
+
+      - name: Upload EXE to GitHub Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: GradioMain.exe
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release_id: ${{ github.event.release.id }}
+          overwrite: true
