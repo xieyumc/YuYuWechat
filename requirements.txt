@@ -3,7 +3,6 @@ subprocess
 
 time
 uiautomation
-subprocess
 numpy
 pyperclip
 os
