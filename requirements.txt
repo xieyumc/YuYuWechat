@@ -16,7 +16,6 @@ PyQt5.QtCore
 typing
 
 gradio
-
 openpyxl
 dateutil
 datetime
