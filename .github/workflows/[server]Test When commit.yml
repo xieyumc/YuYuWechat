@@ -27,7 +27,7 @@ jobs:
       - name: Run bat file and test
         id: run_test
         run: |
-          Start-Process -FilePath "D:\a\YuYuWechatV2\YuYuWechatV2\YuYuWechatV2_Server\dist\YuYuWechatV2_Server_run.bat" -NoNewWindow
+          Start-Process -FilePath "D:\a\YuYuWechat\YuYuWechat\YuYuWechatV2_Server\dist\YuYuWechatV2_Server_run.bat" -NoNewWindow
           Start-Sleep -Seconds 10  # 等待服务器启动
           $response = Invoke-RestMethod -Uri http://127.0.0.1:8000/wechat/ping/ -UseBasicParsing
           Write-Output "Response: $response"
