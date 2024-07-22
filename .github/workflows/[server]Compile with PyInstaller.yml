@@ -1,0 +1,60 @@
+name: server_Compile with PyInstaller
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: ./YuYuWechatV2_Server
+    steps:
+      - uses: actions/checkout@v2
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.11'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Compile with PyInstaller
+        run: |
+          pip install pyinstaller
+          pyinstaller YuYuWechatV2_Server.spec
+      - name: Run bat file and test
+        id: run_test
+        run: |
+          Start-Process -FilePath "D:\a\YuYuWechatV2\YuYuWechatV2\YuYuWechatV2_Server\dist\YuYuWechatV2_Server_run.bat" -NoNewWindow
+          Start-Sleep -Seconds 10  # 等待服务器启动
+          $response = Invoke-RestMethod -Uri http://127.0.0.1:8000/wechat/ping/ -UseBasicParsing
+          Write-Output "Response: $response"
+          if ($response.status -eq "pong") {
+            Write-Output "Test passed"
+            echo "test_passed=true" >> $env:GITHUB_ENV
+          } else {
+            Write-Output "Test failed"
+            exit 1
+          }
+      - name: Upload release exe
+        if: env.test_passed == 'true'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: D:\a\YuYuWechatV2\YuYuWechatV2\YuYuWechatV2_Server\dist\YuYuWechatV2_Server.exe
+          asset_name: YuYuWechatV2_Server.exe
+          asset_content_type: application/octet-stream
+      - name: Upload release bat
+        if: env.test_passed == 'true'
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+        with:
+          upload_url: ${{ github.event.release.upload_url }}
+          asset_path: D:\a\YuYuWechatV2\YuYuWechatV2\YuYuWechatV2_Server\dist\YuYuWechatV2_Server_run.bat
+          asset_name: YuYuWechatV2_Server_run.bat
+          asset_content_type: application/octet-stream
