@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Management</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f2f2f7; /* Apple风格背景色 */
+        }
+
+        .sidebar {
+            width: 200px;
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px; /* 新增间距 */
+            border-right: 1px solid #e0e0e0;
+        }
+
+        #connectForm {
+            display: flex;
+            flex-direction: column;
+            gap: 10px; /* 新增间距 */
+        }
+
+        #connectForm .input-container {
+            display: flex;
+            align-items: center;
+        }
+
+        #pingStatus {
+            margin-right: 5px;
+            align-self: center; /* 居中对齐 */
+        }
+
+        #connectForm .input-container input {
+            flex: 1;
+        }
+
+        #connectForm input, #connectForm button {
+            padding: 10px; /* 增加内边距 */
+            margin-bottom: 10px; /* 增加外边距 */
+            font-size: 14px; /* 调整字体大小 */
+            border: 1px solid #ddd;
+            border-radius: 10px; /* 圆角矩形化 */
+        }
+
+        #connectForm button, button[type="submit"], .content button[type="button"] {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            margin-bottom: 10px; /* 增加外边距 */
+            font-size: 14px; /* 调整字体大小 */
+            border-radius: 10px; /* 圆角矩形化 */
+            transition: background-color 0.3s ease;
+        }
+
+        #connectForm button:hover, button[type="submit"]:hover, .content button[type="button"]:hover {
+            background-color: #005bb5;
+        }
+
+        h2 {
+            font-size: 18px; /* 调整标题大小 */
+            margin-bottom: 10px; /* 增加外边距 */
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li {
+            margin-bottom: 10px; /* 增加外边距 */
+        }
+
+        ul li a {
+            text-decoration: none;
+            color: #007aff;
+            padding: 10px;
+            display: block;
+            border-radius: 10px; /* 圆角矩形化 */
+            transition: background-color 0.3s ease;
+        }
+
+        ul li a:hover {
+            background-color: #e0e0e0;
+        }
+
+        .content {
+            flex: 1;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px; /* 圆角矩形化 */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+        }
+
+        .topbar {
+            background-color: #007aff;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            border-radius: 10px; /* 圆角矩形化 */
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+            border-radius: 10px; /* 圆角矩形化 */
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .status-message {
+            transition: opacity 0.5s ease; /* 平滑过渡效果 */
+        }
+
+        select, button {
+            border-radius: 10px; /* 圆角矩形化 */
+            padding: 10px;
+            margin: 5px 0;
+        }
+
+        button[type="submit"] {
+            width: auto; /* 合理大小 */
+            padding: 5px 10px; /* 调整内边距 */
+        }
+    </style>
+    <script>
+        function filterTasks() {
+            var selectedGroup = document.getElementById('groupFilter').value;
+            var rows = document.querySelectorAll('#taskContainer tr');
+            rows.forEach(row => {
+                var group = row.getAttribute('data-group');
+                if (selectedGroup === 'all' || group === selectedGroup) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+
+        function skipExecution(form) {
+            var statusMessage = form.parentNode.nextElementSibling.querySelector('.status-message');
+            statusMessage.style.display = 'block';
+            statusMessage.textContent = '正在处理...';
+            statusMessage.style.opacity = 0;
+            setTimeout(() => statusMessage.style.opacity = 1, 100);
+
+            var formData = new FormData(form);
+
+            fetch('{% url "skip_execution" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                }
+            }).then(response => {
+                if (response.ok) {
+                    return response.json();
+                } else {
+                    throw new Error('Network response was not ok.');
+                }
+            }).then(data => {
+                statusMessage.textContent = '处理成功';
+            }).catch(error => {
+                statusMessage.textContent = '处理失败';
+                console.error('Error:', error);
+            });
+            return false;
+        }
+
+        function skipGroupExecution() {
+            var selectedGroup = document.getElementById('groupFilter').value;
+            if (selectedGroup === 'all') {
+                alert('请选择一个分组');
+                return;
+            }
+
+            var rows = document.querySelectorAll(`#taskContainer tr[data-group='${selectedGroup}']`);
+            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            var totalTasks = rows.length;
+            var processedCount = 0;
+            var successCount = 0;
+            var failureCount = 0;
+            var failedUsers = [];
+
+            if (totalTasks === 0) {
+                alert('当前分组没有任务');
+                return;
+            }
+
+            // 显示进度条
+            var progressContainer = document.getElementById('progressContainer');
+            var progressBar = document.getElementById('progressBar');
+            var progressText = document.getElementById('progressText');
+            progressContainer.style.display = 'block';
+            progressBar.value = 0;
+            progressText.textContent = `正在处理... 0/${totalTasks}`;
+
+            rows.forEach(row => {
+                var form = row.querySelector('form');
+                var formData = new FormData(form);
+
+                fetch('{% url "skip_execution" %}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrfToken
+                    }
+                }).then(response => {
+                    if (response.ok) {
+                        successCount++;
+                        return response.json();
+                    } else {
+                        throw new Error('Network response was not ok.');
+                    }
+                }).catch(error => {
+                    failureCount++;
+                    var username = formData.get('username');
+                    failedUsers.push(username);
+                    console.error('Error:', error);
+                }).finally(() => {
+                    processedCount++;
+                    var progress = (processedCount / totalTasks) * 100;
+                    progressBar.value = progress;
+                    progressText.textContent = `正在处理... ${processedCount}/${totalTasks}`;
+
+                    if (processedCount === totalTasks) {
+                        progressText.textContent = `处理完成！成功: ${successCount}，失败: ${failureCount}`;
+                        if (failedUsers.length > 0) {
+                            alert(`以下用户处理失败: ${failedUsers.join(', ')}`);
+                        }
+                    }
+                });
+            });
+        }
+    </script>
+</head>
+<body>
+<div class="sidebar">
+    <h2>Menu</h2>
+    <ul>
+        <li><a href="{% url 'home' %}">Home</a></li>
+        <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li>
+        <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
+    </ul>
+</div>
+<div class="content">
+    <div class="topbar">
+        <h1>定时任务管理</h1>
+    </div>
+    <div>
+        <label for="groupFilter">选择分组:</label>
+        <select id="groupFilter" onchange="filterTasks()">
+            <option value="all">所有分组</option>
+            {% for group in groups %}
+                <option value="{{ group }}">{{ group }}</option>
+            {% endfor %}
+        </select>
+        <button type="button" onclick="skipGroupExecution()">一键提前发送</button>
+    </div>
+    <div id="progressContainer" style="display: none;">
+        <progress id="progressBar" value="0" max="100"></progress>
+        <p id="progressText">正在处理...</p>
+    </div>
+    <table>
+        <thead>
+        <tr>
+            <th>用户名</th>
+            <th>消息内容</th>
+            <th>分组</th>
+            <th>Cron表达式</th>
+            <th>上次发送时间</th>
+            <th>下次执行时间</th>
+            <th>操作</th>
+            <th>发送状态</th>
+        </tr>
+        </thead>
+        <tbody id="taskContainer">
+        {% for task in tasks %}
+            <tr data-group="{{ task.group }}">
+                <td>{{ task.user.username }}</td>
+                <td>{{ task.text }}</td>
+                <td>{{ task.group }}</td>
+                <td>{{ task.cron_expression }}</td>
+                <td>{{ task.last_executed }}</td>
+                <td>{{ task.next_run }}</td>
+                <td>
+                    <form method="post" onsubmit="return skipExecution(this);">
+                        {% csrf_token %}
+                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                        <button type="submit">提前发送</button>
+                    </form>
+                </td>
+                <td>
+                    <span class="status-message" style="display:none;"></span>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+</body>
+</html>

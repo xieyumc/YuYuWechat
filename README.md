@@ -1,133 +1,218 @@
 <h1 align="center"> 🌧️YuYuWechat</h1>
 
-一个让微信定期自动发送消息，定期循环重复发送消息，群发消息的小工具🚀
-![img.png](READMEImg/img.png)
+一个让微信批量发送消息，定时自动发送消息的小工具🚀
+
+![img.png](img/img.png)
+<h6 align="center">首页管理界面
+
+![img_1.png](img/img_1.png)
+<h6 align="center">批量发送消息
+
+![img_2.png](img/img_2.png)
+<h6 align="center">定时发送消息
+
+![img_3.png](img/img_3.png)
+<h6 align="center">后台管理界面
 
 # ✨功能特点
-✅定期发送消息：按计划在设定的日期发送消息⏰
 
-✅循环发送消息：可设定周期性重复发送消息🔄
+✅自动发送消息：自动检查时间并在对应时刻发送消息🤖（基于cron表达式，可精确到分钟）
 
-✅自动发送消息：自动检查时间并在对应时刻发送消息🤖
+✅循环发送消息：cron表达式可设置任意循环作业🔄
 
-✅群发消息：一次性向多个好友发送消息👥
+✅群发消息：一次性向多个好友发送不同的消息👥
 
-✅可部署在服务器上，使用链接访问：便于远程管理和操作（Gradio的share功能）🌍
+✅全平台支持，轻松部署在服务器上，服务端部署在win平台接受客户端的请求，客户端可部署到任意平台🌍
 
-### 计划增加功能：
-- [ ] 定期发送功能精确到分钟（目前精确到天）⏱️
-- [ ] 发送消息后检查好友的回复，收到特定回复执行特定操作（如开始新循环或不再发送）🔍
-- [ ] 格式化消息，方便轻松针对不同好友发送不同消息，不需要每个好友都写一遍发送的消息✍️
+# 1. 介绍
 
-## 1. 介绍
-本人的工作涉及定期给微信好友发送消息，无奈手动发送实在太累了还容易出错，因此做了这个小工具🛠️，
-并用之前折腾AI的三脚猫功夫做了一个前端（Gradio）方便使用🎨
+本项目分为2部分，服务端和客户端：
 
-## 2. 运行
-### 直接运行编译好的exe文件（推荐）💾
-在 [Releases](https://github.com/xieyumc/YuYuWechat/releases) 界面下载最新编译好的exe文件，双击运行👆
-### 从源码运行💻
-安装依赖
+## YuYuWechatV2_Server服务端
+
+![img_4.png](img/img_4.png)  
+
+服务端是一个轻量的服务器，和微信一起安装在win上，接受客户端的网络请求并对微信进行自动化操作
+
+### 服务端接受两个请求：
+
+- `/ping`：检查服务端是否正常运行，返回`'status': 'pong'`
+- `/send_message/`：发送消息，接受json格式的数据`name`、`text`，并对微信进行自动化操作
+
+### 并发保证
+
+服务端有消息队列和互斥锁，只需要把消息发送给服务端，服务端会自动处理消息队列，保证消息依次发送
+
+## YuYuWechatV2_Client客户端
+
+![img_5.png](img/img_5.png)
+客户端是一个轻量的前端，可以在任意平台上运行，通过网络请求发送消息给服务端
+
+### 客户端功能
+
+- `首页`：连接服务器ip，导入导出数据库，启动定时任务
+- `发送消息管理`：批量发送消息
+- `定时任务管理`：定时发送消息
+- `数据管理界面`：管理数据库内容，编辑发送消息
+
+# 2. 运行服务端
+
+**为了简化服务端配置，请把微信安装在`C:/Program Files/Tencent/WeChat/WeChat.exe`，这个位置是默认的微信安装位置，如果你微信安装在其他地方，请创建一个快捷方式在这里**
+
+## 使用编译后EXE直接运行（推荐）
+
+- 在release界面找到最新的版本，下载`YuYuWechatV2_Server.exe`和`YuYuWechatV2_Server_run.bat`
+
+- 两个文件放在同一个目录下，双击`YuYuWechatV2_Server_run.bat`即可运行
+
+###### ⚠️Windows的bug，有的时候若是打开bat没反应，需要在控制台（小黑黑窗口那个）按一下回车
+
+## 使用源码运行
+
+- cd到`YuYuWechatV2_Server`目录下
+
+- 安装依赖`pip install -r requirements.txt`
+
+- 运行`python manage.py runserver 0.0.0.0:8000`
+
+## 测试服务端是否正常运行
+
+上一步安装并运行服务端后，可以用简单的命令测试服务端是否成功运行
+
+打开终端（powershell）：
+
+### 测试服务端是否正常启动
+
 ```shell
-pip install -r requirements.txt
+curl http://127.0.0.1:8000/wechat/ping
 ```
-运行
+
+正常会返回
+
 ```shell
-python GradioMain.py
+StatusCode        : 200
+StatusDescription : OK
+Content           : {"status": "pong"}
+RawContent        : HTTP/1.1 200 OK
+                    Vary: origin
+                    X-Frame-Options: DENY
+                    X-Content-Type-Options: nosniff
+                    Referrer-Policy: same-origin
+                    Cross-Origin-Opener-Policy: same-origin
+                    Content-Length: 18
+                    Content-Type: applicat...
+Forms             : {}
+Headers           : {[Vary, origin], [X-Frame-Options, DENY], [X-Content-Type-Options, nosniff], [Referrer-Policy, same
+                    -origin]...}
+Images            : {}
+InputFields       : {}
+Links             : {}
+Links             : {}                                                                                                  ParsedHtml        : System.__ComObject                                                                                  RawContentLength  : 18
 ```
 
+### 测试自动化功能
 
-## 3.详细介绍
-### Excel表格📊
+```shell
+$jsonData = '{"name": "文件传输助手", "text": "hi"}'
+Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -Headers @{"Content-Type"="application/json"} -Body $jsonData -ContentType "application/json; charset=utf-8"
+```
+这个命令会给文件传输助手发送一条消息hi
 
-管理发送消息需要一个Excel文件，需要4列信息：
-1. `接收人`
-2. `消息内容`
-3. `发送日期`
-4. `循环日期`
+# 3.运行客户端
+## 使用docker运行（推荐）
+我已经编译好了x86和arm的docker镜像，Windows/mac/Linux的x86和arm架构均可运行
 
-如图所示：  
+- 在release界面找到最新的版本，下载`docker-compose.yml`文件
+- 运行`docker-compose up`即可运行
 
-![img_4.png](READMEImg/img_4.png)   
+###### 这个docker文件会拉取两个镜像，一个是`mona233/yuyuwechatv2_client:latest`，另一个是`redis:latest`，因为定时任务的celery需要一个消息队列，我默认使用redis，端口为6379
+###### 如果你从docker hub拉取镜像有困难，可以在release界面找到最新版本的`yuyuwechatv2_client.tar.gz`，这是编译好的docker镜像，导入本地docker即可
 
-`接收人`：可以是微信好友的备注名或者微信号，只要在搜索结果中排名第一
+## 从源码运行
+如果你想自定义数据库结构和增加功能，可以从源码运行
 
-`消息内容`：要发送的消息  
+- cd到`YuYuWechatV2_Client`目录下
+- 安装依赖`pip install -r requirements.txt`
+- 运行`python manage.py runserver 127.0.0.1:7500`
 
-`发送日期`：消息发送的日期，**此列需要在Excel中设置为日期格式**  
-
-`循环日期`：消息循环发送的增量，**此列需要在Excel中设置为文本格式，格式为年-月-日**  
-如`0-0-1`表示每天发送一次，`0-1-0`表示每月发送一次
-
-我已经在项目根目录里做好了一个示例的excel，也可以直接下载下来更改内容📂`ExcelExample.xlsx`
-
-### 运行原理
-程序开始运行，会从表格中`发送日期`列筛选日期为今天的用户，然后发送对应的消息  
-
-发送消息后，会给`发送日期`加上`循环日期`，实现循环发送日期，   
-
-例如今天是`2024/4/1`，符合日期条件的有`用户A`和`用户B`，  
-给`用户A`发送消息后，会把`发送日期`增加一个月，变成`2024/5/1`，  
-给`用户B`发送消息后，会把`发送日期`增加一年一月一天，变成`2025/5/2`，  
-这样就实现了循环发送消息的功能
-
-自动发送信息则是在以上基础上，每分钟检查一次时间，到达`发送时间`则发送消息
+## 使用编译后EXE直接运行  
+### ⚠️⚠️⚠️不推荐，缺少定时功能，请勿用在生产环境
 
 
+**客户端的定时功能需要celery和redis支持，这两个库编译成exe非常困难，所以exe版本没有定时功能**  
 
-## 4.运行步骤
-打开程序，会自动打开浏览器🌐，  
+**exe版本由GitHub Action自动编译，虽然源码有单元测试，但是并没有对编译后的exe进行测试，所以不保证可靠性**
 
-选择仅`发送一次消息`，或者设置`自动发送消息`⏲️，  
+- 在release界面找到最新的版本，下载`YuYuWechatV2_Client.exe`和`YuYuWechatV2_Client_run.bat`
+- 两个文件放在同一个目录下，双击`YuYuWechatV2_Client_run.bat`即可运行
 
-按照提示填好信息，我在网页最下面写好了一个`示例`📝，可直接点击应用或根据实际情况填写，  
+## 打开客户端
 
-点击`发送`按钮，即可发送消息✅
-> 注意事项：发送消息时不要操作键盘鼠标，不然可能导致发送失败  
->在`自动发送消息`中的`发送时间`格式为HH:MM，如`08:00`，`18:00`，`23:59`等
+### 在本地浏览器输入`127.0.0.1:7500`即可打开前端首页
+![img_9.png](img/img_9.png)
+- 首先需要连接服务器，输入服务器的ip地址和端口，如`192.168.50.1:8000`，然后点击ping测试服务器是否连通，连通后，点击保存服务器ip即可持久化保存到数据库，下次不需要再配置服务器ip  
+- 数据库导入导出功能可以方便备份和还原
+- 点击`启动定时任务`，才会启动定时发送任务
+
+其他功能在侧边栏点击即可跳转到对应的界面，前端网页只涉及对数据库的查看和发送操作，对用户和消息内容的增加，删除，修改均需要在后台管理界面进行，这样可以保证数据的安全性
 
 
-## 5.额外功能
-### 局域网内访问
-服务器启动YuYuWechat后，同时会监听本机端口，局域网内的其他设备只需要访问ip:7860即可，如`192.168.50.62:7860`
+### 在本地浏览器输入`127.0.0.1:7500/admin`，可以进入后台管理界面，  默认用户名`admin`，密码为`admin@django`
+![img_10.png](img/img_10.png)
 
-如果想要自定义端口，请在`GradioMain.py`里的`demo.launch(inbrowser=True,show_api=False,server_name="0.0.0.0",server_port=7860)`自行修改
-## 6.每个文件详细作用
-- `GradioMain.py`：主程序，运行此文件即可打开前端🖥️
-- `GradioMain.spec`：Pyinstaller编译配置文件，可以直接运行`pyinstaller GradioMain.spec`编译🔧
-- `AutoSendMessage.py`：自动发送消息定时器⏲️
-- `AutoWechat.py`：微信自动化各种操作🤖
-- `ProcessedExcel.py`：处理Excel表格，读取数据等📑
-- `SendMessageOnce.py`：发送消息的主要逻辑💬
-- `WechatLocale.py`：微信语言映射🌐
+在client_app里是客户端的数据，可以看到有4个数据表
 
-## 7.一些问题的解决方法
-### 1. 打开程序没有反应
-- windows的bug，有的时候需要在控制台（小黑黑窗口那个）按一下回车
+- `Messages`：发送消息管理的数据表
+- `Scheduled messages`：定时任务管理的数据表
+- `Server configs`：服务端配置
+- `Wechat users`：微信用户数据表
 
-### 2.` Find Control Timcoutll0s): {Dcpth: 15, Name:'发送(S)'ControlType: ButtonControl}`这种错误
-参考[#5](https://github.com/xieyumc/YuYuWechat/issues/5)，这个问题一般是微信版本问题，当前最新版本`3.9.10.27`(2024/6/5)是没问题的，遇到问题先更新一下微信版本
+#### 首先先创建一个微信用户  
 
-### 3.关于发送微信群消息
-发送微信群消息和给好友发送消息是一样的，接受人那一列填群名就可以了，不过在微信群@特定的人，这个功能目前还无法使用
+![img_11.png](img/img_11.png)
 
-## 8.感谢
-感谢以下项目的启发和帮助
+- `Username`：微信好友名字或者备注名，必须在搜索结果中排名第一（**必填**）
+- `Wechatid`：微信号（**非必填**）
+- `Date added`：好友添加日期（**非必填**）
+- `Group:`：好友分组，前端网页可以根据分组筛选好友，方便分组管理（**非必填**）
 
-[easyChat](https://github.com/LTEnjoy/easyChat)
+#### 然后再创建消息，这里以定时消息为例
+![img_12.png](img/img_12.png)
 
-[wxauto](https://github.com/cluic/wxauto)
+- `Is active`：本条消息是否激活，激活后才会定时发送，默认是激活的
+- `User`：选择在上一步增加的微信用户（**必填**）
+- `Text`：发送的消息内容（**必填**）
+- `Cron expression`：cron表达式，定时发送的时间，格式为`* * * * *`，分别代表`分 时 日 月 周`（**必填**）
+- `Execution count:`：消息的执行次数，0为不执行，每次执行后会减一，直到为0，这样可以控制消息的发送次数（**需要手动设置次数**）
+- `Execution skip`：消息的跳过次数，默认为0。若设置为1，则下次不会执行任务，下下次才会，若设置为2，则会跳过两次任务，以此类推，这样可以控制定时发送消息的开始（**非必填**）
 
-[uiautomation](https://github.com/yinkaisheng/Python-UIAutomation-for-Windows)
+通过`cron表达式`和`消息的执行次数`和`消息的跳过次数`，即可实现消息的任意时刻开始，结束，在任意时间发送消息，循环发送消息
 
-[Gradio](https://www.gradio.app)
+关于`cron表达式`，本程序是5段式的cron表达式，精确到分钟，请不要和7段式搞混  
+网上有在线生成器或者ChatGPT生成也可以
+以下是一些例子
+```
+* * * * *：每分钟执行一次
+0 * * * *：每小时执行一次
+0 0 * * *：每天执行一次
+0 0 * * 1：每周一执行一次
+
+
+*/10 * * * * # 每10分钟执行一次
+0 0 */2 * * # 每隔一天午夜12点执行
+0 0 * * 1    # 每周一午夜12点执行
+0 0 1 * *    # 每月1日午夜12点执行
+0 0 * * 1 [ "$(date +\%d)" -le 7 ]    # 每个月的第一个周一午夜12点执行
+```
+
+# 4.可靠性
+[![codecov](https://codecov.io/github/xieyumc/YuYuWechatV2/graph/badge.svg?token=X9B7H5CHQE)](https://codecov.io/github/xieyumc/YuYuWechatV2)
+
+本项目部署了单元测试，GitHub Action测试以及人工测试，最大程度避免bug的产生，但是仍然可能存在未知的bug，如果遇到问题欢迎提issue👏
+
+
+# 5.感谢
+
+[easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
 
 如果这个小工具正好对你有帮助，欢迎点个star⭐，谢谢！
-
-有问题欢迎提issue，我会尽快回复📬
-
-有更多需求或者想要更多功能，也欢迎提issue📈
-
-
-
-

@@ -1,0 +1,17 @@
+services:
+  redis:
+    image: redis:latest
+    container_name: redis
+    ports:
+      - "6379:6379"
+
+  yuyuwechatv2_client:
+    image: mona233/yuyuwechatv2_client:latest
+    container_name: yuyuwechatv2_client
+    ports:
+      - "7500:7500"
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379

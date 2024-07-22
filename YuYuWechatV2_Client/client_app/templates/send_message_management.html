@@ -1,0 +1,354 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            height: 100vh;
+            background-color: #f2f2f7;
+        }
+
+        .sidebar {
+            width: 200px;
+            background-color: #ffffff;
+            padding: 20px;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            border-right: 1px solid #e0e0e0;
+        }
+
+        #connectForm {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        #connectForm .input-container {
+            display: flex;
+            align-items: center;
+        }
+
+        #pingStatus {
+            margin-right: 5px;
+            align-self: center;
+        }
+
+        #connectForm .input-container input {
+            flex: 1;
+        }
+
+        #connectForm input, #connectForm button {
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        #connectForm button, button[type="submit"], .content button[type="button"], button.skip-button {
+            background-color: #007aff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-radius: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        #connectForm button:hover, button[type="submit"]:hover, .content button[type="button"]:hover, button.skip-button:hover {
+            background-color: #005bb5;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        ul li {
+            margin-bottom: 10px;
+        }
+
+        ul li a {
+            text-decoration: none;
+            color: #007aff;
+            padding: 10px;
+            display: block;
+            border-radius: 10px;
+            transition: background-color 0.3s ease;
+        }
+
+        ul li a:hover {
+            background-color: #e0e0e0;
+        }
+
+        .content {
+            flex: 1;
+            padding: 20px;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+            margin: 20px;
+        }
+
+        .topbar {
+            background-color: #007aff;
+            color: white;
+            padding: 10px;
+            text-align: center;
+            border-radius: 10px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        table, th, td {
+            border: 1px solid #ddd;
+            border-radius: 10px;
+        }
+
+        th, td {
+            padding: 8px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+
+        .status-message {
+            transition: opacity 0.5s ease;
+        }
+
+        select, button {
+            border-radius: 10px;
+            padding: 10px;
+            margin: 5px 0;
+        }
+
+        button.skip-button {
+            background-color: #ccc;
+            color: white;
+            cursor: pointer;
+        }
+
+        button.skip-button.active {
+            background-color: #007aff;
+        }
+    </style>
+    <script>
+        function filterMessages() {
+            var selectedGroup = document.getElementById('groupFilter').value;
+            var rows = document.querySelectorAll('#messageContainer tr');
+            rows.forEach(row => {
+                var group = row.getAttribute('data-group');
+                if (selectedGroup === 'all' || group === selectedGroup) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</head>
+<body>
+<div class="sidebar">
+    <h2>Menu</h2>
+    <ul>
+        <li><a href="{% url 'home' %}">Home</a></li>
+        <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li> <!-- 新增链接 -->
+        <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li> <!-- 新增链接 -->
+    </ul>
+</div>
+<div class="content">
+    <div class="topbar">
+        <h1>发送消息管理</h1>
+
+    </div>
+    <div>
+        <label for="groupFilter">选择分组:</label>
+        <select id="groupFilter" onchange="filterMessages()">
+            <option value="all">所有分组</option>
+            {% for group in groups %}
+                <option value="{{ group }}">{{ group }}</option>
+            {% endfor %}
+        </select>
+        <button type="button" onclick="sendGroupMessage()">一键发送</button> <!-- 新增一键发送按钮 -->
+    </div>
+    <div id="progressContainer" style="display: none;">
+        <progress id="progressBar" value="0" max="100"></progress>
+        <p id="progressText">正在发送消息...</p>
+    </div>
+    <table>
+        <thead>
+        <tr>
+            <th>用户名</th>
+            <th>发送消息</th>
+            <th>分组</th>
+            <th>操作</th>
+            <th>发送状态</th>
+        </tr>
+        </thead>
+        <tbody id="messageContainer">
+        {% for message in messages %}
+            <tr data-group="{{ message.group }}">
+                <td>{{ message.user.username }}</td>
+                <td>{{ message.text }}</td>
+                <td>{{ message.group }}</td>
+                <td>
+                    <form method="post" onsubmit="return sendMessage(this);">
+                        {% csrf_token %}
+                        <input type="hidden" name="username" value="{{ message.user.username }}">
+                        <input type="hidden" name="text" value="{{ message.text }}">
+                        <input type="hidden" id="server_ip_hidden" name="server_ip">
+                        <button type="submit">单次发送</button>
+                        <button type="button" class="skip-button" onclick="toggleSkip(this)">本轮发送</button>
+                    </form>
+                </td>
+                <td>
+                    <span class="status-message" style="display:none;"></span>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script>
+
+    function toggleSkip(button) {
+        if (button.classList.contains('active')) {
+            button.classList.remove('active');
+            button.textContent = '本轮发送';
+        } else {
+            button.classList.add('active');
+            button.textContent = '本轮不发送';
+        }
+    }
+
+    function sendMessage(form) {
+        var statusMessage = form.parentNode.nextElementSibling.querySelector('.status-message');
+        statusMessage.style.display = 'block';
+        statusMessage.textContent = '正在发送...';
+        statusMessage.style.opacity = 0;
+        setTimeout(() => statusMessage.style.opacity = 1, 100);
+
+        var formData = new FormData(form);
+        formData.append('server_ip', document.getElementById('server_ip_hidden').value);
+
+        fetch('{% url "send_message" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+            }
+        }).then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('Network response was not ok.');
+            }
+        }).then(data => {
+            statusMessage.textContent = '发送成功';
+        }).catch(error => {
+            statusMessage.textContent = '发送失败';
+            console.error('Error:', error);
+        });
+        return false;
+    }
+
+
+    function sendGroupMessage() {
+        var selectedGroup = document.getElementById('groupFilter').value;
+        if (selectedGroup === 'all') {
+            alert('请选择一个分组');
+            return;
+        }
+
+        var rows = document.querySelectorAll(`#messageContainer tr[data-group='${selectedGroup}']`);
+        var serverIp = document.getElementById('server_ip_hidden').value;
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        var totalMessages = rows.length;
+        var sentCount = 0;
+        var successCount = 0;
+        var failureCount = 0;
+        var failedUsers = [];
+
+        if (totalMessages === 0) {
+            alert('当前分组没有用户');
+            return;
+        }
+
+        document.getElementById('progressContainer').style.display = 'block';
+        var progressBar = document.getElementById('progressBar');
+        var progressText = document.getElementById('progressText');
+
+        rows.forEach(row => {
+            var skipButton = row.querySelector('.skip-button');
+            // 如果设置为“本轮不发送”，则跳过这条消息
+            if (skipButton && skipButton.classList.contains('active')) {
+                sentCount++;  // 还需增加计数，确保进度条能正确更新
+                updateProgress(sentCount, totalMessages, progressBar, progressText, successCount, failureCount, failedUsers);
+                return;
+            }
+
+            var form = row.querySelector('form');
+            var formData = new FormData(form);
+            formData.append('server_ip', serverIp);
+
+            fetch('{% url "send_message" %}', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': csrfToken
+                }
+            }).then(response => {
+                if (response.ok) {
+                    successCount++;
+                    return response.json();
+                } else {
+                    throw new Error('Network response was not ok.');
+                }
+            }).catch(error => {
+                failureCount++;
+                var username = formData.get('username');
+                failedUsers.push(username);
+                console.error('Error:', error);
+            }).finally(() => {
+                sentCount++;
+                updateProgress(sentCount, totalMessages, progressBar, progressText, successCount, failureCount, failedUsers);
+            });
+        });
+    }
+
+    function updateProgress(sentCount, totalMessages, progressBar, progressText, successCount, failureCount, failedUsers) {
+        var progress = (sentCount / totalMessages) * 100;
+        progressBar.value = progress;
+        progressText.textContent = `正在发送消息... ${sentCount}/${totalMessages}`;
+
+        if (sentCount === totalMessages) {
+            progressText.textContent = `发送完成！成功: ${successCount}，失败: ${failureCount}`;
+            if (failedUsers.length > 0) {
+                alert(`以下用户发送失败: ${failedUsers.join(', ')}`);
+            }
+        }
+    }
+</script>
+</body>
+</html>
