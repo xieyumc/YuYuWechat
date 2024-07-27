@@ -327,7 +327,7 @@
             if (response.ok) {
                 // 状态检查延时开始
                 updateCeleryStatusMessage('检查中...');
-                setTimeout(checkCeleryStatus, 2000); // 2 秒后检查并更新 Celery 状态
+                setTimeout(checkCeleryStatus, 1000); // 1秒后检查并更新 Celery 状态
             } else {
                 alert('启动 Celery 失败');
             }
@@ -347,7 +347,7 @@
             if (response.ok) {
                 // 状态检查延时开始
                 updateCeleryStatusMessage('检查中...');
-                setTimeout(checkCeleryStatus, 2000); // 2 秒后检查并更新 Celery 状态
+                setTimeout(checkCeleryStatus, 2000); // 2秒后检查并更新 Celery 状态
             } else {
                 alert('取消 Celery 失败');
             }
