@@ -52,7 +52,7 @@ def schedule_management(request):
     tasks = ScheduledMessage.objects.all()
     now = timezone.localtime(timezone.now())
     for task in tasks:
-        if task.is_active:
+        if task.is_active and task.execution_count > 0:
             # 计算下次执行时间
             base = now
             iter = croniter(task.cron_expression, base)
@@ -74,6 +74,7 @@ def schedule_management(request):
 
 @csrf_exempt
 def skip_execution(request):
+    # 这里是提前发送的处理函数
     if request.method == 'POST':
         task_id = request.POST.get('task_id')
         try:
