@@ -51,12 +51,27 @@ def send_message_management(request):
 def schedule_management(request):
     tasks = ScheduledMessage.objects.all()
     now = timezone.localtime(timezone.now())
+
+    # 检查 Celery 是否运行
+    celery_running = False
+    try:
+        result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
+        celery_running = bool(result.stdout)
+    except Exception as e:
+        pass
+
+    if not celery_running:
+        celery_status = "celery未运行"
+    else:
+        celery_status = ""
+
     for task in tasks:
-        if task.is_active and task.execution_count > 0:
+        if not celery_running:
+            task.next_run = celery_status
+        elif task.is_active and task.execution_count > 0:
             # 计算下次执行时间
             base = now
             iter = croniter(task.cron_expression, base)
-
             next_time = iter.get_next(datetime)
             skip_count = task.execution_skip
 
@@ -70,7 +85,9 @@ def schedule_management(request):
             task.next_run = "不运行"
 
     groups = WechatUser.objects.values_list('group', flat=True).distinct()  # 获取所有分组
-    return render(request, 'schedule_management.html', {'tasks': tasks, 'groups': groups})
+    return render(request, 'schedule_management.html',
+                  {'tasks': tasks, 'groups': groups, 'celery_status': celery_status})
+
 
 @csrf_exempt
 def skip_execution(request):
