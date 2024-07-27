@@ -50,7 +50,7 @@
         .input-container {
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
+            gap: 5px; /* 调整间隙大小 */
         }
 
         #pingStatus {
@@ -58,8 +58,15 @@
             align-self: center;
         }
 
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 2px; /* 减小状态指示灯和文字之间的间隔 */
+        }
+
         .input-container input {
             flex: 1;
+            max-width: 70%; /* 限制输入框宽度，根据实际情况调整 */
         }
 
         input, button {
@@ -161,6 +168,12 @@
             cursor: pointer;
         }
 
+        .button-status-container {
+            display: flex;
+            align-items: center; /* 保证按钮和状态消息在同一行且垂直居中 */
+            gap: 10px; /* 在元素间增加一些间隔 */
+        }
+
         button.skip-button.active {
             background-color: #007aff;
         }
@@ -207,14 +220,17 @@
             <form id="connectForm" method="post" action="">
                 {% csrf_token %}
                 <div class="input-container">
-        <span id="pingStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-                    <input type="text" id="server_ip" name="server_ip" placeholder="Enter Server IP" style="flex: 1;">
-                    <input type="hidden" id="server_ip_hidden" name="server_ip"> <!-- 添加隐藏的 input -->
+                     <span id="pingStatus"
+                          style="height: 10px; width: 10px; background-color: gray; border-radius: 50%;"></span>
+                    <div id="pingMessage" class="status-indicator">检查中...</div>
+                    <input type="text" id="server_ip" name="server_ip" placeholder="Enter Server IP">
+                    <input type="hidden" id="server_ip_hidden" name="server_ip">
 
                 </div>
-                <button type="button" onclick="connectServer()">Ping Server</button>
-                <button type="button" onclick="updateServerIP()">Set as Server IP</button>
+                <div>
+                    <button type="button" onclick="connectServer()">Ping服务器</button>
+                    <button type="button" onclick="updateServerIP()">保存服务器IP到数据库</button>
+                </div>
             </form>
         </div>
         <div class="card">
@@ -256,9 +272,11 @@
         var serverIp = document.getElementById('server_ip').value;
         var pingUrl = `http://${serverIp}/wechat/ping/`; // 构建完整的 URL
         var pingIndicator = document.getElementById('pingStatus');
+        var pingMessage = document.getElementById('pingMessage'); // 假设你已经添加了一个ID为pingMessage的元素来显示消息
 
         // 显示正在检测的状态
         pingIndicator.style.backgroundColor = 'orange';
+        pingMessage.textContent = "检查连接..."; // 显示检查连接的消息
 
         // 设置超时时间
         const timeoutPromise = new Promise((resolve, reject) => {
@@ -279,8 +297,7 @@
             .then(data => {
                 if (data.status === "pong") {
                     pingIndicator.style.backgroundColor = 'green';
-                    alert('Server connected: ' + serverIp);
-                    document.getElementById('server_ip_hidden').value = serverIp;
+                    pingMessage.textContent = "已连接到服务器";
                 } else {
                     throw new Error('Server did not respond correctly.');
                 }
@@ -290,7 +307,7 @@
             .catch(error => {
                 // 捕获网络、超时或其他错误
                 pingIndicator.style.backgroundColor = 'red';
-                alert(error.message);
+                pingMessage.textContent = "未连接到服务器";
                 console.error('Error:', error);
             });
     }
