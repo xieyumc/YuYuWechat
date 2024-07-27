@@ -235,7 +235,12 @@
         </div>
 
         <div class="card">
-            <h3>定时任务管理</h3>
+            <h3>定时任务状态</h3>
+            <div class="input-container">
+        <span id="celeryStatus"
+              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+                <span id="celeryMessage">检查中...</span>
+            </div>
             <button type="button" onclick="startCelery()">启动定时任务</button>
             <button type="button" onclick="stopCelery()">取消定时任务</button>
         </div>
@@ -320,7 +325,9 @@
             },
         }).then(response => {
             if (response.ok) {
-                alert('Celery 已启动');
+                // 状态检查延时开始
+                updateCeleryStatusMessage('检查中...');
+                setTimeout(checkCeleryStatus, 2000); // 2 秒后检查并更新 Celery 状态
             } else {
                 alert('启动 Celery 失败');
             }
@@ -338,7 +345,9 @@
             },
         }).then(response => {
             if (response.ok) {
-                alert('Celery 已取消');
+                // 状态检查延时开始
+                updateCeleryStatusMessage('检查中...');
+                setTimeout(checkCeleryStatus, 2000); // 2 秒后检查并更新 Celery 状态
             } else {
                 alert('取消 Celery 失败');
             }
@@ -347,6 +356,40 @@
             console.error('Error:', error);
         });
     }
+
+
+    function updateCeleryStatusMessage(message) {
+        var celeryMessage = document.getElementById('celeryMessage');
+        celeryMessage.textContent = message;
+    }
+
+    function checkCeleryStatus() {
+        var celeryIndicator = document.getElementById('celeryStatus');
+        var celeryMessage = document.getElementById('celeryMessage');
+
+        // 发送请求到后端以检查 Celery 状态
+        fetch('{% url "check_celery_running" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'Celery is running') {
+                    celeryIndicator.style.backgroundColor = 'green';
+                    celeryMessage.textContent = 'Celery 正在运行';
+                } else {
+                    celeryIndicator.style.backgroundColor = 'red';
+                    celeryMessage.textContent = 'Celery 未运行';
+                }
+            })
+            .catch(error => {
+                celeryIndicator.style.backgroundColor = 'red';
+                celeryMessage.textContent = '状态检查失败';
+                console.error('Error:', error);
+            });
+    }
+
+    // 当文档加载完毕时，检查 Celery 状态
+    document.addEventListener('DOMContentLoaded', function () {
+        checkCeleryStatus();
+    });
 
 </script>
 </body>

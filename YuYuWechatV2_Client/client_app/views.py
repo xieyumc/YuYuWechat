@@ -183,3 +183,15 @@ def stop_celery(request):
         return JsonResponse({'status': 'Celery stopped'}, status=200)
     except Exception as e:
         return JsonResponse({'status': 'Failed to stop Celery', 'error': str(e)}, status=500)
+
+
+def check_celery_running(request):
+    try:
+        # 检查系统中运行的进程并搜索包含'celery'的进程
+        result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
+        if result.stdout:
+            return JsonResponse({'status': 'Celery is running'}, status=200)
+        else:
+            return JsonResponse({'status': 'Celery is not running'}, status=404)
+    except Exception as e:
+        return JsonResponse({'status': 'Failed to check Celery status', 'error': str(e)}, status=500)
