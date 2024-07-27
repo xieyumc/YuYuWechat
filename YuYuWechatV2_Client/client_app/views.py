@@ -13,11 +13,9 @@ from croniter import croniter
 from datetime import datetime, timedelta
 
 
-def get_server_ip():
-    try:
-        return ServerConfig.objects.latest('id').server_ip
-    except ServerConfig.DoesNotExist:
-        return None  # 或者返回一个默认的IP地址
+def get_server_ip(request):
+    server_ip = ServerConfig.objects.latest('id').server_ip if ServerConfig.objects.exists() else "none"
+    return JsonResponse({'server_ip': server_ip})
 
 
 @csrf_exempt
@@ -101,7 +99,7 @@ def skip_execution(request):
 
             # 发送消息
             user = task.user
-            server_ip = get_server_ip()
+            server_ip = ServerConfig.objects.latest('id').server_ip
 
             if not server_ip:
                 return JsonResponse({'status': "Server IP not set"}, status=400)
@@ -133,7 +131,7 @@ def send_message(request):
     if request.method == 'POST':
         username = request.POST.get('username')
         text = request.POST.get('text')
-        server_ip = get_server_ip()  # 更新获取IP的方式
+        server_ip = ServerConfig.objects.latest('id').server_ip  # 更新获取IP的方式
 
         if not server_ip:
             return JsonResponse({'status': "Server IP not set"}, status=400)

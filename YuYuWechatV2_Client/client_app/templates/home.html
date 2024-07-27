@@ -386,8 +386,21 @@
             });
     }
 
+    function fetchServerIP() {
+        fetch('{% url "get_server_ip" %}')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('server_ip').value = data.server_ip; // 设置输入框的值为获取到的IP
+                connectServer(); // 页面加载时自动Ping服务器
+            })
+            .catch(error => {
+                console.error('Failed to fetch server IP:', error);
+            });
+    }
+
     // 当文档加载完毕时，检查 Celery 状态
     document.addEventListener('DOMContentLoaded', function () {
+        fetchServerIP(); // 新增这个函数来在页面加载时获取服务器IP
         checkCeleryStatus();
     });
 

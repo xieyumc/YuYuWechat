@@ -1,10 +1,11 @@
 from django.urls import path
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
-    import_database, start_celery, stop_celery, skip_execution,check_celery_running
+    import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip
 
 urlpatterns = [
     path('', home, name='home'),
     path('send_message/', send_message, name='send_message'),
+    path('get_server_ip/', get_server_ip, name='get_server_ip'),
     path('set_server_ip/', set_server_ip, name='set_server_ip'),
     path('schedule_management/', schedule_management, name='schedule_management'),
     path('send_message_management/', send_message_management, name='send_message_management'),
