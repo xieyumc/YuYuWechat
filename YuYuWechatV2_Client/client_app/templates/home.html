@@ -164,6 +164,28 @@
         button.skip-button.active {
             background-color: #007aff;
         }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+
+            .main-content {
+                width: 100%;
+                padding-top: 0;
+            }
+
+            .card {
+                width: calc(100% - 40px); /* 调整卡片宽度以适应屏幕 */
+            }
+        }
     </style>
 </head>
 <body>

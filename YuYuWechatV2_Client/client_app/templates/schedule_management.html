@@ -147,6 +147,43 @@
             width: auto; /* 合理大小 */
             padding: 5px 10px; /* 调整内边距 */
         }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+            }
+
+            .sidebar {
+                width: 100%;
+                height: auto;
+                padding: 10px;
+                border-right: none;
+                border-bottom: 1px solid #e0e0e0;
+            }
+
+            .content {
+                margin: 10px;
+                padding: 10px;
+            }
+
+            table {
+                font-size: 12px; /* 减小字体大小以适应屏幕 */
+            }
+
+            th, td {
+                padding: 5px; /* 减小表格单元格的内边距 */
+            }
+
+            #connectForm, #connectForm .input-container, .input-container input, #connectForm button, button[type="submit"], .content button[type="button"] {
+                width: 100%; /* 宽度调整为100%，确保充满屏幕 */
+                box-sizing: border-box; /* 确保宽度包括内边距和边框 */
+            }
+
+            select, button {
+                width: 100%; /* 下拉框和按钮宽度调整为100% */
+                margin-bottom: 10px; /* 增加间距以便触摸操作 */
+            }
+        }
     </style>
     <script>
         function filterTasks() {
