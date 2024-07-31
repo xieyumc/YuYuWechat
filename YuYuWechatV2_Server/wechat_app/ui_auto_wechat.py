@@ -98,7 +98,7 @@ class WeChat:
         pyperclip.copy(name)
         auto.SendKeys("{Ctrl}v")
         # 等待客户端搜索联系人
-        time.sleep(0.1)
+        time.sleep(0.2)
         search_box.SendKeys("{enter}")
     
     # 鼠标移动到发送按钮处点击发送消息
