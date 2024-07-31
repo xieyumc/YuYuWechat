@@ -16,8 +16,5 @@ COPY . .
 # 暴露端口
 EXPOSE 7000
 
-# 数据库迁移
-CMD python manage.py migrate --noinput
-
 # 启动Django应用
 CMD python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:7500
