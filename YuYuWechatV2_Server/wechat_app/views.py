@@ -66,3 +66,17 @@ def send_message(request):
 @csrf_exempt
 def ping(request):
     return JsonResponse({'status': 'pong'})
+
+
+@csrf_exempt
+def check_wechat_status(request):
+    if request.method == 'POST':
+        try:
+            comtypes.CoInitialize()
+            with lock:  # 确保微信操作的线程安全
+                wechat.prevent_offline()
+            return JsonResponse({'status': 'WeChat checked and prevent offline executed'}, status=200)
+        except Exception as e:
+            return JsonResponse({'status': 'Error', 'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
