@@ -221,25 +221,19 @@
                 {% csrf_token %}
                 <div class="input-container">
                      <span id="pingStatus"
-                          style="height: 10px; width: 10px; background-color: gray; border-radius: 50%;"></span>
+                           style="height: 10px; width: 10px; background-color: gray; border-radius: 50%;"></span>
                     <div id="pingMessage" class="status-indicator">检查中...</div>
                     <input type="text" id="server_ip" name="server_ip" placeholder="Enter Server IP">
                     <input type="hidden" id="server_ip_hidden" name="server_ip">
 
                 </div>
                 <div>
-                    <button type="button" onclick="connectServer()">Ping服务器</button>
-                    <button type="button" onclick="updateServerIP()">保存服务器IP到数据库</button>
+                    <button type="button" onclick="connectServer()">测试连接</button>
+                    <button type="button" onclick="updateServerIP()">保存服务器IP</button>
                 </div>
             </form>
         </div>
-        <div class="card">
-            <h3>导出数据库</h3>
-            <form method="post" action="{% url 'export_database' %}">
-                {% csrf_token %}
-                <button type="submit">导出数据库</button>
-            </form>
-        </div>
+
 
         <div class="card">
             <h3>导入数据库</h3>
@@ -247,6 +241,25 @@
                 {% csrf_token %}
                 <input type="file" name="db_file" required>
                 <button type="submit">导入数据库</button>
+            </form>
+        </div>
+
+        <div class="card">
+            <h3>微信状态</h3>
+            <div class="input-container">
+        <span id="wechatStatus"
+              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+                <span id="wechatMessage">检查中...</span>
+            </div>
+            <button type="button" onclick="checkWeChatStatus()">重新检测微信状态</button>
+        </div>
+
+
+        <div class="card">
+            <h3>导出数据库</h3>
+            <form method="post" action="{% url 'export_database' %}">
+                {% csrf_token %}
+                <button type="submit">导出数据库</button>
             </form>
         </div>
 
@@ -261,8 +274,6 @@
             <button type="button" onclick="stopCelery()">取消定时任务</button>
         </div>
 
-
-        <!-- Add more cards here as needed -->
     </div>
 </div>
 
@@ -415,10 +426,45 @@
             });
     }
 
+    function checkWeChatStatus() {
+        var wechatIndicator = document.getElementById('wechatStatus');
+        var wechatMessage = document.getElementById('wechatMessage');
+
+        // 显示正在检测的状态
+        wechatIndicator.style.backgroundColor = 'orange';
+        wechatMessage.textContent = "检查中...";
+
+        // 发送请求到后端以检查微信状态
+        fetch('{% url "check_wechat_status" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    wechatIndicator.style.backgroundColor = 'green';
+                    wechatMessage.textContent = '微信在线';
+                } else {
+                    wechatIndicator.style.backgroundColor = 'red';
+                    wechatMessage.textContent = data.message || '微信不在线';
+                }
+            })
+            .catch(error => {
+                wechatIndicator.style.backgroundColor = 'red';
+                wechatMessage.textContent = '状态检查失败';
+                console.error('Error:', error);
+            });
+    }
+
+
     // 当文档加载完毕时，检查 Celery 状态
     document.addEventListener('DOMContentLoaded', function () {
         fetchServerIP(); // 新增这个函数来在页面加载时获取服务器IP
         checkCeleryStatus();
+        checkWeChatStatus();
+
     });
 
 </script>
