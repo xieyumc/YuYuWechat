@@ -219,7 +219,7 @@ def check_wechat_status(request):
         url = f"http://{server_ip}/wechat/check_wechat_status/"
 
         # 发送POST请求测试服务器链接
-        response = requests.post(url)
+        response = requests.post(url, timeout=5)
 
         if response.status_code == 200:
             return JsonResponse({'status': 'success', 'message': 'WeChat status checked successfully'})
@@ -227,6 +227,8 @@ def check_wechat_status(request):
             return JsonResponse({'status': 'failure', 'message': '微信不在线'})
     except ServerConfig.DoesNotExist:
         return JsonResponse({'status': 'error', 'message': 'No server IP configured'})
+    except requests.exceptions.Timeout:
+        return JsonResponse({'status': 'error', 'message': '未连接到服务器'})
     except requests.exceptions.RequestException as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
     except Exception as e:
