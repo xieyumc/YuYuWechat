@@ -210,3 +210,24 @@ def check_celery_running(request):
             return JsonResponse({'status': 'Celery is not running'}, status=404)
     except Exception as e:
         return JsonResponse({'status': 'Failed to check Celery status', 'error': str(e)}, status=500)
+
+@csrf_exempt
+def check_wechat_status(request):
+    try:
+        # 从数据库中提取最新的服务器IP
+        server_ip = ServerConfig.objects.latest('id').server_ip
+        url = f"http://{server_ip}/wechat/check_wechat_status/"
+
+        # 发送POST请求测试服务器链接
+        response = requests.post(url)
+
+        if response.status_code == 200:
+            return JsonResponse({'status': 'success', 'message': 'WeChat status checked successfully'})
+        else:
+            return JsonResponse({'status': 'failure', 'message': '微信不在线'})
+    except ServerConfig.DoesNotExist:
+        return JsonResponse({'status': 'error', 'message': 'No server IP configured'})
+    except requests.exceptions.RequestException as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'message': str(e)})
