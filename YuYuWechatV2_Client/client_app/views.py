@@ -280,3 +280,8 @@ def check_wechat_status(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
     except Exception as e:
         return JsonResponse({'status': 'error', 'message': str(e)})
+
+
+def log_view(request):
+    logs = Log.objects.all().order_by('-timestamp')
+    return render(request, 'log.html', {'logs': logs})
