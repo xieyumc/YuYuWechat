@@ -25,50 +25,6 @@
             border-right: 1px solid #e0e0e0;
         }
 
-        #connectForm {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        #connectForm .input-container {
-            display: flex;
-            align-items: center;
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        #connectForm .input-container input {
-            flex: 1;
-        }
-
-        #connectForm input, #connectForm button {
-            padding: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        #connectForm button, button[type="submit"], .content button[type="button"], button.skip-button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            padding: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-        }
-
-        #connectForm button:hover, button[type="submit"]:hover, .content button[type="button"]:hover, button.skip-button:hover {
-            background-color: #005bb5;
-        }
-
         h2 {
             font-size: 18px;
             margin-bottom: 10px;
@@ -111,6 +67,13 @@
             padding: 10px;
             text-align: center;
             border-radius: 10px;
+        }
+
+        .filter {
+            margin-top: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
 
         table {
@@ -209,6 +172,19 @@
         }
 
         document.addEventListener('DOMContentLoaded', convertInputParams);
+
+        function filterLogs() {
+            const filter = document.getElementById('filter').value;
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const result = row.querySelector('.result').innerText;
+                if (filter === 'all' || (filter === 'success' && result === '成功') || (filter === 'failure' && result === '失败')) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
     </script>
 </head>
 <body>
@@ -229,6 +205,14 @@
     <div class="topbar">
         <h1>日志</h1>
     </div>
+    <div class="filter">
+        <label for="filter">筛选: </label>
+        <select id="filter" onchange="filterLogs()">
+            <option value="all">全部</option>
+            <option value="success">成功</option>
+            <option value="failure">失败</option>
+        </select>
+    </div>
     <table>
         <thead>
         <tr>
@@ -244,7 +228,7 @@
             <tr>
                 <td>{{ log.timestamp }}</td>
                 <td>{{ log.function_name }}</td>
-                <td>{{ log.result|yesno:"成功,失败" }}</td>
+                <td class="result">{{ log.result|yesno:"成功,失败" }}</td>
                 <td class="input-params">{{ log.input_params }}</td>
                 <td>{{ log.return_data }}</td>
             </tr>
