@@ -285,3 +285,20 @@ def check_wechat_status(request):
 def log_view(request):
     logs = Log.objects.all().order_by('-timestamp')
     return render(request, 'log.html', {'logs': logs})
+
+def log_counts(request):
+    total_logs = Log.objects.count()
+    success_logs = Log.objects.filter(result=True).count()
+    failure_logs = Log.objects.filter(result=False).count()
+    return JsonResponse({
+        'total': total_logs,
+        'success': success_logs,
+        'failure': failure_logs,
+    })
+
+@csrf_exempt
+def clear_logs(request):
+    if request.method == 'POST':
+        Log.objects.all().delete()
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'invalid method'}, status=405)

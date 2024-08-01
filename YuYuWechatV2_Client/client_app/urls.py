@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
-    import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, check_wechat_status, log_view
+    import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, check_wechat_status, log_view,log_counts,clear_logs
 
 urlpatterns = [
     path('', home, name='home'),
@@ -17,5 +17,6 @@ urlpatterns = [
     path('check_celery_running/', check_celery_running, name='check_celery_running'),
     path('check_wechat_status/', check_wechat_status, name='check_wechat_status'),
     path('logs/', log_view, name='log_view'),
-
+    path('log_counts/', log_counts, name='log_counts'),
+    path('clear_logs/', clear_logs, name='clear_logs'),
 ]
