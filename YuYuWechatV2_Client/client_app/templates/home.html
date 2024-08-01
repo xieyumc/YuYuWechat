@@ -225,12 +225,11 @@
             <form id="connectForm" method="post" action="">
                 {% csrf_token %}
                 <div class="input-container">
-                     <span id="pingStatus"
-                           style="height: 10px; width: 10px; background-color: gray; border-radius: 50%;"></span>
+                 <span id="pingStatus"
+                       style="height: 10px; width: 10px; background-color: gray; border-radius: 50%;"></span>
                     <div id="pingMessage" class="status-indicator">检查中...</div>
                     <input type="text" id="server_ip" name="server_ip" placeholder="Enter Server IP">
                     <input type="hidden" id="server_ip_hidden" name="server_ip">
-
                 </div>
                 <div>
                     <button type="button" onclick="connectServer()">测试连接</button>
@@ -239,6 +238,36 @@
             </form>
         </div>
 
+        <div class="card">
+            <h3>微信状态</h3>
+            <div class="input-container">
+            <span id="wechatStatus"
+                  style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+                <span id="wechatMessage">检查中...</span>
+            </div>
+            <button type="button" onclick="checkWeChatStatus()">重新检测微信状态</button>
+        </div>
+
+        <div class="card">
+            <h3>定时任务状态</h3>
+            <div class="input-container">
+            <span id="celeryStatus"
+                  style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+                <span id="celeryMessage">检查中...</span>
+            </div>
+            <button type="button" onclick="startCelery()">启动定时任务</button>
+            <button type="button" onclick="stopCelery()">取消定时任务</button>
+        </div>
+
+        <div class="card">
+            <h3>错误检测</h3>
+            <div class="input-container">
+            <span id="errorStatus"
+                  style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+                <span id="errorMessage">检查中...</span>
+            </div>
+            <button type="button" onclick="viewErrors()">查看错误</button>
+        </div>
 
         <div class="card">
             <h3>导入数据库</h3>
@@ -250,33 +279,11 @@
         </div>
 
         <div class="card">
-            <h3>微信状态</h3>
-            <div class="input-container">
-        <span id="wechatStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-                <span id="wechatMessage">检查中...</span>
-            </div>
-            <button type="button" onclick="checkWeChatStatus()">重新检测微信状态</button>
-        </div>
-
-
-        <div class="card">
             <h3>导出数据库</h3>
             <form method="post" action="{% url 'export_database' %}">
                 {% csrf_token %}
                 <button type="submit">导出数据库</button>
             </form>
-        </div>
-
-        <div class="card">
-            <h3>定时任务状态</h3>
-            <div class="input-container">
-        <span id="celeryStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-                <span id="celeryMessage">检查中...</span>
-            </div>
-            <button type="button" onclick="startCelery()">启动定时任务</button>
-            <button type="button" onclick="stopCelery()">取消定时任务</button>
         </div>
 
         <div class="card">
@@ -288,15 +295,6 @@
                 <button type="button" onclick="viewLogs()">查看日志</button>
                 <button type="button" onclick="clearLogs()">清空日志</button>
             </div>
-        </div>
-        <div class="card">
-            <h3>错误检测</h3>
-            <div class="input-container">
-                <span id="errorStatus"
-                      style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-                <span id="errorMessage">检查中...</span>
-            </div>
-            <button type="button" onclick="viewErrors()">查看错误</button>
         </div>
     </div>
 </div>
@@ -521,40 +519,40 @@
     }
 
     function checkErrors() {
-    var errorIndicator = document.getElementById('errorStatus');
-    var errorMessage = document.getElementById('errorMessage');
+        var errorIndicator = document.getElementById('errorStatus');
+        var errorMessage = document.getElementById('errorMessage');
 
-    // 显示正在检测的状态
-    errorIndicator.style.backgroundColor = 'orange';
-    errorMessage.textContent = "检查中...";
+        // 显示正在检测的状态
+        errorIndicator.style.backgroundColor = 'orange';
+        errorMessage.textContent = "检查中...";
 
-    // 发送请求到后端以检查错误
-    fetch('{% url "check_errors" %}', {
-        method: 'GET',
-        headers: {
-            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-        },
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.errors === 0) {
-            errorIndicator.style.backgroundColor = 'green';
-            errorMessage.textContent = '没有检测到错误';
-        } else {
-            errorIndicator.style.backgroundColor = 'red';
-            errorMessage.textContent = `检测到 ${data.errors} 个错误`;
-        }
-    })
-    .catch(error => {
-        errorIndicator.style.backgroundColor = 'red';
-        errorMessage.textContent = '状态检查失败';
-        console.error('Error:', error);
-    });
-}
+        // 发送请求到后端以检查错误
+        fetch('{% url "check_errors" %}', {
+            method: 'GET',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+        })
+            .then(response => response.json())
+            .then(data => {
+                if (data.errors === 0) {
+                    errorIndicator.style.backgroundColor = 'green';
+                    errorMessage.textContent = '没有检测到错误';
+                } else {
+                    errorIndicator.style.backgroundColor = 'red';
+                    errorMessage.textContent = `检测到 ${data.errors} 个错误`;
+                }
+            })
+            .catch(error => {
+                errorIndicator.style.backgroundColor = 'red';
+                errorMessage.textContent = '状态检查失败';
+                console.error('Error:', error);
+            });
+    }
 
-function viewErrors() {
-    window.location.href = '{% url "error_detection" %}';
-}
+    function viewErrors() {
+        window.location.href = '{% url "error_detection" %}';
+    }
 
     // 当文档加载完毕时，检查 Celery 状态
     document.addEventListener('DOMContentLoaded', function () {
