@@ -277,6 +277,16 @@
             <button type="button" onclick="stopCelery()">取消定时任务</button>
         </div>
 
+        <div class="card">
+            <h3>日志信息</h3>
+            <p>总日志条数: <span id="totalLogs">0</span></p>
+            <p>成功: <span id="successLogs">0</span></p>
+            <p>失败: <span id="failureLogs">0</span></p>
+            <div class="button-status-container">
+                <button type="button" onclick="viewLogs()">查看日志</button>
+                <button type="button" onclick="clearLogs()">清空日志</button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -461,13 +471,50 @@
             });
     }
 
+    function fetchLogCounts() {
+        fetch('{% url "log_counts" %}')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('totalLogs').textContent = data.total;
+                document.getElementById('successLogs').textContent = data.success;
+                document.getElementById('failureLogs').textContent = data.failure;
+            })
+            .catch(error => {
+                console.error('Failed to fetch log counts:', error);
+            });
+    }
+
+    function viewLogs() {
+        window.location.href = '{% url "log_view" %}';
+    }
+
+    function clearLogs() {
+        fetch('{% url "clear_logs" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+            },
+        })
+            .then(response => {
+                if (response.ok) {
+                    fetchLogCounts(); // 更新日志计数
+                    alert('日志已清空');
+                } else {
+                    throw new Error('Failed to clear logs.');
+                }
+            })
+            .catch(error => {
+                alert('清空日志失败: ' + error.message);
+                console.error('Error:', error);
+            });
+    }
 
     // 当文档加载完毕时，检查 Celery 状态
     document.addEventListener('DOMContentLoaded', function () {
         fetchServerIP(); // 新增这个函数来在页面加载时获取服务器IP
         checkCeleryStatus();
         checkWeChatStatus();
-
+        fetchLogCounts();
     });
 
 </script>
