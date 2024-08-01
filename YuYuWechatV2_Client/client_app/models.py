@@ -51,6 +51,7 @@ class Log(models.Model):
     timestamp = models.DateTimeField(auto_now_add=True)  # 记录日志创建的时间
     result = models.BooleanField()  # 记录函数调用的结果，成功为True，失败为False
     function_name = models.CharField(max_length=255)  # 记录调用的函数名称
+    input_params = models.TextField(help_text="JSON string of input parameters", default="null")  # 函数的输入参数
     return_data = models.TextField(default="null")  # 函数的返回数据
 
     def __str__(self):

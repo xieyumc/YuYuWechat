@@ -1,12 +1,54 @@
 from celery import shared_task
 from django.utils import timezone
-from .models import ScheduledMessage, ServerConfig
+from .models import ScheduledMessage, ServerConfig,Log
 import requests
 import json
 from croniter import croniter
 from datetime import datetime, timedelta
+from functools import wraps
+from django.http import JsonResponse
 
+def log_activity(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        response = None
+        result = True
+        return_data = ""
+        input_data = ""
+
+        # 捕获输入参数
+        try:
+            input_data = json.dumps({
+                'args': args,
+                'kwargs': kwargs
+            })
+        except Exception as e:
+            input_data = json.dumps({'error': 'Failed to capture input parameters', 'message': str(e)})
+
+        # 尝试调用函数并捕获返回数据
+        try:
+            response = func(*args, **kwargs)
+            return_data = json.dumps(response) if response is not None else ""
+        except Exception as e:
+            result = False
+            return_data = str(e)
+            response = JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        # 获取函数名称
+        function_name = func.__name__
+
+        # 记录日志
+        Log.objects.create(
+            result=result,
+            function_name=function_name,
+            input_params=input_data,
+            return_data=return_data
+        )
+
+        return response
+    return wrapper
 @shared_task
+@log_activity
 def check_and_send_messages():
     # 获取当前时间并转换到默认时区
     now = timezone.localtime(timezone.now())
@@ -45,6 +87,7 @@ def check_and_send_messages():
             message.save()
 
 
+@log_activity
 def check_cron(current_time, cron_expression, last_executed):
     """使用croniter来检查当前时间是否符合cron表达式，同时确保每个时间点只执行一次"""
     # 以当前时间为基准，但去掉秒数，确保精确比较到分钟
@@ -66,6 +109,7 @@ def check_cron(current_time, cron_expression, last_executed):
     return next_time == current_time
 
 
+@log_activity
 def send_message(data, server_ip):
     """调用视图发送消息"""
     url = f'http://{server_ip}/wechat/send_message/'
