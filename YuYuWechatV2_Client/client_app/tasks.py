@@ -1,12 +1,13 @@
 from celery import shared_task
 from django.utils import timezone
-from .models import ScheduledMessage, ServerConfig,Log
+from .models import ScheduledMessage, ServerConfig, Log
 import requests
 import json
 from croniter import croniter
 from datetime import datetime, timedelta
 from functools import wraps
 from django.http import JsonResponse
+
 
 def log_activity(func):
     @wraps(func)
@@ -46,7 +47,10 @@ def log_activity(func):
         )
 
         return response
+
     return wrapper
+
+
 @shared_task
 @log_activity
 def check_and_send_messages():
@@ -80,11 +84,27 @@ def check_and_send_messages():
                 'name': message.user.username,
                 'text': message.text
             }
-            send_message(data, server_ip)
-            # 更新消息状态
-            message.execution_count -= 1
-            message.last_executed = now
-            message.save()
+
+            try:
+                # 发送消息并检查响应
+                url = f'http://{server_ip}/wechat/send_message/'
+                response = requests.post(
+                    url,
+                    headers={'Content-Type': 'application/json'},
+                    data=json.dumps(data)
+                )
+                print(response.text)
+
+                if response.status_code == 200:
+                    # 更新消息状态
+                    message.execution_count -= 1
+                    message.last_executed = now
+                    message.save()
+                else:
+                    print(f"Failed to send message to {message.user.username}: {response.status_code}")
+
+            except requests.RequestException as e:
+                print(f"Failed to send message to {message.user.username}: {e}")
 
 
 @log_activity
