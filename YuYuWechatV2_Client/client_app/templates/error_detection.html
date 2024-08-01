@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log Viewer</title>
+    <title>错误检测</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -23,50 +23,6 @@
             flex-direction: column;
             gap: 20px;
             border-right: 1px solid #e0e0e0;
-        }
-
-        #connectForm {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-
-        #connectForm .input-container {
-            display: flex;
-            align-items: center;
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        #connectForm .input-container input {
-            flex: 1;
-        }
-
-        #connectForm input, #connectForm button {
-            padding: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        #connectForm button, button[type="submit"], .content button[type="button"], button.skip-button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            padding: 10px;
-            margin-bottom: 10px;
-            font-size: 14px;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-        }
-
-        #connectForm button:hover, button[type="submit"]:hover, .content button[type="button"]:hover, button.skip-button:hover {
-            background-color: #005bb5;
         }
 
         h2 {
@@ -133,6 +89,10 @@
             background-color: #f2f2f2;
         }
 
+        .highlight {
+            color: #007aff;  /* 淡蓝色 */
+        }
+
         .status-message {
             transition: opacity 0.5s ease;
         }
@@ -143,14 +103,25 @@
             margin: 5px 0;
         }
 
-        button.skip-button {
-            background-color: #ccc;
+        button {
+            background-color: #007aff;
             color: white;
+            border: none;
             cursor: pointer;
+            padding: 10px;
+            margin-bottom: 10px;
+            font-size: 14px;
+            border-radius: 10px;
+            transition: background-color 0.3s ease;
         }
 
-        button.skip-button.active {
-            background-color: #007aff;
+        button:hover {
+            background-color: #005bb5;
+        }
+
+        .loading {
+            background-color: #cccccc;
+            cursor: not-allowed;
         }
 
         @media (max-width: 768px) {
@@ -178,37 +149,35 @@
             th, td {
                 padding: 5px; /* 减小表格单元格的内边距 */
             }
-
-            #connectForm, #connectForm .input-container, .input-container input, #connectForm button, button[type="submit"], .content button[type="button"], button.skip-button {
-                width: 100%; /* 宽度调整为100%，确保充满屏幕 */
-                box-sizing: border-box; /* 确保宽度包括内边距和边框 */
-            }
-
-            select, button {
-                width: 100%; /* 下拉框和按钮宽度调整为100% */
-                margin-bottom: 10px; /* 增加间距以便触摸操作 */
-            }
         }
     </style>
     <script>
-        function decodeUnicode(str) {
-            return decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"').replace(/\\u/g, '%u') + '"'));
-        }
+        function handleAction(task_id, action, correct_time, button) {
+            button.disabled = true;
+            button.classList.add('loading');
+            button.innerText = '正在发送...';
 
-        function convertInputParams() {
-            const elements = document.querySelectorAll('.input-params');
-            elements.forEach(element => {
-                const jsonStr = element.innerText;
-                try {
-                    const jsonObj = JSON.parse(jsonStr);
-                    element.innerText = JSON.stringify(jsonObj, null, 2);  // 格式化 JSON 字符串
-                } catch (e) {
-                    console.error('Error parsing JSON:', e);
-                }
+            fetch("{% url 'handle_error_cron' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    action: action,
+                    task_id: task_id,
+                    correct_time: correct_time
+                })
+            }).then(response => response.json()).then(data => {
+                alert(data.message);
+                location.reload();
+            }).catch(error => {
+                console.error('Error:', error);
+                button.disabled = false;
+                button.classList.remove('loading');
+                button.innerText = '补发消息';
             });
         }
-
-        document.addEventListener('DOMContentLoaded', convertInputParams);
     </script>
 </head>
 <body>
@@ -227,26 +196,25 @@
 </div>
 <div class="content">
     <div class="topbar">
-        <h1>日志</h1>
+        <h1>错误检测</h1>
     </div>
     <table>
         <thead>
         <tr>
-            <th>时间</th>
-            <th>调用函数</th>
-            <th>结果</th>
-            <th>输入参数</th>
-            <th>返回数据</th>
+            <th>错误类型</th>
+            <th>详细错误</th>
+            <th>操作</th>
         </tr>
         </thead>
         <tbody>
-        {% for log in logs %}
+        {% for error in errors %}
             <tr>
-                <td>{{ log.timestamp }}</td>
-                <td>{{ log.function_name }}</td>
-                <td>{{ log.result|yesno:"成功,失败" }}</td>
-                <td class="input-params">{{ log.input_params }}</td>
-                <td>{{ log.return_data }}</td>
+                <td>{{ error.error_type }}</td>
+                <td>{{ error.error_detail|safe }}</td>
+                <td>
+                    <button onclick="handleAction({{ error.task_id }}, 'ignore', '{{ error.correct_time }}', this)">忽略错误</button>
+                    <button onclick="handleAction({{ error.task_id }}, 'resend', '{{ error.correct_time }}', this)">补发消息</button>
+                </td>
             </tr>
         {% endfor %}
         </tbody>

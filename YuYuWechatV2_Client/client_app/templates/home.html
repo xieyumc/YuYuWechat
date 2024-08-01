@@ -207,10 +207,12 @@
     <ul>
         <li><a href="{% url 'home' %}">首页</a></li>
         <li><a href="{% url 'log_view' %}">日志</a></li> <!-- 添加日志查看菜单项 -->
-        <li><a href="/admin">后台数据管理</a></li>
+        <li><a href="{% url 'error_detection' %}">错误检测</a></li> <!-- 新增错误检测菜单项 -->
         <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
         <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li>
         <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
+        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
+        <li><a href="/admin">后台数据管理</a></li>
     </ul>
 </div>
 <div class="content">

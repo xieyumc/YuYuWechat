@@ -1,6 +1,8 @@
 from django.urls import path
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
-    import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, check_wechat_status, log_view,log_counts,clear_logs
+    import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
+    check_wechat_status, log_view, log_counts, clear_logs, check_scheduled_message_errors, error_detection_view, \
+    handle_error_cron
 
 urlpatterns = [
     path('', home, name='home'),
@@ -19,4 +21,7 @@ urlpatterns = [
     path('logs/', log_view, name='log_view'),
     path('log_counts/', log_counts, name='log_counts'),
     path('clear_logs/', clear_logs, name='clear_logs'),
+    path('check_scheduled_message_errors/', check_scheduled_message_errors, name='check_scheduled_message_errors'),
+    path('error_detection/', error_detection_view, name='error_detection'),
+    path('handle_error_cron/', handle_error_cron, name='handle_error_cron'),
 ]

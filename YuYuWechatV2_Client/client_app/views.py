@@ -69,6 +69,7 @@ def set_server_ip(request):
             return JsonResponse({'status': "No IP address provided"}, status=400)
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
+
 @log_activity
 def home(request):
     messages = Message.objects.all()
@@ -286,6 +287,7 @@ def log_view(request):
     logs = Log.objects.all().order_by('-timestamp')
     return render(request, 'log.html', {'logs': logs})
 
+
 def log_counts(request):
     total_logs = Log.objects.count()
     success_logs = Log.objects.filter(result=True).count()
@@ -296,9 +298,89 @@ def log_counts(request):
         'failure': failure_logs,
     })
 
+
 @csrf_exempt
 def clear_logs(request):
     if request.method == 'POST':
         Log.objects.all().delete()
         return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'invalid method'}, status=405)
+
+
+@csrf_exempt
+def check_scheduled_message_errors():
+    errors = []
+    now = timezone.localtime(timezone.now())
+
+    tasks = ScheduledMessage.objects.all()
+    for task in tasks:
+        if task.is_active:
+            iter = croniter(task.cron_expression, now)
+            last_execution_time = iter.get_prev(datetime)
+
+            if task.last_executed is None or task.last_executed < last_execution_time:
+                errors.append({
+                    'error_type': '定时任务遗漏',
+                    'error_detail': (
+                        f"应该在 <span class='highlight'>{last_execution_time.strftime('%Y-%m-%d %H:%M:%S')}</span> "
+                        f"给 <span class='highlight'>{task.user.username}</span> 发送 "
+                        f"<span class='highlight'>{task.text}</span> 未能发送"
+                    ),
+                    'task_id': task.id,
+                    'correct_time': last_execution_time.strftime('%Y-%m-%d %H:%M:%S')
+                })
+
+    return errors
+
+
+@log_activity
+def error_detection_view(request):
+    errors = check_scheduled_message_errors()
+    return render(request, 'error_detection.html', {'errors': errors})
+
+
+@csrf_exempt
+@log_activity
+def handle_error_cron(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        action = data.get('action')
+        task_id = data.get('task_id')
+        correct_time_str = data.get('correct_time')
+
+        try:
+            task = ScheduledMessage.objects.get(id=int(task_id))
+            correct_time = datetime.strptime(correct_time_str, '%Y-%m-%d %H:%M:%S')
+            if action == 'ignore':
+                task.last_executed = correct_time
+                task.save()
+                return JsonResponse({'status': 'success', 'message': '错误已忽略'})
+            elif action == 'resend':
+                user = task.user
+                server_ip = ServerConfig.objects.latest('id').server_ip
+
+                if not server_ip:
+                    return JsonResponse({'status': "Server IP not set"}, status=400)
+
+                data = {
+                    'name': user.username,
+                    'text': task.text
+                }
+
+                url = f'http://{server_ip}/wechat/send_message/'
+                response = requests.post(
+                    url,
+                    headers={'Content-Type': 'application/json'},
+                    data=json.dumps(data)
+                )
+
+                if response.ok:
+                    task.last_executed = correct_time
+                    task.save()
+                    return JsonResponse({'status': 'success', 'message': '消息已补发并修正错误'})
+                else:
+                    return JsonResponse({'status': 'error', 'message': '消息补发失败'}, status=500)
+        except ScheduledMessage.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '任务不存在'}, status=404)
+
     return JsonResponse({'status': 'invalid method'}, status=405)
