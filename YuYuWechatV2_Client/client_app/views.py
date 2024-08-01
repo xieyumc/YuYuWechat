@@ -306,7 +306,6 @@ def clear_logs(request):
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'invalid method'}, status=405)
 
-
 @csrf_exempt
 def check_scheduled_message_errors():
     errors = []
@@ -337,7 +336,9 @@ def check_scheduled_message_errors():
 def error_detection_view(request):
     errors = check_scheduled_message_errors()
     return render(request, 'error_detection.html', {'errors': errors})
-
+def check_errors(request):
+    errors = check_scheduled_message_errors()  # 调用之前定义的错误检查函数
+    return JsonResponse({'errors': len(errors)})
 
 @csrf_exempt
 @log_activity
