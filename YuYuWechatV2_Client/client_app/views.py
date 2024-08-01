@@ -192,7 +192,7 @@ def send_message(request):
             headers={'Content-Type': 'application/json'},
             data=json.dumps(data)
         )
-        return JsonResponse({'status': f"Message sent to {username}"})
+        return JsonResponse({'status': f"{text} sent to {username}"})
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
 
