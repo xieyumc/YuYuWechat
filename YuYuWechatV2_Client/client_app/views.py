@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log
 import json
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -11,14 +11,50 @@ from django.conf import settings
 import subprocess
 from croniter import croniter
 from datetime import datetime, timedelta
+from functools import wraps
 
 
+def log_activity(func):
+    @wraps(func)
+    def wrapper(request, *args, **kwargs):
+        response = None
+        result = True
+        return_data = ""
+
+        # 尝试调用函数并捕获返回数据
+        try:
+            response = func(request, *args, **kwargs)
+            if isinstance(response, JsonResponse):
+                return_data = response.content.decode('utf-8')
+
+        except Exception as e:
+            result = False
+            return_data = str(e)
+            response = JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+        # 获取函数名称
+        function_name = func.__name__
+
+        # 记录日志
+        Log.objects.create(
+            result=result,
+            function_name=function_name,
+            return_data=return_data
+        )
+
+        return response
+
+    return wrapper
+
+
+@log_activity
 def get_server_ip(request):
     server_ip = ServerConfig.objects.latest('id').server_ip if ServerConfig.objects.exists() else "none"
     return JsonResponse({'server_ip': server_ip})
 
 
 @csrf_exempt
+@log_activity
 def set_server_ip(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -33,19 +69,21 @@ def set_server_ip(request):
             return JsonResponse({'status': "No IP address provided"}, status=400)
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
-
+@log_activity
 def home(request):
     messages = Message.objects.all()
     groups = WechatUser.objects.values_list('group', flat=True).distinct()  # 获取所有分组
     return render(request, 'home.html', {'messages': messages, 'groups': groups})
 
 
+@log_activity
 def send_message_management(request):
     messages = Message.objects.all()
     groups = WechatUser.objects.values_list('group', flat=True).distinct()  # 获取所有分组
     return render(request, 'send_message_management.html', {'messages': messages, 'groups': groups})
 
 
+@log_activity
 def schedule_management(request):
     tasks = ScheduledMessage.objects.all()
     now = timezone.localtime(timezone.now())
@@ -88,6 +126,7 @@ def schedule_management(request):
 
 
 @csrf_exempt
+@log_activity
 def skip_execution(request):
     # 这里是提前发送的处理函数
     if request.method == 'POST':
@@ -127,6 +166,7 @@ def skip_execution(request):
 
 
 @csrf_exempt
+@log_activity
 def send_message(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -156,6 +196,7 @@ def send_message(request):
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
 
+@log_activity
 def export_database(request):
     if request.method == 'POST':
         file_path = os.path.join(settings.BASE_DIR, 'db_backup.json')
@@ -169,6 +210,7 @@ def export_database(request):
 
 
 @csrf_exempt
+@log_activity
 def import_database(request):
     if request.method == 'POST':
         file = request.FILES['db_file']
@@ -183,6 +225,7 @@ def import_database(request):
 
 
 @csrf_exempt
+@log_activity
 def start_celery(request):
     try:
         subprocess.Popen(['celery', '-A', 'YuYuWechatV2_Client', 'worker', '--loglevel=info'])
@@ -192,6 +235,7 @@ def start_celery(request):
         return JsonResponse({'status': 'Failed to start Celery', 'error': str(e)}, status=500)
 
 
+@log_activity
 def stop_celery(request):
     try:
         subprocess.call(['pkill', '-f', 'celery'])
@@ -200,6 +244,7 @@ def stop_celery(request):
         return JsonResponse({'status': 'Failed to stop Celery', 'error': str(e)}, status=500)
 
 
+@log_activity
 def check_celery_running(request):
     try:
         # 检查系统中运行的进程并搜索包含'celery'的进程
@@ -211,7 +256,9 @@ def check_celery_running(request):
     except Exception as e:
         return JsonResponse({'status': 'Failed to check Celery status', 'error': str(e)}, status=500)
 
+
 @csrf_exempt
+@log_activity
 def check_wechat_status(request):
     try:
         # 从数据库中提取最新的服务器IP
