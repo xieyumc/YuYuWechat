@@ -193,7 +193,7 @@ def send_message(request):
             headers={'Content-Type': 'application/json'},
             data=json.dumps(data)
         )
-        return JsonResponse({'status': f"{text} sent to {username}"},status=200)
+        return JsonResponse({'status': f"{text} sent to {username}"}, status=200)
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
 
@@ -220,9 +220,16 @@ def import_database(request):
         with open(file_path, 'wb+') as destination:
             for chunk in file.chunks():
                 destination.write(chunk)
-        call_command('loaddata', file_path)
-        os.remove(file_path)
-        return HttpResponse('Database imported successfully.')
+
+        # 删除现有的所有ServerConfig记录
+        ServerConfig.objects.all().delete()
+
+        try:
+            call_command('loaddata', file_path)
+            os.remove(file_path)
+            return HttpResponse('Database imported successfully.')
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
     return render(request, 'import.html')
 
 
@@ -307,6 +314,7 @@ def clear_logs(request):
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'invalid method'}, status=405)
 
+
 def check_scheduled_message_errors():
     errors = []
     now = timezone.localtime(timezone.now())
@@ -336,9 +344,12 @@ def check_scheduled_message_errors():
 def error_detection_view(request):
     errors = check_scheduled_message_errors()
     return render(request, 'error_detection.html', {'errors': errors})
+
+
 def check_errors(request):
     errors = check_scheduled_message_errors()  # 调用之前定义的错误检查函数
     return JsonResponse({'errors': len(errors)})
+
 
 @csrf_exempt
 @log_activity
