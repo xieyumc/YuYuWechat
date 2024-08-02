@@ -12,6 +12,7 @@ import subprocess
 from croniter import croniter
 from datetime import datetime, timedelta
 from functools import wraps
+from django.core.paginator import Paginator
 
 
 def log_activity(func):
@@ -292,8 +293,11 @@ def check_wechat_status(request):
 
 
 def log_view(request):
-    logs = Log.objects.all().order_by('-timestamp')
-    return render(request, 'log.html', {'logs': logs})
+    log_list = Log.objects.all().order_by('-timestamp')
+    paginator = Paginator(log_list, 100)  # 每页显示100条记录
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+    return render(request, 'log.html', {'page_obj': page_obj})
 
 
 def log_counts(request):
