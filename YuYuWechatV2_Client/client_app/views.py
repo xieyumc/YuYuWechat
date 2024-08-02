@@ -306,7 +306,6 @@ def clear_logs(request):
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'invalid method'}, status=405)
 
-@csrf_exempt
 def check_scheduled_message_errors():
     errors = []
     now = timezone.localtime(timezone.now())

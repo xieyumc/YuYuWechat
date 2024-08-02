@@ -6,3 +6,4 @@ sqlalchemy
 cryptography
 redis
 coverage
+wraps
