@@ -268,7 +268,7 @@ def check_wechat_status(request):
         url = f"http://{server_ip}/wechat/check_wechat_status/"
 
         # 发送POST请求测试服务器链接
-        response = requests.post(url, timeout=5)
+        response = requests.post(url, timeout=3)
 
         if response.status_code == 200:
             return JsonResponse({'status': 'success', 'message': 'WeChat status checked successfully'})

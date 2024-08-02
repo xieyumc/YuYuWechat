@@ -554,14 +554,28 @@
         window.location.href = '{% url "error_detection" %}';
     }
 
-    // 当文档加载完毕时，检查 Celery 状态
-    document.addEventListener('DOMContentLoaded', function () {
-        fetchServerIP(); // 新增这个函数来在页面加载时获取服务器IP
-        checkCeleryStatus();
-        checkWeChatStatus();
-        fetchLogCounts();
-        checkErrors();
+    // 当文档加载完毕时执行
+    document.addEventListener('DOMContentLoaded', async function () {
+        await delay(200);
+        fetchServerIP(); // 获取服务器IP
+
+        await delay(200);
+        checkWeChatStatus(); // 检查微信状态
+
+        await delay(200);
+        checkCeleryStatus(); // 检查Celery状态
+
+        await delay(200);
+        checkErrors(); // 检查错误
+
+        await delay(200);
+        fetchLogCounts(); // 获取日志计数
+
     });
+
+    function delay(ms) {
+        return new Promise(resolve => setTimeout(resolve, ms));
+    }
 
 </script>
 </body>
