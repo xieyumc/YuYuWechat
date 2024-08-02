@@ -2,10 +2,12 @@ from django.urls import path
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
     check_wechat_status, log_view, log_counts, clear_logs, check_scheduled_message_errors, error_detection_view, \
-    handle_error_cron,check_errors
+    handle_error_cron,check_errors, login_view
+from django.contrib.auth.views import LogoutView
 
 urlpatterns = [
-    path('', home, name='home'),
+    path('login/', login_view, name='login'),
+    path('home/', home, name='home'),  # 修改路径为 /home
     path('send_message/', send_message, name='send_message'),
     path('get_server_ip/', get_server_ip, name='get_server_ip'),
     path('set_server_ip/', set_server_ip, name='set_server_ip'),
@@ -25,4 +27,7 @@ urlpatterns = [
     path('error_detection/', error_detection_view, name='error_detection'),
     path('check_errors/', check_errors, name='check_errors'),
     path('handle_error_cron/', handle_error_cron, name='handle_error_cron'),
+    path('', login_view, name='login'),  # 默认路径指向登录页面
+    path('logout/', LogoutView.as_view(next_page='login'), name='logout'),  # 添加退出登录路径
+
 ]

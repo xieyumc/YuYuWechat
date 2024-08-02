@@ -14,6 +14,23 @@ from datetime import datetime, timedelta
 from functools import wraps
 from django.core.paginator import Paginator
 
+from django.contrib.auth import authenticate, login
+from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
+
+def login_view(request):
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = authenticate(request, username=username, password=password)
+        if user is not None:
+            login(request, user)
+            return redirect('home')  # 登录成功后重定向到首页
+        else:
+            return render(request, 'login.html', {'error': 'Invalid username or password'})
+
+    return render(request, 'login.html')
+
 
 def log_activity(func):
     @wraps(func)
@@ -70,7 +87,7 @@ def set_server_ip(request):
             return JsonResponse({'status': "No IP address provided"}, status=400)
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
-
+@login_required
 @log_activity
 def home(request):
     messages = Message.objects.all()
@@ -78,6 +95,7 @@ def home(request):
     return render(request, 'home.html', {'messages': messages, 'groups': groups})
 
 
+@login_required
 @log_activity
 def send_message_management(request):
     messages = Message.objects.all()
@@ -86,6 +104,7 @@ def send_message_management(request):
 
 
 @log_activity
+@login_required
 def schedule_management(request):
     tasks = ScheduledMessage.objects.all()
     now = timezone.localtime(timezone.now())
@@ -292,6 +311,7 @@ def check_wechat_status(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+@login_required
 def log_view(request):
     log_list = Log.objects.all().order_by('-timestamp')
     paginator = Paginator(log_list, 100)  # 每页显示100条记录
@@ -345,6 +365,7 @@ def check_scheduled_message_errors():
 
 
 @log_activity
+@login_required
 def error_detection_view(request):
     errors = check_scheduled_message_errors()
     return render(request, 'error_detection.html', {'errors': errors})
