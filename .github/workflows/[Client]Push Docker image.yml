@@ -5,7 +5,7 @@ on:
     types: [created]
 
 jobs:
-  build-and-test-and-upload:
+  build-and-test:
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,35 +35,40 @@ jobs:
     # Test endpoints without login
     - name: Test main endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/home/)
+        if [ $response -ne 302 ]; then
           echo "Main endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test schedule_management endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/schedule_management/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/schedule_management/)
+        if [ $response -ne 302 ]; then
           echo "schedule_management endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test send_message_management endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/send_message_management/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/send_message_management/)
+        if [ $response -ne 302 ]; then
           echo "send_message_management endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test log_view endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/logs/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/logs/)
+        if [ $response -ne 302 ]; then
           echo "log_view endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test error_detection_view endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/error_detection/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/error_detection/)
+        if [ $response -ne 302 ]; then
           echo "error_detection endpoint accessible without login, expected it to be protected."
           exit 1
         fi
@@ -71,9 +76,7 @@ jobs:
     # Create a superuser
     - name: Create superuser
       run: |
-        docker exec my-python-app-container python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
-      env:
-        DJANGO_SUPERUSER_PASSWORD: "12345"
+        docker exec -e DJANGO_SUPERUSER_PASSWORD="12345" yuyuwechatv2_client-container python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
 
     # Login and store session cookies
     - name: Login and store session cookies
@@ -141,8 +144,24 @@ jobs:
     - name: Stop and remove Docker container
       run: docker rm -f yuyuwechatv2_client-container
 
-    - name: Save Docker image to tar file
-      run: docker save yuyuwechatv2_client -o yuyuwechatv2_client.tar
+  upload:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    defaults:
+      run:
+        working-directory: ./YuYuWechatV2_Client
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+      with:
+        driver-opts: image=moby/buildkit:buildx-stable-1
+
+    - name: Load Docker image from tar file
+      run: docker load -i yuyuwechatv2_client.tar.gz
 
     - name: Compress Docker image tar file
       run: gzip yuyuwechatv2_client.tar
@@ -175,20 +194,3 @@ jobs:
         asset_path: /home/runner/work/YuYuWechat/YuYuWechat/YuYuWechatV2_Client/docker-compose.yml
         asset_name: docker-compose.yml
         asset_content_type: application/yaml
-
-
-    - name: Log in to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v4
-      with:
-        context: ./YuYuWechatV2_Client
-        push: true
-        tags: |
-          ${{ secrets.DOCKER_USERNAME }}/yuyuwechatv2_client:latest
-          ${{ secrets.DOCKER_USERNAME }}/yuyuwechatv2_client:${{ github.ref_name }}
-        platforms: linux/amd64,linux/arm64
