@@ -44,7 +44,7 @@ class ScheduledMessage(models.Model):
         return self.user.group
 
     def __str__(self):
-        return f"{self.user.username} - {self.text[:20]}"
+        return f"{self.user.username} - {self.text[:30]}"
 
 
 class Log(models.Model):
