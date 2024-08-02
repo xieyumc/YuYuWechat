@@ -198,6 +198,7 @@ def send_message(request):
 
 
 @log_activity
+@csrf_exempt
 def export_database(request):
     if request.method == 'POST':
         file_path = os.path.join(settings.BASE_DIR, 'db_backup.json')

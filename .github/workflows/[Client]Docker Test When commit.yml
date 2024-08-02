@@ -33,11 +33,56 @@ jobs:
     - name: Test main endpoint
       run: curl --fail http://127.0.0.1:7500
 
-    - name: Test admin endpoint
-      run: curl --fail http://127.0.0.1:7500/admin
+    - name: Test get_server_ip endpoint
+      run: curl --fail http://127.0.0.1:7500/get_server_ip/
+
+    - name: Test set_server_ip endpoint
+      run: |
+        curl --fail -X POST -H "Content-Type: application/json" -d '{"server_ip": "127.0.0.1"}' http://127.0.0.1:7500/set_server_ip/
+
+    - name: Test schedule_management endpoint
+      run: curl --fail http://127.0.0.1:7500/schedule_management/
 
     - name: Test send_message_management endpoint
       run: curl --fail http://127.0.0.1:7500/send_message_management/
 
-    - name: Test schedule_management endpoint
-      run: curl --fail http://127.0.0.1:7500/schedule_management/
+    - name: Test start_celery endpoint
+      run: curl --fail -X POST http://127.0.0.1:7500/start_celery/
+
+    - name: Wait for the celery to start
+      run: sleep 5
+
+    - name: Test check_celery_running endpoint
+      run: curl --fail http://127.0.0.1:7500/check_celery_running/
+
+    - name: Test stop_celery endpoint
+      run: curl --fail http://127.0.0.1:7500/stop_celery/
+
+    - name: Test check_wechat_status endpoint
+      run: curl --fail http://127.0.0.1:7500/check_wechat_status/
+
+    - name: Test log_view endpoint
+      run: curl --fail http://127.0.0.1:7500/logs/
+
+    - name: Test log_counts endpoint
+      run: curl --fail http://127.0.0.1:7500/log_counts/
+
+    - name: Test clear_logs endpoint
+      run: curl --fail -X POST http://127.0.0.1:7500/clear_logs/
+
+    - name: Test error_detection_view endpoint
+      run: curl --fail http://127.0.0.1:7500/error_detection/
+
+    - name: Test check_errors endpoint
+      run: curl --fail http://127.0.0.1:7500/check_errors/
+
+    - name: Test handle_error_cron endpoint
+      run: |
+        curl --fail -X POST -H "Content-Type: application/json" -d '{"action": "ignore", "task_id": 1, "correct_time": "2023-08-01 12:00:00"}' http://127.0.0.1:7500/handle_error_cron/
+
+    - name: Test export_database endpoint
+      run: curl --fail -X POST http://127.0.0.1:7500/export_database/ -o db_backup.json
+
+    - name: Test import_database endpoint
+      run: |
+        curl --fail -F "db_file=@db_backup.json" http://127.0.0.1:7500/import_database/
