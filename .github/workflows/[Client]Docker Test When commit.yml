@@ -33,7 +33,7 @@ jobs:
     # Test endpoints without login
     - name: Test main endpoint without login
       run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/)
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/home)
         if [ $response -ne 302 ]; then
           echo "Main endpoint accessible without login, expected it to be protected."
           exit 1
