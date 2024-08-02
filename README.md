@@ -5,13 +5,16 @@
 ![img.png](img/img.png)
 <h6 align="center">首页管理界面
 
+![img.png](img/img_14.png)
+<h6 align="center">登录保护（默认用户名`admin`，默认密码`admin@django`）
+
 ![img_1.png](img/img_1.png)
 <h6 align="center">批量发送消息
 
-![img_2.png](img/img_2.png)
+![img_.png](img/img_2.png)
 <h6 align="center">定时发送消息
 
-![img.png](img/img13.png)
+![img.png](img/img_13.png)
 <h6 align="center">错误检测
 
 ![img_3.png](img/img_3.png)
@@ -19,13 +22,15 @@
 
 # ✨功能特点
 
+✅群发消息：一次性向多个好友发送不同的消息👥
+
 ✅自动发送消息：自动检查时间并在对应时刻发送消息🤖（基于cron表达式，可精确到分钟）
 
 ✅循环发送消息：cron表达式可设置任意循环作业🔄
 
 ✅可靠性保证：日志记录以及自动错误检测，可保证定时任务不遗漏执行🔍
 
-✅群发消息：一次性向多个好友发送不同的消息👥
+✅登录认证保护：登录保护，保证数据安全性🔒
 
 ✅全平台支持，轻松部署在服务器上，服务端部署在win平台接受客户端的请求，客户端可部署到任意平台🌍
 
