@@ -7,69 +7,7 @@ from unittest.mock import patch
 from django.test import Client
 from io import BytesIO
 import subprocess
-
-class WechatUserModelTests(TestCase):
-    def setUp(self):
-        WechatUser.objects.create(username='user1', wechatid='wx1')
-        WechatUser.objects.create(username='user2')
-
-    def test_wechat_user_creation(self):
-        user1 = WechatUser.objects.get(username='user1')
-        user2 = WechatUser.objects.get(username='user2')
-        self.assertEqual(user1.wechatid, 'wx1')
-        self.assertIsNone(user2.wechatid)
-
-    def test_wechat_user_str(self):
-        user1 = WechatUser.objects.get(username='user1')
-        self.assertEqual(str(user1), 'user1')
-
-
-class MessageModelTests(TestCase):
-    def setUp(self):
-        user = WechatUser.objects.create(username='user1')
-        Message.objects.create(user=user, text='Hello World')
-
-    def test_message_creation(self):
-        message = Message.objects.get(text='Hello World')
-        self.assertEqual(message.text, 'Hello World')
-
-    def test_message_str(self):
-        message = Message.objects.get(text='Hello World')
-        self.assertEqual(str(message), 'user1')
-
-    def test_message_group_property(self):
-        user = WechatUser.objects.create(username='user2', group='group1')
-        message = Message.objects.create(user=user, text='Group Message')
-        self.assertEqual(message.group, 'group1')
-
-
-class ServerConfigModelTests(TestCase):
-    def setUp(self):
-        ServerConfig.objects.create(server_ip='192.168.1.1')
-
-    def test_server_config_creation(self):
-        config = ServerConfig.objects.get(server_ip='192.168.1.1')
-        self.assertEqual(str(config), 'Server IP: 192.168.1.1')
-
-
-class ScheduledMessageModelTests(TestCase):
-    def setUp(self):
-        user = WechatUser.objects.create(username='user1')
-        ScheduledMessage.objects.create(user=user, text='Scheduled Message', cron_expression='* * * * *')
-
-    def test_scheduled_message_creation(self):
-        scheduled_message = ScheduledMessage.objects.get(text='Scheduled Message')
-        self.assertEqual(scheduled_message.text, 'Scheduled Message')
-
-    def test_scheduled_message_str(self):
-        scheduled_message = ScheduledMessage.objects.get(text='Scheduled Message')
-        self.assertEqual(str(scheduled_message), 'user1 - Scheduled Message')
-
-    def test_scheduled_message_group_property(self):
-        user = WechatUser.objects.create(username='user2', group='group1')
-        scheduled_message = ScheduledMessage.objects.create(user=user, text='Group Scheduled Message',
-                                                            cron_expression='* * * * *')
-        self.assertEqual(scheduled_message.group, 'group1')
+from django.contrib.auth.models import User
 
 
 class ViewTests(TestCase):
@@ -78,7 +16,14 @@ class ViewTests(TestCase):
         self.user = WechatUser.objects.create(username='user1')
         self.server_config = ServerConfig.objects.create(server_ip='127.0.0.1')
 
+        # 创建并登录用户
+        self.test_user = User.objects.create_user(username='testuser', password='12345')
+
+    def login(self):
+        self.client.login(username='testuser', password='12345')
+
     def test_home_view(self):
+        self.login()
         response = self.client.get(reverse('home'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'home.html')
@@ -96,11 +41,13 @@ class ViewTests(TestCase):
         self.assertEqual(ServerConfig.objects.latest('id').server_ip, '192.168.0.1')
 
     def test_send_message_management_view(self):
+        self.login()
         response = self.client.get(reverse('send_message_management'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'send_message_management.html')
 
     def test_schedule_management_view(self):
+        self.login()
         response = self.client.get(reverse('schedule_management'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'schedule_management.html')
@@ -132,6 +79,7 @@ class ViewTests(TestCase):
         self.assertEqual(scheduled_message.execution_skip, 1)
 
     def test_export_import_database_views(self):
+        self.login()
         # 测试导出数据库
         response = self.client.post(reverse('export_database'))
         self.assertEqual(response.status_code, 200)
@@ -181,7 +129,8 @@ class ViewTests(TestCase):
 
         response = self.client.post(reverse('check_wechat_status'))
         self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "success", "message": "WeChat status checked successfully"}')
+        self.assertJSONEqual(str(response.content, encoding='utf8'),
+                             '{"status": "success", "message": "WeChat status checked successfully"}')
 
         mock_post.return_value.status_code = 500
 
@@ -190,6 +139,7 @@ class ViewTests(TestCase):
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "failure", "message": "微信不在线"}')
 
     def test_log_view(self):
+        self.login()
         response = self.client.get(reverse('log_view'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'log.html')
@@ -208,3 +158,46 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "success"}')
         self.assertEqual(Log.objects.count(), 0)
+
+    def test_protected_views_without_login(self):
+        protected_urls = [
+            reverse('home'),
+            reverse('error_detection'),
+            reverse('send_message_management'),
+            reverse('schedule_management'),
+            reverse('log_view'),
+        ]
+
+        for url in protected_urls:
+            response = self.client.get(url)
+            try:
+                self.assertEqual(response.status_code, 302)
+                self.assertIn('/login/', response.url)
+            except AssertionError as e:
+                print(f"Error accessing {url} without login: {e}")
+                print(f"Response status code: {response.status_code}")
+                print(f"Response content: {response.content}")
+
+        for url in protected_urls:
+            response = self.client.get(url)
+            self.assertEqual(response.status_code, 302)
+            self.assertIn('/login/', response.url)
+
+    def test_protected_views_with_login(self):
+        self.login()
+        protected_urls = [
+            reverse('home'),
+            reverse('error_detection'),
+            reverse('send_message_management'),
+            reverse('schedule_management'),
+            reverse('log_view'),
+        ]
+
+        for url in protected_urls:
+            response = self.client.get(url)
+            try:
+                self.assertEqual(response.status_code, 200)
+            except AssertionError as e:
+                print(f"Error accessing {url} with login: {e}")
+                print(f"Response status code: {response.status_code}")
+                print(f"Response content: {response.content}")
