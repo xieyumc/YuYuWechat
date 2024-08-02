@@ -33,35 +33,40 @@ jobs:
     # Test endpoints without login
     - name: Test main endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/)
+        if [ $response -ne 302 ]; then
           echo "Main endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test schedule_management endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/schedule_management/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/schedule_management/)
+        if [ $response -ne 302 ]; then
           echo "schedule_management endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test send_message_management endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/send_message_management/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/send_message_management/)
+        if [ $response -ne 302 ]; then
           echo "send_message_management endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test log_view endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/logs/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/logs/)
+        if [ $response -ne 302 ]; then
           echo "log_view endpoint accessible without login, expected it to be protected."
           exit 1
         fi
 
     - name: Test error_detection_view endpoint without login
       run: |
-        if curl -f http://127.0.0.1:7500/error_detection/; then
+        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/error_detection/)
+        if [ $response -ne 302 ]; then
           echo "error_detection endpoint accessible without login, expected it to be protected."
           exit 1
         fi
@@ -69,9 +74,7 @@ jobs:
     # Create a superuser
     - name: Create superuser
       run: |
-        docker exec my-python-app-container python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
-      env:
-        DJANGO_SUPERUSER_PASSWORD: "12345"
+        docker exec -e DJANGO_SUPERUSER_PASSWORD="12345" my-python-app-container python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
 
     # Login and store session cookies
     - name: Login and store session cookies
