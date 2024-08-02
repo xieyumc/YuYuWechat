@@ -32,17 +32,111 @@ jobs:
     - name: Display Docker logs
       run: docker logs yuyuwechatv2_client-container
 
-    - name: Test main endpoint
-      run: curl --fail http://127.0.0.1:7500
+    # Test endpoints without login
+    - name: Test main endpoint without login
+      run: |
+        if curl -f http://127.0.0.1:7500/; then
+          echo "Main endpoint accessible without login, expected it to be protected."
+          exit 1
+        fi
 
-    - name: Test admin endpoint
-      run: curl --fail http://127.0.0.1:7500/admin
+    - name: Test schedule_management endpoint without login
+      run: |
+        if curl -f http://127.0.0.1:7500/schedule_management/; then
+          echo "schedule_management endpoint accessible without login, expected it to be protected."
+          exit 1
+        fi
 
-    - name: Test send_message_management endpoint
-      run: curl --fail http://127.0.0.1:7500/send_message_management/
+    - name: Test send_message_management endpoint without login
+      run: |
+        if curl -f http://127.0.0.1:7500/send_message_management/; then
+          echo "send_message_management endpoint accessible without login, expected it to be protected."
+          exit 1
+        fi
 
-    - name: Test schedule_management endpoint
-      run: curl --fail http://127.0.0.1:7500/schedule_management/
+    - name: Test log_view endpoint without login
+      run: |
+        if curl -f http://127.0.0.1:7500/logs/; then
+          echo "log_view endpoint accessible without login, expected it to be protected."
+          exit 1
+        fi
+
+    - name: Test error_detection_view endpoint without login
+      run: |
+        if curl -f http://127.0.0.1:7500/error_detection/; then
+          echo "error_detection endpoint accessible without login, expected it to be protected."
+          exit 1
+        fi
+
+    # Create a superuser
+    - name: Create superuser
+      run: |
+        docker exec my-python-app-container python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
+      env:
+        DJANGO_SUPERUSER_PASSWORD: "12345"
+
+    # Login and store session cookies
+    - name: Login and store session cookies
+      run: |
+        curl -c cookies.txt -d "username=testuser&password=12345" -X POST http://127.0.0.1:7500/login/
+
+    # Test endpoints with login
+    - name: Test main endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/
+
+    - name: Test get_server_ip endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/get_server_ip/
+
+    - name: Test set_server_ip endpoint with login
+      run: |
+        curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"server_ip": "127.0.0.1"}' http://127.0.0.1:7500/set_server_ip/
+
+    - name: Test schedule_management endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/schedule_management/
+
+    - name: Test send_message_management endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/send_message_management/
+
+    - name: Test start_celery endpoint with login
+      run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/start_celery/
+
+    - name: Wait for the celery to start
+      run: sleep 5
+
+    - name: Test check_celery_running endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_celery_running/
+
+    - name: Test stop_celery endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/stop_celery/
+
+    - name: Test check_wechat_status endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_wechat_status/
+
+    - name: Test log_view endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/logs/
+
+    - name: Test log_counts endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/log_counts/
+
+    - name: Test clear_logs endpoint with login
+      run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/clear_logs/
+
+    - name: Test error_detection_view endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/error_detection/
+
+    - name: Test check_errors endpoint with login
+      run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_errors/
+
+    - name: Test handle_error_cron endpoint with login
+      run: |
+        curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"action": "ignore", "task_id": 1, "correct_time": "2023-08-01 12:00:00"}' http://127.0.0.1:7500/handle_error_cron/
+
+    - name: Test export_database endpoint with login
+      run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/export_database/ -o db_backup.json
+
+    - name: Test import_database endpoint with login
+      run: |
+        curl -b cookies.txt --fail -F "db_file=@db_backup.json" http://127.0.0.1:7500/import_database/
 
     - name: Stop and remove Docker container
       run: docker rm -f yuyuwechatv2_client-container
