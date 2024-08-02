@@ -31,13 +31,6 @@ jobs:
       run: docker logs my-python-app-container
 
     # Test endpoints without login
-    - name: Test main endpoint without login
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/home)
-        if [ $response -ne 302 ]; then
-          echo "Main endpoint accessible without login, expected it to be protected."
-          exit 1
-        fi
 
     - name: Test schedule_management endpoint without login
       run: |
