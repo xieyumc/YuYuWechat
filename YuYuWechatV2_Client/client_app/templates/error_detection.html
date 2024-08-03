@@ -1,289 +1,62 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>错误检测</title>
-        <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-            background-color: #f2f2f7;
-        }
+{% extends "base.html" %}
 
-        .sidebar {
-            width: 200px;
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            border-right: 1px solid #e0e0e0;
-        }
+{% block title %}错误检测{% endblock %}
 
-        .main-content {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
+{% block header %}错误检测{% endblock %}
 
-        .card {
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            width: calc(50% - 20px);
-            box-sizing: border-box;
-        }
-
-        .card h3 {
-            margin-top: 0;
-        }
-
-        .input-container {
-            display: flex;
-            align-items: center;
-            gap: 5px; /* 调整间隙大小 */
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 2px; /* 减小状态指示灯和文字之间的间隔 */
-        }
-
-        .input-container input {
-            flex: 1;
-            max-width: 70%; /* 限制输入框宽度，根据实际情况调整 */
-        }
-
-        input, button {
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #005bb5;
-        }
-
-        h2 {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        ul li {
-            margin-bottom: 10px;
-        }
-
-        ul li a, ul li form button {
-            text-decoration: none;
-            color: #007aff;
-            padding: 10px;
-            display: block;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-            background: none;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-            width: 100%;
-            font-size: 15px;
-        }
-
-        ul li a:hover, ul li form button:hover {
-            background-color: #e0e0e0;
-        }
-
-        .content {
-            flex: 1;
-            padding: 20px;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin: 20px;
-        }
-
-        .topbar {
-            background-color: #007aff;
-            color: white;
-            padding: 10px;
-            text-align: center;
-            border-radius: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        table, th, td {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        .status-message {
-            transition: opacity 0.5s ease;
-        }
-
-        select, button {
-            border-radius: 10px;
-            padding: 10px;
-            margin: 5px 0;
-        }
-
-        button.skip-button {
-            background-color: #ccc;
-            color: white;
-            cursor: pointer;
-        }
-
-        .button-status-container {
-            display: flex;
-            align-items: center; /* 保证按钮和状态消息在同一行且垂直居中 */
-            gap: 10px; /* 在元素间增加一些间隔 */
-        }
-
-        button.skip-button.active {
-            background-color: #007aff;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
-
-            .main-content {
-                width: 100%;
-                padding-top: 0;
-            }
-
-            .card {
-                width: calc(100% - 40px); /* 调整卡片宽度以适应屏幕 */
-            }
-        }
-    </style>
-    <script>
-        function handleAction(task_id, action, correct_time, button) {
-            button.disabled = true;
-            button.classList.add('loading');
-            button.innerText = '正在发送...';
-
-            fetch("{% url 'handle_error_cron' %}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    action: action,
-                    task_id: task_id,
-                    correct_time: correct_time
-                })
-            }).then(response => response.json()).then(data => {
-                alert(data.message);
-                location.reload();
-            }).catch(error => {
-                console.error('Error:', error);
-                button.disabled = false;
-                button.classList.remove('loading');
-                button.innerText = '补发消息';
-            });
-        }
-    </script>
-</head>
-<body>
-<div class="sidebar">
-    <h2>Menu</h2>
-    <ul>
-        <li><a href="{% url 'home' %}">首页</a></li>
-        <li><a href="{% url 'log_view' %}">日志</a></li> <!-- 添加日志查看菜单项 -->
-        <li><a href="{% url 'error_detection' %}">错误检测</a></li> <!-- 新增错误检测菜单项 -->
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li>
-        <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="/admin" target="_blank">后台数据管理</a></li>
-        <li>
-            <form id="logout-form" method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">退出登录</button>
-            </form>
-        </li>
-    </ul>
-</div>
-<div class="content">
-    <div class="topbar">
-        <h1>错误检测</h1>
-    </div>
-    <table>
-        <thead>
+{% block content %}
+<table>
+    <thead>
+    <tr>
+        <th>错误类型</th>
+        <th>详细错误</th>
+        <th>操作</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for error in errors %}
         <tr>
-            <th>错误类型</th>
-            <th>详细错误</th>
-            <th>操作</th>
+            <td>{{ error.error_type }}</td>
+            <td>{{ error.error_detail|safe }}</td>
+            <td>
+                <button onclick="handleAction({{ error.task_id }}, 'ignore', '{{ error.correct_time }}', this)">
+                    忽略错误
+                </button>
+                <button onclick="handleAction({{ error.task_id }}, 'resend', '{{ error.correct_time }}', this)">
+                    补发消息
+                </button>
+            </td>
         </tr>
-        </thead>
-        <tbody>
-        {% for error in errors %}
-            <tr>
-                <td>{{ error.error_type }}</td>
-                <td>{{ error.error_detail|safe }}</td>
-                <td>
-                    <button onclick="handleAction({{ error.task_id }}, 'ignore', '{{ error.correct_time }}', this)">
-                        忽略错误
-                    </button>
-                    <button onclick="handleAction({{ error.task_id }}, 'resend', '{{ error.correct_time }}', this)">
-                        补发消息
-                    </button>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
-</body>
-</html>
+    {% endfor %}
+    </tbody>
+</table>
+
+<script>
+    function handleAction(task_id, action, correct_time, button) {
+        button.disabled = true;
+        button.classList.add('loading');
+        button.innerText = '正在发送...';
+
+        fetch("{% url 'handle_error_cron' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                action: action,
+                task_id: task_id,
+                correct_time: correct_time
+            })
+        }).then(response => response.json()).then(data => {
+            alert(data.message);
+            location.reload();
+        }).catch(error => {
+            console.error('Error:', error);
+            button.disabled = false;
+            button.classList.remove('loading');
+            button.innerText = action === 'ignore' ? '忽略错误' : '补发消息';
+        });
+    }
+</script>
+{% endblock %}

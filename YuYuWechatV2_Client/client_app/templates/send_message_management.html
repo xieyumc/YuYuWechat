@@ -1,300 +1,71 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Home</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-            background-color: #f2f2f7;
-        }
+{% extends "base.html" %}
 
-        .sidebar {
-            width: 200px;
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            border-right: 1px solid #e0e0e0;
-        }
+{% block title %}Home{% endblock %}
 
-        .main-content {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
+{% block header %}发送消息管理{% endblock %}
 
-        .card {
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            width: calc(50% - 20px);
-            box-sizing: border-box;
-        }
-
-        .card h3 {
-            margin-top: 0;
-        }
-
-        .input-container {
-            display: flex;
-            align-items: center;
-            gap: 5px; /* 调整间隙大小 */
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 2px; /* 减小状态指示灯和文字之间的间隔 */
-        }
-
-        .input-container input {
-            flex: 1;
-            max-width: 70%; /* 限制输入框宽度，根据实际情况调整 */
-        }
-
-        input, button {
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #005bb5;
-        }
-
-        h2 {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        ul li {
-            margin-bottom: 10px;
-        }
-
-        ul li a, ul li form button {
-            text-decoration: none;
-            color: #007aff;
-            padding: 10px;
-            display: block;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-            background: none;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-            width: 100%;
-            font-size: 15px;
-        }
-
-        ul li a:hover, ul li form button:hover {
-            background-color: #e0e0e0;
-        }
-
-        .content {
-            flex: 1;
-            padding: 20px;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin: 20px;
-        }
-
-        .topbar {
-            background-color: #007aff;
-            color: white;
-            padding: 10px;
-            text-align: center;
-            border-radius: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        table, th, td {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        .status-message {
-            transition: opacity 0.5s ease;
-        }
-
-        select, button {
-            border-radius: 10px;
-            padding: 10px;
-            margin: 5px 0;
-        }
-
-        button.skip-button {
-            background-color: #ccc;
-            color: white;
-            cursor: pointer;
-        }
-
-        .button-status-container {
-            display: flex;
-            align-items: center; /* 保证按钮和状态消息在同一行且垂直居中 */
-            gap: 10px; /* 在元素间增加一些间隔 */
-        }
-
-        button.skip-button.active {
-            background-color: #007aff;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
-
-            .main-content {
-                width: 100%;
-                padding-top: 0;
-            }
-
-            .card {
-                width: calc(100% - 40px); /* 调整卡片宽度以适应屏幕 */
-            }
-        }
-    </style>
-    <script>
-        function filterMessages() {
-            var selectedGroup = document.getElementById('groupFilter').value;
-            var rows = document.querySelectorAll('#messageContainer tr');
-            rows.forEach(row => {
-                var group = row.getAttribute('data-group');
-                if (selectedGroup === 'all' || group === selectedGroup) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    </script>
-</head>
-<body>
-<div class="sidebar">
-    <h2>Menu</h2>
-    <ul>
-        <li><a href="{% url 'home' %}">首页</a></li>
-        <li><a href="{% url 'log_view' %}">日志</a></li> <!-- 添加日志查看菜单项 -->
-        <li><a href="{% url 'error_detection' %}">错误检测</a></li> <!-- 新增错误检测菜单项 -->
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li>
-        <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="/admin" target="_blank">后台数据管理</a></li>
-        <li>
-            <form id="logout-form" method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">退出登录</button>
-            </form>
-        </li>
-    </ul>
-</div>
-<div class="content">
-    <div class="topbar">
-        <h1>发送消息管理</h1>
-
-    </div>
-    <div>
-        <label for="groupFilter">选择分组:</label>
-        <select id="groupFilter" onchange="filterMessages()">
-            <option value="all">所有分组</option>
-            {% for group in groups %}
-                <option value="{{ group }}">{{ group }}</option>
-            {% endfor %}
-        </select>
-        <button type="button" onclick="sendGroupMessage()">一键发送</button> <!-- 新增一键发送按钮 -->
-    </div>
-    <div id="progressContainer" style="display: none;">
-        <progress id="progressBar" value="0" max="100"></progress>
-        <p id="progressText">正在发送消息...</p>
-    </div>
-    <table>
-        <thead>
-        <tr>
-            <th>用户名</th>
-            <th>发送消息</th>
-            <th>分组</th>
-            <th>操作</th>
-            <th>发送状态</th>
-        </tr>
-        </thead>
-        <tbody id="messageContainer">
-        {% for message in messages %}
-            <tr data-group="{{ message.group }}">
-                <td>{{ message.user.username }}</td>
-                <td>{{ message.text }}</td>
-                <td>{{ message.group }}</td>
-                <td>
-                    <form method="post" onsubmit="return sendMessage(this);">
-                        {% csrf_token %}
-                        <input type="hidden" name="username" value="{{ message.user.username }}">
-                        <input type="hidden" name="text" value="{{ message.text }}">
-                        <input type="hidden" id="server_ip_hidden" name="server_ip">
-                        <button type="submit">单次发送</button>
-                        <button type="button" class="skip-button" onclick="toggleSkip(this)">本轮发送</button>
-                    </form>
-                </td>
-                <td>
-                    <span class="status-message" style="display:none;"></span>
-                </td>
-            </tr>
+{% block content %}
+<div>
+    <label for="groupFilter">选择分组:</label>
+    <select id="groupFilter" onchange="filterMessages()">
+        <option value="all">所有分组</option>
+        {% for group in groups %}
+            <option value="{{ group }}">{{ group }}</option>
         {% endfor %}
-        </tbody>
-    </table>
+    </select>
+    <button type="button" onclick="sendGroupMessage()">一键发送</button> <!-- 新增一键发送按钮 -->
 </div>
+<div id="progressContainer" style="display: none;">
+    <progress id="progressBar" value="0" max="100"></progress>
+    <p id="progressText">正在发送消息...</p>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>用户名</th>
+        <th>发送消息</th>
+        <th>分组</th>
+        <th>操作</th>
+        <th>发送状态</th>
+    </tr>
+    </thead>
+    <tbody id="messageContainer">
+    {% for message in messages %}
+        <tr data-group="{{ message.group }}">
+            <td>{{ message.user.username }}</td>
+            <td>{{ message.text }}</td>
+            <td>{{ message.group }}</td>
+            <td>
+                <form method="post" onsubmit="return sendMessage(this);">
+                    {% csrf_token %}
+                    <input type="hidden" name="username" value="{{ message.user.username }}">
+                    <input type="hidden" name="text" value="{{ message.text }}">
+                    <input type="hidden" id="server_ip_hidden" name="server_ip">
+                    <button type="submit">单次发送</button>
+                    <button type="button" class="skip-button" onclick="toggleSkip(this)">本轮发送</button>
+                </form>
+            </td>
+            <td>
+                <span class="status-message" style="display:none;"></span>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
 <script>
+    function filterMessages() {
+        var selectedGroup = document.getElementById('groupFilter').value;
+        var rows = document.querySelectorAll('#messageContainer tr');
+        rows.forEach(row => {
+            var group = row.getAttribute('data-group');
+            if (selectedGroup === 'all' || group === selectedGroup) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
 
     function toggleSkip(button) {
         if (button.classList.contains('active')) {
@@ -336,7 +107,6 @@
         });
         return false;
     }
-
 
     function sendGroupMessage() {
         var selectedGroup = document.getElementById('groupFilter').value;
@@ -414,5 +184,4 @@
         }
     }
 </script>
-</body>
-</html>
+{% endblock %}

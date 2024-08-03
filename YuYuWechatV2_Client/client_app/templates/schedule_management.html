@@ -1,396 +1,169 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schedule Management</title>
-    <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-            background-color: #f2f2f7;
-        }
+{% extends "base.html" %}
 
-        .sidebar {
-            width: 200px;
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            border-right: 1px solid #e0e0e0;
-        }
+{% block title %}定时任务管理{% endblock %}
 
-        .main-content {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
+{% block header %}定时任务管理{% endblock %}
 
-        .card {
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            width: calc(50% - 20px);
-            box-sizing: border-box;
-        }
+{% block content %}
+<div>
+    <label for="groupFilter">选择分组:</label>
+    <select id="groupFilter" onchange="filterTasks()">
+        <option value="all">所有分组</option>
+        {% for group in groups %}
+            <option value="{{ group }}">{{ group }}</option>
+        {% endfor %}
+    </select>
+    <button type="button" onclick="skipGroupExecution()">一键提前发送</button>
+</div>
+<div id="progressContainer" style="display: none;">
+    <progress id="progressBar" value="0" max="100"></progress>
+    <p id="progressText">正在处理...</p>
+</div>
+<table>
+    <thead>
+    <tr>
+        <th>用户名</th>
+        <th>消息内容</th>
+        <th>分组</th>
+        <th>Cron表达式</th>
+        <th>上次发送时间</th>
+        <th>下次执行时间</th>
+        <th>操作</th>
+        <th>发送状态</th>
+    </tr>
+    </thead>
+    <tbody id="taskContainer">
+    {% for task in tasks %}
+        <tr data-group="{{ task.group }}">
+            <td>{{ task.user.username }}</td>
+            <td>{{ task.text }}</td>
+            <td>{{ task.group }}</td>
+            <td>{{ task.cron_expression }}</td>
+            <td>{{ task.last_executed }}</td>
+            <td>{{ task.next_run }}</td>
+            <td>
+                <form method="post" onsubmit="return skipExecution(this);">
+                    {% csrf_token %}
+                    <input type="hidden" name="task_id" value="{{ task.id }}">
+                    <button type="submit">提前发送</button>
+                </form>
+            </td>
+            <td>
+                <span class="status-message" style="display:none;"></span>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
 
-        .card h3 {
-            margin-top: 0;
-        }
-
-        .input-container {
-            display: flex;
-            align-items: center;
-            gap: 5px; /* 调整间隙大小 */
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 2px; /* 减小状态指示灯和文字之间的间隔 */
-        }
-
-        .input-container input {
-            flex: 1;
-            max-width: 70%; /* 限制输入框宽度，根据实际情况调整 */
-        }
-
-        input, button {
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #005bb5;
-        }
-
-        h2 {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        ul li {
-            margin-bottom: 10px;
-        }
-
-        ul li a, ul li form button {
-            text-decoration: none;
-            color: #007aff;
-            padding: 10px;
-            display: block;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-            background: none;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-            width: 100%;
-            font-size: 15px;
-        }
-
-        ul li a:hover, ul li form button:hover {
-            background-color: #e0e0e0;
-        }
-
-        .content {
-            flex: 1;
-            padding: 20px;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin: 20px;
-        }
-
-        .topbar {
-            background-color: #007aff;
-            color: white;
-            padding: 10px;
-            text-align: center;
-            border-radius: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        table, th, td {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        .status-message {
-            transition: opacity 0.5s ease;
-        }
-
-        select, button {
-            border-radius: 10px;
-            padding: 10px;
-            margin: 5px 0;
-        }
-
-        button.skip-button {
-            background-color: #ccc;
-            color: white;
-            cursor: pointer;
-        }
-
-        .button-status-container {
-            display: flex;
-            align-items: center; /* 保证按钮和状态消息在同一行且垂直居中 */
-            gap: 10px; /* 在元素间增加一些间隔 */
-        }
-
-        button.skip-button.active {
-            background-color: #007aff;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
+<script>
+    function filterTasks() {
+        var selectedGroup = document.getElementById('groupFilter').value;
+        var rows = document.querySelectorAll('#taskContainer tr');
+        rows.forEach(row => {
+            var group = row.getAttribute('data-group');
+            if (selectedGroup === 'all' || group === selectedGroup) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
             }
+        });
+    }
 
-            .sidebar {
-                width: 100%;
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
+    function skipExecution(form) {
+        var statusMessage = form.parentNode.nextElementSibling.querySelector('.status-message');
+        statusMessage.style.display = 'block';
+        statusMessage.textContent = '正在处理...';
+        statusMessage.style.opacity = 0;
+        setTimeout(() => statusMessage.style.opacity = 1, 100);
 
-            .main-content {
-                width: 100%;
-                padding-top: 0;
-            }
+        var formData = new FormData(form);
 
-            .card {
-                width: calc(100% - 40px); /* 调整卡片宽度以适应屏幕 */
+        fetch('{% url "skip_execution" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-CSRFToken': formData.get('csrfmiddlewaretoken')
             }
+        }).then(response => {
+            if (response.ok) {
+                return response.json();
+            } else {
+                throw new Error('Network response was not ok.');
+            }
+        }).then(data => {
+            statusMessage.textContent = '处理成功';
+        }).catch(error => {
+            statusMessage.textContent = '处理失败';
+            console.error('Error:', error);
+        });
+        return false;
+    }
+
+    function skipGroupExecution() {
+        var selectedGroup = document.getElementById('groupFilter').value;
+        if (selectedGroup === 'all') {
+            alert('请选择一个分组');
+            return;
         }
-    </style>
-    <script>
-        function filterTasks() {
-            var selectedGroup = document.getElementById('groupFilter').value;
-            var rows = document.querySelectorAll('#taskContainer tr');
-            rows.forEach(row => {
-                var group = row.getAttribute('data-group');
-                if (selectedGroup === 'all' || group === selectedGroup) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
+
+        var rows = document.querySelectorAll(`#taskContainer tr[data-group='${selectedGroup}']`);
+        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        var totalTasks = rows.length;
+        var processedCount = 0;
+        var successCount = 0;
+        var failureCount = 0;
+        var failedUsers = [];
+
+        if (totalTasks === 0) {
+            alert('当前分组没有任务');
+            return;
         }
 
-        function skipExecution(form) {
-            var statusMessage = form.parentNode.nextElementSibling.querySelector('.status-message');
-            statusMessage.style.display = 'block';
-            statusMessage.textContent = '正在处理...';
-            statusMessage.style.opacity = 0;
-            setTimeout(() => statusMessage.style.opacity = 1, 100);
+        // 显示进度条
+        var progressContainer = document.getElementById('progressContainer');
+        var progressBar = document.getElementById('progressBar');
+        var progressText = document.getElementById('progressText');
+        progressContainer.style.display = 'block';
+        progressBar.value = 0;
+        progressText.textContent = `正在处理... 0/${totalTasks}`;
 
+        rows.forEach(row => {
+            var form = row.querySelector('form');
             var formData = new FormData(form);
 
             fetch('{% url "skip_execution" %}', {
                 method: 'POST',
                 body: formData,
                 headers: {
-                    'X-CSRFToken': formData.get('csrfmiddlewaretoken')
+                    'X-CSRFToken': csrfToken
                 }
             }).then(response => {
                 if (response.ok) {
+                    successCount++;
                     return response.json();
                 } else {
                     throw new Error('Network response was not ok.');
                 }
-            }).then(data => {
-                statusMessage.textContent = '处理成功';
             }).catch(error => {
-                statusMessage.textContent = '处理失败';
+                failureCount++;
+                var username = formData.get('username');
+                failedUsers.push(username);
                 console.error('Error:', error);
+            }).finally(() => {
+                processedCount++;
+                var progress = (processedCount / totalTasks) * 100;
+                progressBar.value = progress;
+                progressText.textContent = `正在处理... ${processedCount}/${totalTasks}`;
+
+                if (processedCount === totalTasks) {
+                    progressText.textContent = `处理完成！成功: ${successCount}，失败: ${failureCount}`;
+                    if (failedUsers.length > 0) {
+                        alert(`以下用户处理失败: ${failedUsers.join(', ')}`);
+                    }
+                }
             });
-            return false;
-        }
-
-        function skipGroupExecution() {
-            var selectedGroup = document.getElementById('groupFilter').value;
-            if (selectedGroup === 'all') {
-                alert('请选择一个分组');
-                return;
-            }
-
-            var rows = document.querySelectorAll(`#taskContainer tr[data-group='${selectedGroup}']`);
-            var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-            var totalTasks = rows.length;
-            var processedCount = 0;
-            var successCount = 0;
-            var failureCount = 0;
-            var failedUsers = [];
-
-            if (totalTasks === 0) {
-                alert('当前分组没有任务');
-                return;
-            }
-
-            // 显示进度条
-            var progressContainer = document.getElementById('progressContainer');
-            var progressBar = document.getElementById('progressBar');
-            var progressText = document.getElementById('progressText');
-            progressContainer.style.display = 'block';
-            progressBar.value = 0;
-            progressText.textContent = `正在处理... 0/${totalTasks}`;
-
-            rows.forEach(row => {
-                var form = row.querySelector('form');
-                var formData = new FormData(form);
-
-                fetch('{% url "skip_execution" %}', {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-CSRFToken': csrfToken
-                    }
-                }).then(response => {
-                    if (response.ok) {
-                        successCount++;
-                        return response.json();
-                    } else {
-                        throw new Error('Network response was not ok.');
-                    }
-                }).catch(error => {
-                    failureCount++;
-                    var username = formData.get('username');
-                    failedUsers.push(username);
-                    console.error('Error:', error);
-                }).finally(() => {
-                    processedCount++;
-                    var progress = (processedCount / totalTasks) * 100;
-                    progressBar.value = progress;
-                    progressText.textContent = `正在处理... ${processedCount}/${totalTasks}`;
-
-                    if (processedCount === totalTasks) {
-                        progressText.textContent = `处理完成！成功: ${successCount}，失败: ${failureCount}`;
-                        if (failedUsers.length > 0) {
-                            alert(`以下用户处理失败: ${failedUsers.join(', ')}`);
-                        }
-                    }
-                });
-            });
-        }
-    </script>
-</head>
-<body>
-<div class="sidebar">
-    <h2>Menu</h2>
-    <ul>
-        <li><a href="{% url 'home' %}">首页</a></li>
-        <li><a href="{% url 'log_view' %}">日志</a></li> <!-- 添加日志查看菜单项 -->
-        <li><a href="{% url 'error_detection' %}">错误检测</a></li> <!-- 新增错误检测菜单项 -->
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li>
-        <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="/admin" target="_blank">后台数据管理</a></li>
-        <li>
-            <form id="logout-form" method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">退出登录</button>
-            </form>
-        </li>
-    </ul>
-</div>
-<div class="content">
-    <div class="topbar">
-        <h1>定时任务管理</h1>
-    </div>
-    <div>
-        <label for="groupFilter">选择分组:</label>
-        <select id="groupFilter" onchange="filterTasks()">
-            <option value="all">所有分组</option>
-            {% for group in groups %}
-                <option value="{{ group }}">{{ group }}</option>
-            {% endfor %}
-        </select>
-        <button type="button" onclick="skipGroupExecution()">一键提前发送</button>
-    </div>
-    <div id="progressContainer" style="display: none;">
-        <progress id="progressBar" value="0" max="100"></progress>
-        <p id="progressText">正在处理...</p>
-    </div>
-    <table>
-        <thead>
-        <tr>
-            <th>用户名</th>
-            <th>消息内容</th>
-            <th>分组</th>
-            <th>Cron表达式</th>
-            <th>上次发送时间</th>
-            <th>下次执行时间</th>
-            <th>操作</th>
-            <th>发送状态</th>
-        </tr>
-        </thead>
-        <tbody id="taskContainer">
-        {% for task in tasks %}
-            <tr data-group="{{ task.group }}">
-                <td>{{ task.user.username }}</td>
-                <td>{{ task.text }}</td>
-                <td>{{ task.group }}</td>
-                <td>{{ task.cron_expression }}</td>
-                <td>{{ task.last_executed }}</td>
-                <td>{{ task.next_run }}</td>
-                <td>
-                    <form method="post" onsubmit="return skipExecution(this);">
-                        {% csrf_token %}
-                        <input type="hidden" name="task_id" value="{{ task.id }}">
-                        <button type="submit">提前发送</button>
-                    </form>
-                </td>
-                <td>
-                    <span class="status-message" style="display:none;"></span>
-                </td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-</div>
-</body>
-</html>
+        });
+    }
+</script>
+{% endblock %}

@@ -1,316 +1,89 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Log Viewer</title>
-        <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-            background-color: #f2f2f7;
-        }
+{% extends "base.html" %}
 
-        .sidebar {
-            width: 200px;
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            border-right: 1px solid #e0e0e0;
-        }
+{% block title %}日志查看{% endblock %}
 
-        .main-content {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
+{% block header %}日志{% endblock %}
 
-        .card {
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            width: calc(50% - 20px);
-            box-sizing: border-box;
-        }
-
-        .card h3 {
-            margin-top: 0;
-        }
-
-        .input-container {
-            display: flex;
-            align-items: center;
-            gap: 5px; /* 调整间隙大小 */
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 2px; /* 减小状态指示灯和文字之间的间隔 */
-        }
-
-        .input-container input {
-            flex: 1;
-            max-width: 70%; /* 限制输入框宽度，根据实际情况调整 */
-        }
-
-        input, button {
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #005bb5;
-        }
-
-        h2 {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        ul li {
-            margin-bottom: 10px;
-        }
-
-        ul li a, ul li form button {
-            text-decoration: none;
-            color: #007aff;
-            padding: 10px;
-            display: block;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-            background: none;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-            width: 100%;
-            font-size: 15px;
-        }
-
-        ul li a:hover, ul li form button:hover {
-            background-color: #e0e0e0;
-        }
-
-        .content {
-            flex: 1;
-            padding: 20px;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin: 20px;
-        }
-
-        .topbar {
-            background-color: #007aff;
-            color: white;
-            padding: 10px;
-            text-align: center;
-            border-radius: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        table, th, td {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        .status-message {
-            transition: opacity 0.5s ease;
-        }
-
-        select, button {
-            border-radius: 10px;
-            padding: 10px;
-            margin: 5px 0;
-        }
-
-        button.skip-button {
-            background-color: #ccc;
-            color: white;
-            cursor: pointer;
-        }
-
-        .button-status-container {
-            display: flex;
-            align-items: center; /* 保证按钮和状态消息在同一行且垂直居中 */
-            gap: 10px; /* 在元素间增加一些间隔 */
-        }
-
-        button.skip-button.active {
-            background-color: #007aff;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
-
-            .main-content {
-                width: 100%;
-                padding-top: 0;
-            }
-
-            .card {
-                width: calc(100% - 40px); /* 调整卡片宽度以适应屏幕 */
-            }
-        }
-    </style>
-    <script>
-        function decodeUnicode(str) {
-            return decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"').replace(/\\u/g, '%u') + '"'));
-        }
-
-        function convertInputParams() {
-            const elements = document.querySelectorAll('.input-params');
-            elements.forEach(element => {
-                const jsonStr = element.innerText;
-                try {
-                    const jsonObj = JSON.parse(jsonStr);
-                    element.innerText = JSON.stringify(jsonObj, null, 2);  // 格式化 JSON 字符串
-                } catch (e) {
-                    console.error('Error parsing JSON:', e);
-                }
-            });
-        }
-
-        document.addEventListener('DOMContentLoaded', convertInputParams);
-
-        function filterLogs() {
-            const filter = document.getElementById('filter').value;
-            const rows = document.querySelectorAll('tbody tr');
-            rows.forEach(row => {
-                const result = row.querySelector('.result').innerText;
-                if (filter === 'all' || (filter === 'success' && result === '成功') || (filter === 'failure' && result === '失败')) {
-                    row.style.display = '';
-                } else {
-                    row.style.display = 'none';
-                }
-            });
-        }
-    </script>
-</head>
-<body>
-<div class="sidebar">
-    <h2>Menu</h2>
-    <ul>
-        <li><a href="{% url 'home' %}">首页</a></li>
-        <li><a href="{% url 'log_view' %}">日志</a></li> <!-- 添加日志查看菜单项 -->
-        <li><a href="{% url 'error_detection' %}">错误检测</a></li> <!-- 新增错误检测菜单项 -->
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="{% url 'send_message_management' %}">发送消息管理</a></li>
-        <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
-        <li><a href="/admin" target="_blank">后台数据管理</a></li>
-        <li>
-            <form id="logout-form" method="post" action="{% url 'logout' %}">
-                {% csrf_token %}
-                <button type="submit">退出登录</button>
-            </form>
-        </li>
-    </ul>
+{% block content %}
+<div class="filter">
+    <label for="filter">筛选: </label>
+    <select id="filter" onchange="filterLogs()">
+        <option value="all">全部</option>
+        <option value="success">成功</option>
+        <option value="failure">失败</option>
+    </select>
 </div>
-<div class="content">
-    <div class="topbar">
-        <h1>日志</h1>
-    </div>
-    <div class="filter">
-        <label for="filter">筛选: </label>
-        <select id="filter" onchange="filterLogs()">
-            <option value="all">全部</option>
-            <option value="success">成功</option>
-            <option value="failure">失败</option>
-        </select>
-    </div>
-    <table>
-        <thead>
+<table>
+    <thead>
+    <tr>
+        <th>时间</th>
+        <th>调用函数</th>
+        <th>结果</th>
+        <th>输入参数</th>
+        <th>返回数据</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for log in page_obj %}
         <tr>
-            <th>时间</th>
-            <th>调用函数</th>
-            <th>结果</th>
-            <th>输入参数</th>
-            <th>返回数据</th>
+            <td>{{ log.timestamp }}</td>
+            <td>{{ log.function_name }}</td>
+            <td class="result">{{ log.result|yesno:"成功,失败" }}</td>
+            <td class="input-params">{{ log.input_params }}</td>
+            <td>{{ log.return_data }}</td>
         </tr>
-        </thead>
-        <tbody>
-        {% for log in page_obj %}
-            <tr>
-                <td>{{ log.timestamp }}</td>
-                <td>{{ log.function_name }}</td>
-                <td class="result">{{ log.result|yesno:"成功,失败" }}</td>
-                <td class="input-params">{{ log.input_params }}</td>
-                <td>{{ log.return_data }}</td>
-            </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-    <div class="pagination">
-        <span class="step-links">
-            {% if page_obj.has_previous %}
-                <a href="?page=1">&laquo; first</a>
-                <a href="?page={{ page_obj.previous_page_number }}">previous</a>
-            {% endif %}
+    {% endfor %}
+    </tbody>
+</table>
+<div class="pagination">
+    <span class="step-links">
+        {% if page_obj.has_previous %}
+            <a href="?page=1">&laquo; first</a>
+            <a href="?page={{ page_obj.previous_page_number }}">previous</a>
+        {% endif %}
 
-            <span class="current">
-                Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
-            </span>
-
-            {% if page_obj.has_next %}
-                <a href="?page={{ page_obj.next_page_number }}">next</a>
-                <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
-            {% endif %}
+        <span class="current">
+            Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}.
         </span>
-    </div>
+
+        {% if page_obj.has_next %}
+            <a href="?page={{ page_obj.next_page_number }}">next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+        {% endif %}
+    </span>
 </div>
-</body>
-</html>
+
+<script>
+    function decodeUnicode(str) {
+        return decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"').replace(/\\u/g, '%u') + '"'));
+    }
+
+    function convertInputParams() {
+        const elements = document.querySelectorAll('.input-params');
+        elements.forEach(element => {
+            const jsonStr = element.innerText;
+            try {
+                const jsonObj = JSON.parse(jsonStr);
+                element.innerText = JSON.stringify(jsonObj, null, 2);  // 格式化 JSON 字符串
+            } catch (e) {
+                console.error('Error parsing JSON:', e);
+            }
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', convertInputParams);
+
+    function filterLogs() {
+        const filter = document.getElementById('filter').value;
+        const rows = document.querySelectorAll('tbody tr');
+        rows.forEach(row => {
+            const result = row.querySelector('.result').innerText;
+            if (filter === 'all' || (filter === 'success' && result === '成功') || (filter === 'failure' && result === '失败')) {
+                row.style.display = '';
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+</script>
+{% endblock %}
