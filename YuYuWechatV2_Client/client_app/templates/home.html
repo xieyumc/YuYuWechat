@@ -102,16 +102,22 @@
             margin-bottom: 10px;
         }
 
-        ul li a {
+        ul li a, ul li form button {
             text-decoration: none;
             color: #007aff;
             padding: 10px;
             display: block;
             border-radius: 10px;
             transition: background-color 0.3s ease;
+            background: none;
+            border: none;
+            cursor: pointer;
+            text-align: left;
+            width: 100%;
+            font-size: 15px;
         }
 
-        ul li a:hover {
+        ul li a:hover, ul li form button:hover {
             background-color: #e0e0e0;
         }
 
@@ -213,7 +219,12 @@
         <li><a href="{% url 'schedule_management' %}">定时任务管理</a></li>
         <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li> <!-- 分割线 -->
         <li><a href="/admin" target="_blank">后台数据管理</a></li>
-        <li><a href="{% url 'logout' %}">退出登录</a></li>
+        <li>
+            <form id="logout-form" method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit">退出登录</button>
+            </form>
+        </li>
     </ul>
 </div>
 <div class="content">
