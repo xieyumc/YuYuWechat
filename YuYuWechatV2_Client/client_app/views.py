@@ -313,11 +313,20 @@ def check_wechat_status(request):
 
 @login_required
 def log_view(request):
-    log_list = Log.objects.all().order_by('-timestamp')
+    filter_type = request.GET.get('filter', 'all')
+
+    if filter_type == 'success':
+        log_list = Log.objects.filter(result=True).order_by('-timestamp')
+    elif filter_type == 'failure':
+        log_list = Log.objects.filter(result=False).order_by('-timestamp')
+    else:
+        log_list = Log.objects.all().order_by('-timestamp')
+
     paginator = Paginator(log_list, 100)  # 每页显示100条记录
     page_number = request.GET.get('page')
     page_obj = paginator.get_page(page_number)
-    return render(request, 'log.html', {'page_obj': page_obj})
+
+    return render(request, 'log.html', {'page_obj': page_obj, 'filter': filter_type})
 
 
 def log_counts(request):

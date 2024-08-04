@@ -5,41 +5,41 @@
 {% block header %}日志{% endblock %}
 
 {% block content %}
-<div class="filter">
-    <label for="filter">筛选: </label>
-    <select id="filter" onchange="filterLogs()">
-        <option value="all">全部</option>
-        <option value="success">成功</option>
-        <option value="failure">失败</option>
-    </select>
-</div>
-<table>
-    <thead>
-    <tr>
-        <th>时间</th>
-        <th>调用函数</th>
-        <th>结果</th>
-        <th>输入参数</th>
-        <th>返回数据</th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for log in page_obj %}
+    <div class="filter">
+        <label for="filter">筛选: </label>
+        <select id="filter" onchange="filterLogs()">
+            <option value="all">全部</option>
+            <option value="success">成功</option>
+            <option value="failure">失败</option>
+        </select>
+    </div>
+    <table>
+        <thead>
         <tr>
-            <td>{{ log.timestamp }}</td>
-            <td>{{ log.function_name }}</td>
-            <td class="result">{{ log.result|yesno:"成功,失败" }}</td>
-            <td class="input-params">{{ log.input_params }}</td>
-            <td>{{ log.return_data }}</td>
+            <th>时间</th>
+            <th>调用函数</th>
+            <th>结果</th>
+            <th>输入参数</th>
+            <th>返回数据</th>
         </tr>
-    {% endfor %}
-    </tbody>
-</table>
-<div class="pagination">
+        </thead>
+        <tbody>
+        {% for log in page_obj %}
+            <tr>
+                <td>{{ log.timestamp }}</td>
+                <td>{{ log.function_name }}</td>
+                <td class="result">{{ log.result|yesno:"成功,失败" }}</td>
+                <td class="input-params">{{ log.input_params }}</td>
+                <td>{{ log.return_data }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <div class="pagination">
     <span class="step-links">
         {% if page_obj.has_previous %}
-            <a href="?page=1">&laquo; first</a>
-            <a href="?page={{ page_obj.previous_page_number }}">previous</a>
+            <a href="?page=1&filter={{ filter }}">&laquo; first</a>
+            <a href="?page={{ page_obj.previous_page_number }}&filter={{ filter }}">previous</a>
         {% endif %}
 
         <span class="current">
@@ -47,43 +47,44 @@
         </span>
 
         {% if page_obj.has_next %}
-            <a href="?page={{ page_obj.next_page_number }}">next</a>
-            <a href="?page={{ page_obj.paginator.num_pages }}">last &raquo;</a>
+            <a href="?page={{ page_obj.next_page_number }}&filter={{ filter }}">next</a>
+            <a href="?page={{ page_obj.paginator.num_pages }}&filter={{ filter }}">last &raquo;</a>
         {% endif %}
     </span>
-</div>
+    </div>
 
-<script>
-    function decodeUnicode(str) {
-        return decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"').replace(/\\u/g, '%u') + '"'));
-    }
+    <script>
+        function decodeUnicode(str) {
+            return decodeURIComponent(JSON.parse('"' + str.replace(/\"/g, '\\"').replace(/\\u/g, '%u') + '"'));
+        }
 
-    function convertInputParams() {
-        const elements = document.querySelectorAll('.input-params');
-        elements.forEach(element => {
-            const jsonStr = element.innerText;
-            try {
-                const jsonObj = JSON.parse(jsonStr);
-                element.innerText = JSON.stringify(jsonObj, null, 2);  // 格式化 JSON 字符串
-            } catch (e) {
-                console.error('Error parsing JSON:', e);
-            }
-        });
-    }
+        function convertInputParams() {
+            const elements = document.querySelectorAll('.input-params');
+            elements.forEach(element => {
+                const jsonStr = element.innerText;
+                try {
+                    const jsonObj = JSON.parse(jsonStr);
+                    element.innerText = JSON.stringify(jsonObj, null, 2);  // 格式化 JSON 字符串
+                } catch (e) {
+                    console.error('Error parsing JSON:', e);
+                }
+            });
+        }
 
-    document.addEventListener('DOMContentLoaded', convertInputParams);
+        document.addEventListener('DOMContentLoaded', convertInputParams);
 
-    function filterLogs() {
-        const filter = document.getElementById('filter').value;
-        const rows = document.querySelectorAll('tbody tr');
-        rows.forEach(row => {
-            const result = row.querySelector('.result').innerText;
-            if (filter === 'all' || (filter === 'success' && result === '成功') || (filter === 'failure' && result === '失败')) {
-                row.style.display = '';
-            } else {
-                row.style.display = 'none';
-            }
-        });
-    }
-</script>
+        function filterLogs() {
+            const filter = document.getElementById('filter').value;
+            window.location.href = `?filter=${filter}`;
+            const rows = document.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const result = row.querySelector('.result').innerText;
+                if (filter === 'all' || (filter === 'success' && result === '成功') || (filter === 'failure' && result === '失败')) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        }
+    </script>
 {% endblock %}
