@@ -27,13 +27,10 @@ jobs:
         run: docker run -d --name redis -p 6379:6379 redis:latest
 
       - name: Run Postgres container
-        run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ${{ github.workspace }}/postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
+        run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
 
-      - name: Wait for Postgres to be healthy
-        run: |
-          while [ "$(docker inspect -f {{.State.Health.Status}} postgres)" != "healthy" ]; do
-            sleep 1;
-          done
+      - name: Wait for the server to start
+        run: sleep 60
 
       - name: Run yuyuwechatv2_client container
         run: |
