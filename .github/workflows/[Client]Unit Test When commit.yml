@@ -11,6 +11,18 @@ jobs:
       run:
         working-directory: ./YuYuWechatV2_Client
 
+    services:
+      redis:
+        image: redis:latest
+        ports:
+          - 6379:6379
+      postgres:
+        image: postgres:latest
+        ports:
+          - 5431:5432
+        env:
+          POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
+
     steps:
     - uses: actions/checkout@v2
 
@@ -26,9 +38,15 @@ jobs:
         pip install coverage
 
     - name: Run migrations
+      env:
+        DATABASE_URL: postgres://postgres:tykWyr-bepqu6-fafvym@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
       run: python manage.py migrate
 
     - name: Run tests with coverage
+      env:
+        DATABASE_URL: postgres://postgres:tykWyr-bepqu6-fafvym@localhost:5432/test_db
+        REDIS_URL: redis://localhost:6379
       run: |
         coverage run --source='.' manage.py test --verbosity=3
         coverage report

@@ -33,11 +33,18 @@ jobs:
       run: sleep 10
 
     - name: Run yuyuwechatv2_client container
-      run: docker run -d --name yuyuwechatv2_client -p 7500:7500 --link redis:redis --link postgres:postgres \
-        -e REDIS_HOST=redis -e REDIS_PORT=6379 \
-        -e POSTGRES_DB=postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
-        -e POSTGRES_HOST=postgres -e POSTGRES_PORT=5431 \
-        yuyuwechatv2_client
+      run: |
+        docker run -d --name yuyuwechatv2_client -p 7500:7500 \
+          --link redis:redis \
+          --link postgres:postgres \
+          -e REDIS_HOST=redis \
+          -e REDIS_PORT=6379 \
+          -e POSTGRES_DB=postgres \
+          -e POSTGRES_USER=postgres \
+          -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
+          -e POSTGRES_HOST=postgres \
+          -e POSTGRES_PORT=5431 \
+          yuyuwechatv2_client
 
     - name: Wait for the server to start
       run: sleep 10
