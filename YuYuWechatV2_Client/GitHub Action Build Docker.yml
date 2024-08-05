@@ -4,6 +4,8 @@ services:
     container_name: redis
     ports:
       - "6379:6379"
+    networks:
+      - yuyuwechatv2_network
 
   postgres:
     image: postgres:latest
@@ -14,6 +16,8 @@ services:
       - ./postgres_data:/var/lib/postgresql/data
     ports:
       - "5431:5432"
+    networks:
+      - yuyuwechatv2_network
 
   yuyuwechatv2_client:
     build: .
@@ -30,4 +34,10 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym
       - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5431
+      - POSTGRES_PORT=5432
+    networks:
+      - yuyuwechatv2_network
+
+networks:
+  yuyuwechatv2_network:
+    driver: bridge
