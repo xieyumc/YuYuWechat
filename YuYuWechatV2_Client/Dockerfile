@@ -7,7 +7,11 @@ WORKDIR /app
 # 复制requirements.txt并安装依赖
 COPY requirements.txt .
 
-RUN pip3 install --no-cache-dir -r requirements.txt
+RUN apt-get update && apt-get install -y \
+    gcc \
+    libpq-dev \
+    && pip install --no-cache-dir -r requirements.txt \
+
 RUN apt-get update && apt-get install -y procps
 
 # 复制项目文件
