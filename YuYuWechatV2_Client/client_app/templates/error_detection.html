@@ -8,6 +8,7 @@
 <table>
     <thead>
     <tr>
+        <th>序号</th>
         <th>错误类型</th>
         <th>详细错误</th>
         <th>操作</th>
@@ -16,6 +17,7 @@
     <tbody>
     {% for error in errors %}
         <tr>
+            <td class="index">{{ forloop.counter }}</td>
             <td>{{ error.error_type }}</td>
             <td>{{ error.error_detail|safe }}</td>
             <td>
@@ -58,5 +60,13 @@
             button.innerText = action === 'ignore' ? '忽略错误' : '补发消息';
         });
     }
+
+    // 重新计算序号
+    document.addEventListener('DOMContentLoaded', () => {
+        var rows = document.querySelectorAll('tbody tr');
+        rows.forEach((row, index) => {
+            row.querySelector('.index').textContent = index + 1;
+        });
+    });
 </script>
 {% endblock %}

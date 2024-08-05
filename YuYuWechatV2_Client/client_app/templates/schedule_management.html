@@ -22,6 +22,7 @@
 <table>
     <thead>
     <tr>
+        <th>序号</th>
         <th>用户名</th>
         <th>消息内容</th>
         <th>分组</th>
@@ -35,6 +36,7 @@
     <tbody id="taskContainer">
     {% for task in tasks %}
         <tr data-group="{{ task.group }}">
+            <td class="index"></td>
             <td>{{ task.user.username }}</td>
             <td>{{ task.text }}</td>
             <td>{{ task.group }}</td>
@@ -60,10 +62,12 @@
     function filterTasks() {
         var selectedGroup = document.getElementById('groupFilter').value;
         var rows = document.querySelectorAll('#taskContainer tr');
+        var index = 1;
         rows.forEach(row => {
             var group = row.getAttribute('data-group');
             if (selectedGroup === 'all' || group === selectedGroup) {
                 row.style.display = '';
+                row.querySelector('.index').textContent = index++;
             } else {
                 row.style.display = 'none';
             }
@@ -165,5 +169,8 @@
             });
         });
     }
+
+    // 初次加载时过滤任务
+    document.addEventListener('DOMContentLoaded', filterTasks);
 </script>
 {% endblock %}
