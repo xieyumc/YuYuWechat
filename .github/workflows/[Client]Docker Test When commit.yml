@@ -7,35 +7,40 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./YuYuWechatV2_Client
-
     services:
       redis:
         image: redis:latest
-        options: --network-alias=redis
         ports:
           - 6379:6379
       postgres:
         image: postgres:latest
-        options: --network-alias=postgres
         env:
-          POSTGRES_DB: postgres
-          POSTGRES_USER: postgres
           POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
         ports:
           - 5431:5432
+        options: >-
+          --volume ./postgres_data:/var/lib/postgresql/data
+
+    defaults:
+      run:
+        working-directory: ./YuYuWechatV2_Client
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v1
-
-      - name: Build and run Docker containers
-        run: docker-compose -f ../.github/docker-compose.yml up -d --build
+      - name: Build and run Docker container
+        run: |
+          docker build -t yuyuwechatv2_client .
+          docker run -d --name yuyuwechatv2_client -p 7500:7500 \
+            -e REDIS_HOST=redis \
+            -e REDIS_PORT=6379 \
+            -e POSTGRES_DB=postgres \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
+            -e POSTGRES_HOST=postgres \
+            -e POSTGRES_PORT=5431 \
+            yuyuwechatv2_client
 
       - name: Wait for the server to start
         run: sleep 10
