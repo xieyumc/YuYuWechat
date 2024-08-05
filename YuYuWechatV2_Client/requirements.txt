@@ -7,3 +7,4 @@ cryptography
 redis
 coverage
 wraps
+psycopg

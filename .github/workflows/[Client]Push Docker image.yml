@@ -23,14 +23,27 @@ jobs:
     - name: Build Docker image
       run: docker build -t yuyuwechatv2_client .
 
-    - name: Run Docker container
-      run: docker run -d -p 7500:7500 --name yuyuwechatv2_client-container yuyuwechatv2_client
+    - name: Run Redis container
+      run: docker run -d --name redis -p 6379:6379 redis:latest
+
+    - name: Run Postgres container
+      run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ${{ github.workspace }}/postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
+
+    - name: Wait for Postgres to start
+      run: sleep 10
+
+    - name: Run yuyuwechatv2_client container
+      run: docker run -d --name yuyuwechatv2_client -p 7500:7500 --link redis:redis --link postgres:postgres \
+        -e REDIS_HOST=redis -e REDIS_PORT=6379 \
+        -e POSTGRES_DB=postgres -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
+        -e POSTGRES_HOST=postgres -e POSTGRES_PORT=5431 \
+        yuyuwechatv2_client
 
     - name: Wait for the server to start
       run: sleep 10
 
     - name: Display Docker logs
-      run: docker logs yuyuwechatv2_client-container
+      run: docker logs yuyuwechatv2_client
 
     # Test endpoints without login
     - name: Test main endpoint without login
@@ -76,7 +89,7 @@ jobs:
     # Create a superuser
     - name: Create superuser
       run: |
-        docker exec -e DJANGO_SUPERUSER_PASSWORD="12345" yuyuwechatv2_client-container python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
+        docker exec -e DJANGO_SUPERUSER_PASSWORD="12345" yuyuwechatv2_client python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
 
     # Login and store session cookies
     - name: Login and store session cookies
@@ -142,7 +155,7 @@ jobs:
         curl -b cookies.txt --fail -F "db_file=@db_backup.json" http://127.0.0.1:7500/import_database/
 
     - name: Stop and remove Docker container
-      run: docker rm -f yuyuwechatv2_client-container
+      run: docker rm -f yuyuwechatv2_client
 
     # Only upload and push Docker image if all tests pass
     - name: Save Docker image to tar file
@@ -200,6 +213,6 @@ jobs:
         context: ./YuYuWechatV2_Client
         push: true
         tags: |
-            ${{ secrets.DOCKER_USERNAME }}/yuyuwechatv2_client:latest
-            ${{ secrets.DOCKER_USERNAME }}/yuyuwechatv2_client:${{ github.ref_name }}
+          ${{ secrets.DOCKER_USERNAME }}/yuyuwechatv2_client:latest
+          ${{ secrets.DOCKER_USERNAME }}/yuyuwechatv2_client:${{ github.ref_name }}
         platforms: linux/amd64,linux/arm64

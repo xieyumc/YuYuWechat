@@ -5,6 +5,16 @@ services:
     ports:
       - "6379:6379"
 
+  postgres:
+    image: postgres:latest
+    container_name: postgres
+    environment:
+      POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
+    volumes:
+      - ./postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5431:5432"
+
   yuyuwechatv2_client:
     image: mona233/yuyuwechatv2_client:latest
     container_name: yuyuwechatv2_client
@@ -12,6 +22,12 @@ services:
       - "7500:7500"
     depends_on:
       - redis
+      - postgres
     environment:
       - REDIS_HOST=redis
       - REDIS_PORT=6379
+      - POSTGRES_DB=postgres
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5431
