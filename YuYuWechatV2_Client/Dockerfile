@@ -10,7 +10,7 @@ COPY requirements.txt .
 RUN apt-get update && apt-get install -y \
     gcc \
     libpq-dev \
-    && pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir -r requirements.txt
 
 RUN apt-get update && apt-get install -y procps
 
@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y procps
 COPY . .
 
 # 暴露端口
-EXPOSE 7000
+EXPOSE 7500
 
 # 启动Django应用
 CMD python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:7500
