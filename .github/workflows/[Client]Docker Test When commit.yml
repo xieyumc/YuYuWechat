@@ -43,13 +43,13 @@ jobs:
         run: pwd
 
       - name: Build and run Docker containers
-        run: docker-compose -f ./GitHub Action Build Docker.yml up -d --build
+        run: docker-compose -f "./GitHub Action Build Docker.yml" up -d --build
 
       - name: Wait for the server to start
         run: sleep 10
 
       - name: Display Docker logs
-        run: docker-compose -f ./GitHub Action Build Docker.yml logs yuyuwechatv2_client
+        run: docker-compose -f "./GitHub Action Build Docker.yml" logs yuyuwechatv2_client
 
       # Test endpoints without login
       - name: Test main endpoint without login
