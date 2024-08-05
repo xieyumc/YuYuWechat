@@ -21,35 +21,14 @@ jobs:
       - name: Create Docker network
         run: docker network create my_network
 
-      - name: Build Docker image
-        run: docker build -t yuyuwechatv2_client .
-
-      - name: Run Redis container
-        run: docker run -d --name redis --network my_network redis:latest
-
-      - name: Run Postgres container
-        run: docker run -d --name postgres --network my_network -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
-
-      - name: Wait for the server to start
-        run: sleep 10
-
-      - name: Run yuyuwechatv2_client container
-        run: |
-          docker run -d --name yuyuwechatv2_client --network my_network -p 7500:7500 \
-            -e REDIS_HOST=redis \
-            -e REDIS_PORT=6379 \
-            -e POSTGRES_DB=postgres \
-            -e POSTGRES_USER=postgres \
-            -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
-            -e POSTGRES_HOST=postgres \
-            -e POSTGRES_PORT=5431 \
-            yuyuwechatv2_client
+      - name: Build and run Docker containers
+        run: docker-compose -f ./.github/docker-compose.yml up -d --build
 
       - name: Wait for the server to start
         run: sleep 10
 
       - name: Display Docker logs
-        run: docker logs yuyuwechatv2_client
+        run: docker-compose -f ./.github/docker-compose.yml logs yuyuwechatv2_client
 
       # Test endpoints without login
       - name: Test main endpoint without login
