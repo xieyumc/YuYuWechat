@@ -35,8 +35,6 @@ jobs:
       - name: Run yuyuwechatv2_client container
         run: |
           docker run -d --name yuyuwechatv2_client -p 7500:7500 \
-            --link redis:redis \
-            --link postgres:postgres \
             -e REDIS_HOST=redis \
             -e REDIS_PORT=6379 \
             -e POSTGRES_DB=postgres \

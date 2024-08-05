@@ -28,13 +28,11 @@ jobs:
         run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
 
       - name: Wait for the server to start
-        run: sleep 60
+        run: sleep 10
 
       - name: Run yuyuwechatv2_client container
         run: |
           docker run -d --name yuyuwechatv2_client -p 7500:7500 \
-            --link redis:redis \
-            --link postgres:postgres \
             -e REDIS_HOST=redis \
             -e REDIS_PORT=6379 \
             -e POSTGRES_DB=postgres \
