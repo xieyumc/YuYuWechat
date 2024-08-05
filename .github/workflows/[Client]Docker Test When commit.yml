@@ -12,149 +12,152 @@ jobs:
         working-directory: ./YuYuWechatV2_Client
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v2
+      - name: Checkout code
+        uses: actions/checkout@v2
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
 
-    - name: Build Docker image
-      run: docker build -t yuyuwechatv2_client .
+      - name: Build Docker image
+        run: docker build -t yuyuwechatv2_client .
 
-    - name: Run Redis container
-      run: docker run -d --name redis -p 6379:6379 redis:latest
+      - name: Run Redis container
+        run: docker run -d --name redis -p 6379:6379 redis:latest
 
-    - name: Run Postgres container
-      run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
+      - name: Run Postgres container
+        run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
 
-    - name: Wait for Postgres to start
-      run: sleep 10
+      - name: Wait for Postgres to be healthy
+        run: |
+          while [ "$(docker inspect -f {{.State.Health.Status}} postgres)" != "healthy" ]; do
+            sleep 1;
+          done
 
-    - name: Run yuyuwechatv2_client container
-      run: |
-        docker run -d --name yuyuwechatv2_client -p 7500:7500 \
-          --link redis:redis \
-          --link postgres:postgres \
-          -e REDIS_HOST=redis \
-          -e REDIS_PORT=6379 \
-          -e POSTGRES_DB=postgres \
-          -e POSTGRES_USER=postgres \
-          -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
-          -e POSTGRES_HOST=postgres \
-          -e POSTGRES_PORT=5431 \
-          yuyuwechatv2_client
+      - name: Run yuyuwechatv2_client container
+        run: |
+          docker run -d --name yuyuwechatv2_client -p 7500:7500 \
+            --link redis:redis \
+            --link postgres:postgres \
+            -e REDIS_HOST=redis \
+            -e REDIS_PORT=6379 \
+            -e POSTGRES_DB=postgres \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym \
+            -e POSTGRES_HOST=postgres \
+            -e POSTGRES_PORT=5431 \
+            yuyuwechatv2_client
 
-    - name: Wait for the server to start
-      run: sleep 10
+      - name: Wait for the server to start
+        run: sleep 10
 
-    - name: Display Docker logs
-      run: docker logs yuyuwechatv2_client
+      - name: Display Docker logs
+        run: docker logs yuyuwechatv2_client
 
-    # Test endpoints without login
-    - name: Test main endpoint without login
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/home/)
-        if [ $response -ne 302 ]; then
-          echo "Main endpoint accessible without login, expected it to be protected."
-          exit 1
-        fi
+      # Test endpoints without login
+      - name: Test main endpoint without login
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/home/)
+          if [ $response -ne 302 ]; then
+            echo "Main endpoint accessible without login, expected it to be protected."
+            exit 1
+          fi
 
-    - name: Test schedule_management endpoint without login
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/schedule_management/)
-        if [ $response -ne 302 ]; then
-          echo "schedule_management endpoint accessible without login, expected it to be protected."
-          exit 1
-        fi
+      - name: Test schedule_management endpoint without login
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/schedule_management/)
+          if [ $response -ne 302 ]; then
+            echo "schedule_management endpoint accessible without login, expected it to be protected."
+            exit 1
+          fi
 
-    - name: Test send_message_management endpoint without login
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/send_message_management/)
-        if [ $response -ne 302 ]; then
-          echo "send_message_management endpoint accessible without login, expected it to be protected."
-          exit 1
-        fi
+      - name: Test send_message_management endpoint without login
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/send_message_management/)
+          if [ $response -ne 302 ]; then
+            echo "send_message_management endpoint accessible without login, expected it to be protected."
+            exit 1
+          fi
 
-    - name: Test log_view endpoint without login
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/logs/)
-        if [ $response -ne 302 ]; then
-          echo "log_view endpoint accessible without login, expected it to be protected."
-          exit 1
-        fi
+      - name: Test log_view endpoint without login
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/logs/)
+          if [ $response -ne 302 ]; then
+            echo "log_view endpoint accessible without login, expected it to be protected."
+            exit 1
+          fi
 
-    - name: Test error_detection_view endpoint without login
-      run: |
-        response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/error_detection/)
-        if [ $response -ne 302 ]; then
-          echo "error_detection endpoint accessible without login, expected it to be protected."
-          exit 1
-        fi
+      - name: Test error_detection_view endpoint without login
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/error_detection/)
+          if [ $response -ne 302 ]; then
+            echo "error_detection endpoint accessible without login, expected it to be protected."
+            exit 1
+          fi
 
-    # Create a superuser
-    - name: Create superuser
-      run: |
-        docker exec -e DJANGO_SUPERUSER_PASSWORD="12345" yuyuwechatv2_client python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
+      # Create a superuser
+      - name: Create superuser
+        run: |
+          docker exec -e DJANGO_SUPERUSER_PASSWORD="12345" yuyuwechatv2_client python manage.py createsuperuser --no-input --username testuser --email testuser@example.com
 
-    # Login and store session cookies
-    - name: Login and store session cookies
-      run: |
-        curl -c cookies.txt -d "username=testuser&password=12345" -X POST http://127.0.0.1:7500/login/
+      # Login and store session cookies
+      - name: Login and store session cookies
+        run: |
+          curl -c cookies.txt -d "username=testuser&password=12345" -X POST http://127.0.0.1:7500/login/
 
-    # Test endpoints with login
-    - name: Test main endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/
+      # Test endpoints with login
+      - name: Test main endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/
 
-    - name: Test get_server_ip endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/get_server_ip/
+      - name: Test get_server_ip endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/get_server_ip/
 
-    - name: Test set_server_ip endpoint with login
-      run: |
-        curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"server_ip": "127.0.0.1"}' http://127.0.0.1:7500/set_server_ip/
+      - name: Test set_server_ip endpoint with login
+        run: |
+          curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"server_ip": "127.0.0.1"}' http://127.0.0.1:7500/set_server_ip/
 
-    - name: Test schedule_management endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/schedule_management/
+      - name: Test schedule_management endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/schedule_management/
 
-    - name: Test send_message_management endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/send_message_management/
+      - name: Test send_message_management endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/send_message_management/
 
-    - name: Test start_celery endpoint with login
-      run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/start_celery/
+      - name: Test start_celery endpoint with login
+        run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/start_celery/
 
-    - name: Wait for the celery to start
-      run: sleep 5
+      - name: Wait for the celery to start
+        run: sleep 5
 
-    - name: Test check_celery_running endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_celery_running/
+      - name: Test check_celery_running endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_celery_running/
 
-    - name: Test stop_celery endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/stop_celery/
+      - name: Test stop_celery endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/stop_celery/
 
-    - name: Test check_wechat_status endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_wechat_status/
+      - name: Test check_wechat_status endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_wechat_status/
 
-    - name: Test log_view endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/logs/
+      - name: Test log_view endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/logs/
 
-    - name: Test log_counts endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/log_counts/
+      - name: Test log_counts endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/log_counts/
 
-    - name: Test clear_logs endpoint with login
-      run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/clear_logs/
+      - name: Test clear_logs endpoint with login
+        run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/clear_logs/
 
-    - name: Test error_detection_view endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/error_detection/
+      - name: Test error_detection_view endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/error_detection/
 
-    - name: Test check_errors endpoint with login
-      run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_errors/
+      - name: Test check_errors endpoint with login
+        run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_errors/
 
-    - name: Test handle_error_cron endpoint with login
-      run: |
-        curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"action": "ignore", "task_id": 1, "correct_time": "2023-08-01 12:00:00"}' http://127.0.0.1:7500/handle_error_cron/
+      - name: Test handle_error_cron endpoint with login
+        run: |
+          curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"action": "ignore", "task_id": 1, "correct_time": "2023-08-01 12:00:00"}' http://127.0.0.1:7500/handle_error_cron/
 
-    - name: Test export_database endpoint with login
-      run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/export_database/ -o db_backup.json
+      - name: Test export_database endpoint with login
+        run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/export_database/ -o db_backup.json
 
-    - name: Test import_database endpoint with login
-      run: |
-        curl -b cookies.txt --fail -F "db_file=@db_backup.json" http://127.0.0.1:7500/import_database/
+      - name: Test import_database endpoint with login
+        run: |
+          curl -b cookies.txt --fail -F "db_file=@db_backup.json" http://127.0.0.1:7500/import_database/
