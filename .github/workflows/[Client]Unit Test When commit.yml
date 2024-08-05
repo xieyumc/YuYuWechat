@@ -19,7 +19,7 @@ jobs:
       postgres:
         image: postgres:latest
         ports:
-          - 5431:5432
+          - 5432:5432
         env:
           POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
 

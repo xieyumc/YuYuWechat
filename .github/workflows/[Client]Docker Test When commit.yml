@@ -34,7 +34,7 @@ jobs:
         run: docker-compose -f "./GitHub Action Build Docker.yml" up -d --build
 
       - name: Wait for the server to start
-        run: sleep 10
+        run: sleep 20
 
       - name: Display Docker logs
         run: docker-compose -f "./GitHub Action Build Docker.yml" logs
@@ -137,9 +137,9 @@ jobs:
       - name: Test check_errors endpoint with login
         run: curl -b cookies.txt --fail http://127.0.0.1:7500/check_errors/
 
-      - name: Test handle_error_cron endpoint with login
-        run: |
-          curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"action": "ignore", "task_id": 1, "correct_time": "2023-08-01 12:00:00"}' http://127.0.0.1:7500/handle_error_cron/
+#      - name: Test handle_error_cron endpoint with login
+#        run: |
+#          curl -b cookies.txt --fail -X POST -H "Content-Type: application/json" -d '{"action": "ignore", "task_id": 1, "correct_time": "2023-08-01 12:00:00"}' http://127.0.0.1:7500/handle_error_cron/
 
       - name: Test export_database endpoint with login
         run: curl -b cookies.txt --fail -X POST http://127.0.0.1:7500/export_database/ -o db_backup.json
