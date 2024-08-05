@@ -20,21 +20,24 @@ jobs:
         with:
           driver-opts: image=moby/buildkit:buildx-stable-1
 
+      - name: Create Docker network
+        run: docker network create my_network
+
       - name: Build Docker image
         run: docker build -t yuyuwechatv2_client .
 
       - name: Run Redis container
-        run: docker run -d --name redis -p 6379:6379 redis:latest
+        run: docker run -d --name redis --network my_network redis:latest
 
       - name: Run Postgres container
-        run: docker run -d --name postgres -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
+        run: docker run -d --name postgres --network my_network -e POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym -v ./postgres_data:/var/lib/postgresql/data -p 5431:5432 postgres:latest
 
       - name: Wait for the server to start
-        run: sleep 60
+        run: sleep 10
 
       - name: Run yuyuwechatv2_client container
         run: |
-          docker run -d --name yuyuwechatv2_client -p 7500:7500 \
+          docker run -d --name yuyuwechatv2_client --network my_network -p 7500:7500 \
             -e REDIS_HOST=redis \
             -e REDIS_PORT=6379 \
             -e POSTGRES_DB=postgres \
