@@ -37,7 +37,7 @@ jobs:
         run: sleep 10
 
       - name: Display Docker logs
-        run: docker-compose -f "./GitHub Action Build Docker.yml" logs yuyuwechatv2_client
+        run: docker-compose -f "./GitHub Action Build Docker.yml" logs
 
       # Test endpoints without login
       - name: Test main endpoint without login
