@@ -11,15 +11,28 @@ jobs:
       run:
         working-directory: ./YuYuWechatV2_Client
 
+    services:
+      redis:
+        image: redis:latest
+        options: --network-alias=redis
+        ports:
+          - 6379:6379
+      postgres:
+        image: postgres:latest
+        options: --network-alias=postgres
+        env:
+          POSTGRES_DB: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
+        ports:
+          - 5431:5432
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-
-      - name: Create Docker network
-        run: docker network create my_network
 
       - name: Build and run Docker containers
         run: docker-compose -f ../.github/docker-compose.yml up -d --build
@@ -28,7 +41,7 @@ jobs:
         run: sleep 10
 
       - name: Display Docker logs
-        run: docker-compose -f ./.github/docker-compose.yml logs yuyuwechatv2_client
+        run: docker logs yuyuwechatv2_client
 
       # Test endpoints without login
       - name: Test main endpoint without login
