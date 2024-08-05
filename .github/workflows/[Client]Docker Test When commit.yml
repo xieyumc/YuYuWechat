@@ -37,7 +37,10 @@ jobs:
         uses: docker/setup-buildx-action@v1
 
       - name: Build and run Docker containers
-        run: docker-compose -f ../.github/docker-compose.yml up -d --build
+        run: ls
+
+      - name: Build and run Docker containers
+        run: docker-compose -f ./.github/docker-compose.yml up -d --build
 
       - name: Wait for the server to start
         run: sleep 10
