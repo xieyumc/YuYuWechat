@@ -36,17 +36,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
 
-      - name: Build and run Docker containers
+      - name: ls
         run: ls
 
+      - name: pwd
+        run: pwd
+
       - name: Build and run Docker containers
-        run: docker-compose -f .github/docker-compose.yml up -d --build
+        run: docker-compose -f ./GitHub Action Build Docker.yml up -d --build
 
       - name: Wait for the server to start
         run: sleep 10
 
       - name: Display Docker logs
-        run: docker-compose -f ../.github/docker-compose.yml logs yuyuwechatv2_client
+        run: docker-compose -f ./GitHub Action Build Docker.yml logs yuyuwechatv2_client
 
       # Test endpoints without login
       - name: Test main endpoint without login
