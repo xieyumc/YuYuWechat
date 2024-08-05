@@ -24,7 +24,7 @@ jobs:
         run: docker network create my_network
 
       - name: Build and run Docker containers
-        run: docker-compose -f ./.github/docker-compose.yml up -d --build
+        run: docker-compose -f ../.github/docker-compose.yml up -d --build
 
       - name: Wait for the server to start
         run: sleep 10
