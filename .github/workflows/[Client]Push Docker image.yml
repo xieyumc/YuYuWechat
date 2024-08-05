@@ -24,7 +24,7 @@ jobs:
         run: docker network create my_network
 
       - name: Build and run Docker containers
-        run: docker-compose -f ../.github/docker-compose.yml up -d --build
+        run: docker-compose -f ../.github/GitHub Action Build Docker.yml up -d --build
 
       - name: Wait for the server to start
         run: sleep 10
@@ -179,8 +179,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: /home/runner/work/YuYuWechat/YuYuWechat/YuYuWechatV2_Client/docker-compose.yml
-          asset_name: docker-compose.yml
+          asset_path: /home/runner/work/YuYuWechat/YuYuWechat/YuYuWechatV2_Client/GitHub Action Build Docker.yml
+          asset_name: GitHub Action Build Docker.yml
           asset_content_type: application/yaml
 
       - name: Log in to Docker Hub
