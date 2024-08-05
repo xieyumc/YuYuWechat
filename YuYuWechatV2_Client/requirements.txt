@@ -7,4 +7,6 @@ cryptography
 redis
 coverage
 wraps
+psycopg2
 psycopg
+psycopg2-binary
