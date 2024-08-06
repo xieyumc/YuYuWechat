@@ -195,8 +195,8 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
         with:
           upload_url: ${{ github.event.release.upload_url }}
-          asset_path: /home/runner/work/YuYuWechat/YuYuWechat/YuYuWechatV2_Client/GitHub Action Build Docker.yml
-          asset_name: GitHub Action Build Docker.yml
+          asset_path: /home/runner/work/YuYuWechat/YuYuWechat/YuYuWechatV2_Client/docker-compose.yml
+          asset_name: docker-compose.yml
           asset_content_type: application/yaml
 
       - name: Log in to Docker Hub
