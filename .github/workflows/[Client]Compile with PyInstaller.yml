@@ -1,8 +1,6 @@
 name: Client_Compile with PyInstaller
 
 on:
-  release:
-    types: [created]
 
 jobs:
   build:
