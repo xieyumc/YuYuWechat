@@ -151,18 +151,13 @@ jobs:
       - name: Stop and remove Docker container
         run: docker-compose -f "./GitHub Action Build Docker.yml" down
 
-      - name: Tag Docker image
+      - name: Build Docker image
         if: success()
-        run: docker tag yuyuwechatv2_client yuyuwechatv2_client:latest
+        run: docker build -t yuyuwechatv2_client:latest .
 
       - name: Save Docker image to tar file
         if: success()
         run: docker save yuyuwechatv2_client:latest -o yuyuwechatv2_client.tar
-
-      # Only upload and push Docker image if all tests pass
-      - name: Save Docker image to tar file
-        if: success()
-        run: docker save yuyuwechatv2_client -o yuyuwechatv2_client.tar
 
       - name: Compress Docker image tar file
         if: success()
