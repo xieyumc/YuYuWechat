@@ -1,6 +1,9 @@
 name: Client_Compile with PyInstaller
 
 on:
+  push:
+    branches:
+      - never_trigger_this_branch
 
 jobs:
   build:
