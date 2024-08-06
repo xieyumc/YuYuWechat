@@ -151,6 +151,9 @@ jobs:
       - name: Stop and remove Docker container
         run: docker-compose -f "./GitHub Action Build Docker.yml" down
 
+      - name: Change permissions for postgres_data directory
+        run: sudo chmod -R 777 postgres_data
+
       - name: Build Docker image
         if: success()
         run: docker build -t yuyuwechatv2_client:latest .
