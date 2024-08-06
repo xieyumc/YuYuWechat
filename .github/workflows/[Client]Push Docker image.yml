@@ -149,7 +149,15 @@ jobs:
           curl -b cookies.txt --fail -F "db_file=@db_backup.json" http://127.0.0.1:7500/import_database/
 
       - name: Stop and remove Docker container
-        run: docker rm -f yuyuwechatv2_client
+        run: docker-compose -f "./GitHub Action Build Docker.yml" down
+
+      - name: Tag Docker image
+        if: success()
+        run: docker tag yuyuwechatv2_client yuyuwechatv2_client:latest
+
+      - name: Save Docker image to tar file
+        if: success()
+        run: docker save yuyuwechatv2_client:latest -o yuyuwechatv2_client.tar
 
       # Only upload and push Docker image if all tests pass
       - name: Save Docker image to tar file
