@@ -13,7 +13,7 @@ services:
     volumes:
       - ./postgres_data:/var/lib/postgresql/data
     ports:
-      - "5431:5432"
+      - "5432:5432"
 
   yuyuwechatv2_client:
     image: mona233/yuyuwechatv2_client:latest
@@ -30,4 +30,4 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=tykWyr-bepqu6-fafvym
       - POSTGRES_HOST=postgres
-      - POSTGRES_PORT=5431
+      - POSTGRES_PORT=5432
