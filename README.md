@@ -6,7 +6,7 @@
 <h6 align="center">首页管理界面
 
 ![img.png](img/img_14.png)
-<h6 align="center">登录保护（默认用户名`admin`，默认密码`admin@django`）
+<h6 align="center">登录保护
 
 ![img_1.png](img/img_1.png)
 <h6 align="center">批量发送消息
@@ -136,34 +136,51 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
 我已经编译好了x86和arm的docker镜像，Windows/mac/Linux的x86和arm架构均可运行
 
 - 在release界面找到最新的版本，下载`docker-compose.yml`文件
+- 在同目录下创建一个文件夹`postgres_data`，用于挂载数据库文件
 - 运行`docker-compose up`即可运行
 
-###### 这个docker文件会拉取两个镜像，一个是`mona233/yuyuwechatv2_client:latest`，另一个是`redis:latest`，因为定时任务的celery需要一个消息队列，我默认使用redis，端口为6379
+###### 
+
+这个docker文件会拉取三个镜像，
+```
+`mona233/yuyuwechatv2_client:latest`
+
+`redis:latest`，因为定时任务的celery需要一个消息队列，我默认使用redis，端口为6379  
+
+`postgres:latest`，因为客户端需要一个数据库，我默认使用postgres，端口为5432
+```
+
 ###### 如果你从docker hub拉取镜像有困难，可以在release界面找到最新版本的`yuyuwechatv2_client.tar.gz`，这是编译好的docker镜像，导入本地docker即可
 
 ## 从源码运行
 如果你想自定义数据库结构和增加功能，可以从源码运行
 
+- 首先自行安装redis和postgres数据库，redis默认端口为6379，postgres默认端口为5432
 - cd到`YuYuWechatV2_Client`目录下
 - 安装依赖`pip install -r requirements.txt`
 - 运行`python manage.py runserver 127.0.0.1:7500`
 
-## 使用编译后EXE直接运行  
-### ⚠️⚠️⚠️不推荐，缺少定时功能，请勿用在生产环境
-
-
-**客户端的定时功能需要celery和redis支持，这两个库编译成exe非常困难，所以exe版本没有定时功能**  
-
-**exe版本由GitHub Action自动编译，虽然源码有单元测试，但是并没有对编译后的exe进行测试，所以不保证可靠性**
-
-- 在release界面找到最新的版本，下载`YuYuWechatV2_Client.exe`和`YuYuWechatV2_Client_run.bat`
-- 两个文件放在同一个目录下，双击`YuYuWechatV2_Client_run.bat`即可运行
 
 ## 打开客户端
 
 ### 在本地浏览器输入`127.0.0.1:7500`即可打开前端首页
 ![img_9.png](img/img.png)
-- 首先是登录界面，默认密码账号`admin`，密码`admin@django`，请登录后在后台数据管理界面立即修改密码
+![img.png](img/img_14.png)
+首先是登录界面，需要自己手动创建一个超级用户，新开一个终端：  
+
+进入docker容器
+```shell
+docker exec -it yuyuwechatv2_client bash
+```
+挂载目录
+```shell
+cd /app
+```
+创建超级用户（请自己设置用户和密码）
+```shell
+python manage.py createsuperuser
+```
+然后在登录界面输入用户名和密码即可登录
 - 连接服务器，输入服务器的ip地址和端口，如`192.168.50.1:8000`，然后点击测试服务器是否连通，连通后，点击保存服务器ip即可持久化保存到数据库，下次不需要再配置服务器ip  
 - 数据库导入导出功能可以方便备份和还原
 - 点击`启动定时任务`，才会启动定时发送任务
@@ -171,7 +188,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
 其他功能在侧边栏点击即可跳转到对应的界面，前端网页只涉及对数据库的查看和发送操作，对用户和消息内容的增加，删除，修改均需要在后台管理界面进行，这样可以保证数据的安全性
 
 
-### 在本地浏览器输入`127.0.0.1:7500/admin`，可以进入后台管理界面，  默认用户名`admin`，密码为`admin@django`
+### 在本地浏览器输入`127.0.0.1:7500/admin`，可以进入后台管理界面
 ![img_10.png](img/img_10.png)
 
 在client_app里是客户端的数据，可以看到有4个数据表
