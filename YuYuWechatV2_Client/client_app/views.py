@@ -18,6 +18,9 @@ from django.contrib.auth import authenticate, login
 from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
 
+from django.core.mail import EmailMessage, get_connection
+from .models import EmailSettings
+
 def login_view(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -430,3 +433,48 @@ def handle_error_cron(request):
             return JsonResponse({'status': 'error', 'message': '任务不存在'}, status=404)
 
     return JsonResponse({'status': 'invalid method'}, status=405)
+
+def send_email(request):
+    if request.method == 'POST':
+        subject = request.POST.get('subject')
+        message = request.POST.get('message')
+
+        email_settings = EmailSettings.objects.first()
+        if email_settings:
+            try:
+                if email_settings.email_security == 'tls':
+                    connection = get_connection(
+                        backend='django.core.mail.backends.smtp.EmailBackend',
+                        host=email_settings.email_host,
+                        port=email_settings.email_port,
+                        username=email_settings.email_host_user,
+                        password=email_settings.email_host_password,
+                        use_tls=True,
+                        use_ssl=False
+                    )
+                else:
+                    connection = get_connection(
+                        backend='django.core.mail.backends.smtp.EmailBackend',
+                        host=email_settings.email_host,
+                        port=email_settings.email_port,
+                        username=email_settings.email_host_user,
+                        password=email_settings.email_host_password,
+                        use_tls=False,
+                        use_ssl=True
+                    )
+
+                email = EmailMessage(
+                    subject,
+                    message,
+                    email_settings.default_from_email,
+                    email_settings.recipient_list.split(','),
+                    connection=connection,
+                )
+                email.send()
+                return HttpResponse("Email sent successfully.")
+            except Exception as e:
+                return HttpResponse(f"Failed to send email: {e}")
+        else:
+            return HttpResponse("Email settings are not configured.")
+
+    return render(request, 'send_email.html')

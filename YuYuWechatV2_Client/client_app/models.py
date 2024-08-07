@@ -56,3 +56,21 @@ class Log(models.Model):
 
     def __str__(self):
         return f"{self.function_name} - {'Success' if self.result else 'Failure'} at {self.timestamp}"
+
+
+class EmailSettings(models.Model):
+    SECURITY_CHOICES = [
+        ('tls', 'TLS'),
+        ('ssl', 'SSL'),
+    ]
+
+    email_host = models.CharField(max_length=255, default='smtp.163.com')
+    email_port = models.IntegerField(default=25)
+    email_security = models.CharField(max_length=3, choices=SECURITY_CHOICES, default='tls')
+    email_host_user = models.CharField(max_length=255)
+    email_host_password = models.CharField(max_length=255)
+    default_from_email = models.EmailField()
+    recipient_list = models.TextField(help_text="Comma-separated list of email addresses")
+
+    def __str__(self):
+        return self.default_from_email

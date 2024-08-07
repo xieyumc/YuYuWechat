@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block title %}Send Email{% endblock %}
+
+{% block header %}Send Email{% endblock %}
+
+{% block content %}
+    <div class="card">
+        <h3>Send Email</h3>
+        <form method="post">
+            {% csrf_token %}
+            <label for="subject">Subject:</label>
+            <input type="text" id="subject" name="subject" required><br><br>
+            <label for="message">Message:</label>
+            <textarea id="message" name="message" required></textarea><br><br>
+            <button type="submit">Send Email</button>
+        </form>
+    </div>
+{% endblock %}
