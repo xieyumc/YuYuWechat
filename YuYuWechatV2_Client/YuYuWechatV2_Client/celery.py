@@ -17,7 +17,6 @@ app.conf.timezone = 'Asia/Shanghai'
 # 自动从所有已注册的Django app中加载任务
 app.autodiscover_tasks(lambda: settings.INSTALLED_APPS)
 
-
 app.conf.beat_schedule = {
     'send-messages-every-minute': {
         'task': 'client_app.tasks.check_and_send_messages',
@@ -26,6 +25,12 @@ app.conf.beat_schedule = {
     },
     'ping-server-every-minute': {
         'task': 'client_app.tasks.ping_server',
+        'schedule': crontab(minute='*/1'),
+    },
+    'check-wechat-status-every-hour': {
+        'task': 'client_app.tasks.check_wechat_status',
+        # # 每小时执行一次
+        # 'schedule': crontab(minute='0', hour='*/1'),
         'schedule': crontab(minute='*/1'),
     },
 }

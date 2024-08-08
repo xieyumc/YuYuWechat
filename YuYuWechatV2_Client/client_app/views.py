@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log,ErrorLog
 import json
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -375,17 +375,17 @@ def check_scheduled_message_errors():
 
     return errors
 
-
-@log_activity
 @login_required
+@log_activity
 def error_detection_view(request):
-    errors = check_scheduled_message_errors()
+    errors = ErrorLog.objects.all().order_by('-timestamp')
     return render(request, 'error_detection.html', {'errors': errors})
 
 
 def check_errors(request):
-    errors = check_scheduled_message_errors()  # 调用之前定义的错误检查函数
-    return JsonResponse({'errors': len(errors)})
+    # 统计数据库中的错误数量
+    error_count = ErrorLog.objects.count()
+    return JsonResponse({'errors': error_count})
 
 
 @csrf_exempt

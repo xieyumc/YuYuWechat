@@ -11,6 +11,7 @@
         <th>序号</th>
         <th>错误类型</th>
         <th>详细错误</th>
+        <th>时间</th>  <!-- 新增时间列 -->
         <th>操作</th>
     </tr>
     </thead>
@@ -20,13 +21,18 @@
             <td class="index">{{ forloop.counter }}</td>
             <td>{{ error.error_type }}</td>
             <td>{{ error.error_detail|safe }}</td>
+            <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td> <!-- 显示错误日志的时间 -->
             <td>
-                <button onclick="handleAction({{ error.task_id }}, 'ignore', '{{ error.correct_time }}', this)">
-                    忽略错误
-                </button>
-                <button onclick="handleAction({{ error.task_id }}, 'resend', '{{ error.correct_time }}', this)">
-                    补发消息
-                </button>
+                {% if error.error_type == '定时任务遗漏' %}
+                    <button onclick="handleAction({{ error.id }}, 'ignore', '', this)">
+                        忽略错误
+                    </button>
+                    <button onclick="handleAction({{ error.id }}, 'resend', '', this)">
+                        补发消息
+                    </button>
+                {% else %}
+                    无操作 <!-- 或者显示一个空白或者其他占位符 -->
+                {% endif %}
             </td>
         </tr>
     {% endfor %}
@@ -34,7 +40,7 @@
 </table>
 
 <script>
-    function handleAction(task_id, action, correct_time, button) {
+    function handleAction(error_id, action, correct_time, button) {
         button.disabled = true;
         button.classList.add('loading');
         button.innerText = '正在发送...';
@@ -47,7 +53,7 @@
             },
             body: JSON.stringify({
                 action: action,
-                task_id: task_id,
+                task_id: error_id,
                 correct_time: correct_time
             })
         }).then(response => response.json()).then(data => {

@@ -168,3 +168,36 @@ def ping_server():
         error_detail = f"ping服务器失败: {e}"
         ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
 
+@shared_task
+@log_activity
+def check_wechat_status():
+    try:
+        # 从数据库中提取最新的服务器IP
+        server_ip = ServerConfig.objects.latest('id').server_ip
+        url = f"http://{server_ip}/wechat/check_wechat_status/"
+
+        # 发送POST请求测试服务器链接
+        response = requests.post(url, timeout=3)
+
+        if response.status_code == 200:
+            return {'status': 'success', 'message': 'WeChat status checked successfully'}
+        else:
+            error_detail = '微信不在线'
+            ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+            return {'status': 'failure', 'message': error_detail}
+    except ServerConfig.DoesNotExist:
+        error_detail = 'No server IP configured'
+        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        return {'status': 'error', 'message': error_detail}
+    except requests.exceptions.Timeout:
+        error_detail = '未连接到服务器'
+        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        return {'status': 'error', 'message': error_detail}
+    except requests.exceptions.RequestException as e:
+        error_detail = str(e)
+        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        return {'status': 'error', 'message': error_detail}
+    except Exception as e:
+        error_detail = str(e)
+        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        return {'status': 'error', 'message': error_detail}
