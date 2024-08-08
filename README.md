@@ -46,9 +46,9 @@
 
 ### 服务端接受以下请求：
 
-- `/ping`：检查服务端是否正常运行，返回`'status': 'pong'`
-- `/send_message/`：发送消息，接受json格式的数据`name`、`text`，并对微信进行自动化操作
-- `/check_wechat_status`：检查微信是否正常运行
+- `wechat/ping`：检查服务端是否正常运行，返回`'status': 'pong'`
+- `wechat/send_message/`：发送消息，接受json格式的数据`name`、`text`，并对微信进行自动化操作
+- `wechat/check_wechat_status`：检查微信是否正常运行
 
 ### 并发保证
 
