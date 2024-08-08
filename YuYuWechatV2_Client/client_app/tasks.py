@@ -1,6 +1,6 @@
 from celery import shared_task
 from django.utils import timezone
-from .models import ScheduledMessage, ServerConfig, Log
+from .models import ScheduledMessage, ServerConfig, Log,ErrorLog
 import requests
 import json
 from croniter import croniter
@@ -139,3 +139,32 @@ def send_message(data, server_ip):
         data=json.dumps(data)
     )
     print(response.text)
+
+@shared_task
+@log_activity
+def ping_server():
+    # 尝试获取服务器IP
+    try:
+        server_config = ServerConfig.objects.latest('id')
+        if not server_config:
+            error_detail = "没有设置服务器IP"
+            ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+            return
+        server_ip = server_config.server_ip
+    except ServerConfig.DoesNotExist:
+        error_detail = "没有设置服务器IP"
+        ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+        return
+
+    try:
+        url = f'http://{server_ip}/ping/'
+        response = requests.get(url, timeout=3)  # 设置超时时间为3秒
+        if response.status_code != 200:
+            raise requests.RequestException(f"Ping failed with status code {response.status_code}")
+    except requests.Timeout:
+        error_detail = "ping超时"
+        ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+    except requests.RequestException as e:
+        error_detail = f"ping服务器失败: {e}"
+        ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+

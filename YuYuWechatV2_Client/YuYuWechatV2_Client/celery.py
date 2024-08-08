@@ -24,4 +24,8 @@ app.conf.beat_schedule = {
         'schedule': crontab(minute='*/1'),
 
     },
+    'ping-server-every-minute': {
+        'task': 'client_app.tasks.ping_server',
+        'schedule': crontab(minute='*/1'),
+    },
 }
