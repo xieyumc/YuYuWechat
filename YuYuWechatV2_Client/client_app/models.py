@@ -79,6 +79,6 @@ class ErrorLog(models.Model):
     error_type = models.CharField(max_length=255)  # 错误类型字符串
     error_detail = models.TextField()  # 详细错误字符串
     timestamp = models.DateTimeField(auto_now_add=True)  # 日志添加时间
-
+    emailed = models.BooleanField(default=False)  # 判断错误是否已经发送邮箱
     def __str__(self):
         return f"{self.error_type}-{self.error_detail}"

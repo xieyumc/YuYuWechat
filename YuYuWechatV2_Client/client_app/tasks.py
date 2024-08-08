@@ -140,37 +140,51 @@ def send_message(data, server_ip):
     )
     print(response.text)
 
+
 @shared_task
 @log_activity
 def ping_server():
+    error_type = "无法连接到服务器"
+
     # 尝试获取服务器IP
     try:
         server_config = ServerConfig.objects.latest('id')
         if not server_config:
             error_detail = "没有设置服务器IP"
-            ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+            if not ErrorLog.objects.filter(error_type=error_type).exists():
+                ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
             return
         server_ip = server_config.server_ip
     except ServerConfig.DoesNotExist:
         error_detail = "没有设置服务器IP"
-        ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return
 
     try:
-        url = f'http://{server_ip}/ping/'
+        url = f'http://{server_ip}/wechat/ping/'
         response = requests.get(url, timeout=3)  # 设置超时时间为3秒
         if response.status_code != 200:
             raise requests.RequestException(f"Ping failed with status code {response.status_code}")
+
+        # 没有错误，删除现有的相关错误记录
+        ErrorLog.objects.filter(error_type=error_type).delete()
+
     except requests.Timeout:
         error_detail = "ping超时"
-        ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
     except requests.RequestException as e:
         error_detail = f"ping服务器失败: {e}"
-        ErrorLog.objects.create(error_type="无法连接到服务器", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
+
 
 @shared_task
 @log_activity
 def check_wechat_status():
+    error_type = "微信状态检查失败"
+
     try:
         # 从数据库中提取最新的服务器IP
         server_ip = ServerConfig.objects.latest('id').server_ip
@@ -180,24 +194,31 @@ def check_wechat_status():
         response = requests.post(url, timeout=3)
 
         if response.status_code == 200:
+            # 没有错误，删除现有的相关错误记录
+            ErrorLog.objects.filter(error_type=error_type).delete()
             return {'status': 'success', 'message': 'WeChat status checked successfully'}
         else:
             error_detail = '微信不在线'
-            ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+            if not ErrorLog.objects.filter(error_type=error_type).exists():
+                ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
             return {'status': 'failure', 'message': error_detail}
     except ServerConfig.DoesNotExist:
         error_detail = 'No server IP configured'
-        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return {'status': 'error', 'message': error_detail}
     except requests.exceptions.Timeout:
         error_detail = '未连接到服务器'
-        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return {'status': 'error', 'message': error_detail}
     except requests.exceptions.RequestException as e:
         error_detail = str(e)
-        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return {'status': 'error', 'message': error_detail}
     except Exception as e:
         error_detail = str(e)
-        ErrorLog.objects.create(error_type="微信状态检查失败", error_detail=error_detail)
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return {'status': 'error', 'message': error_detail}

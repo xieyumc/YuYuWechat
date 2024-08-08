@@ -197,6 +197,9 @@ python manage.py createsuperuser
 - `Scheduled messages`：定时任务管理的数据表
 - `Server configs`：服务端配置
 - `Wechat users`：微信用户数据表
+- `Email settingss`：邮件设置
+- `Logs`：日志数据表
+- `Error logs`：错误检测数据表
 
 #### 首先先创建一个微信用户  
 
