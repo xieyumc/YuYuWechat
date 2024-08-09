@@ -134,7 +134,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
 ### 确保Windows不锁屏
 YuYuWechatV2_Server需要GUI界面，所以需要保证Windows不会锁屏
 - 首先在电源选项里设置不永不关闭屏幕
-![img.png](img.png)
+![img.png](img/img_15.png)
 - 然后到注册表里设置不锁屏
 ```shell
 win+r运行命令
@@ -143,7 +143,7 @@ win+r运行命令
 gpedit.msc
 ```
 - 找到不显示锁屏选项，设置为已启用
-![img_2.png](img_2.png)
+![img_2.png](img/img_17.png)
 
 # 3.运行客户端
 ## 使用docker运行（推荐）
