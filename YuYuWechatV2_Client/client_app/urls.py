@@ -2,7 +2,7 @@ from django.urls import path
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
     check_wechat_status, log_view, log_counts, clear_logs, check_scheduled_message_errors, error_detection_view, \
-    handle_error_cron,check_errors, login_view, send_email
+    handle_error_cron,check_errors, login_view, send_email,check_email_settings
 from django.contrib.auth.views import LogoutView
 
 urlpatterns = [
@@ -30,5 +30,6 @@ urlpatterns = [
     path('', login_view, name='login'),  # 默认路径指向登录页面
     path('logout/', LogoutView.as_view(next_page='login'), name='logout'),  # 添加退出登录路径
     path('send-email/', send_email, name='send_email'),
+    path('check-email-settings/', check_email_settings, name='check_email_settings'),
 
 ]

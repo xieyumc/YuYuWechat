@@ -1,4 +1,3 @@
-from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog
 import json
@@ -10,7 +9,7 @@ from django.core.management import call_command
 from django.conf import settings
 import subprocess
 from croniter import croniter
-from datetime import datetime, timedelta
+from datetime import datetime
 from functools import wraps
 from django.core.paginator import Paginator
 
@@ -497,3 +496,20 @@ def send_email(request):
             return HttpResponse("Email settings are not configured.")
 
     return render(request, 'send_email.html')
+
+@csrf_exempt
+@log_activity
+def check_email_settings(request):
+    # 检查 Celery 是否运行
+    result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
+    celery_running = bool(result.stdout)
+
+    # 检查邮箱配置是否存在
+    email_settings = EmailSettings.objects.exists()
+
+    if celery_running and email_settings:
+        return JsonResponse({'status': 'ok', 'message': '邮箱配置正确且Celery运行中'})
+    elif not celery_running:
+        return JsonResponse({'status': 'error', 'message': 'Celery未运行'})
+    else:
+        return JsonResponse({'status': 'error', 'message': '邮箱未配置'})

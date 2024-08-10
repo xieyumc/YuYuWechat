@@ -83,6 +83,15 @@
         </div>
     </div>
 
+    <div class="card">
+        <h3>邮箱报警</h3>
+        <div class="input-container">
+        <span id="emailStatus"
+              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
+            <span id="emailMessage">检查中...</span>
+        </div>
+    </div>
+
     <script>
 
         function connectServer() {
@@ -360,6 +369,33 @@
         function delay(ms) {
             return new Promise(resolve => setTimeout(resolve, ms));
         }
+
+        function checkEmailSettings() {
+            var emailIndicator = document.getElementById('emailStatus');
+            var emailMessage = document.getElementById('emailMessage');
+
+            // 发送请求到后端以检查邮箱配置和Celery状态
+            fetch('{% url "check_email_settings" %}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'ok') {
+                        emailIndicator.style.backgroundColor = 'green';
+                        emailMessage.textContent = '运行中';
+                    } else {
+                        emailIndicator.style.backgroundColor = 'red';
+                        emailMessage.textContent = data.message;
+                    }
+                })
+                .catch(error => {
+                    emailIndicator.style.backgroundColor = 'red';
+                    emailMessage.textContent = '状态检查失败';
+                    console.error('Error:', error);
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            checkEmailSettings(); // 检查邮箱设置
+        });
 
     </script>
 {% endblock %}
