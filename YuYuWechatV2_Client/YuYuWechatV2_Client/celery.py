@@ -29,8 +29,10 @@ app.conf.beat_schedule = {
     },
     'check-wechat-status-every-hour': {
         'task': 'client_app.tasks.check_wechat_status',
-        # # 每小时执行一次
-        # 'schedule': crontab(minute='0', hour='*/1'),
+        'schedule': crontab(minute='*/5'),
+    },
+    'send-unsent-error-emails-every-10-minutes': {
+        'task': 'client_app.tasks.send_unsent_error_emails',
         'schedule': crontab(minute='*/1'),
     },
 }

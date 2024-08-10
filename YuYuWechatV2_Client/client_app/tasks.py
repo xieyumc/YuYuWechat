@@ -1,6 +1,7 @@
 from celery import shared_task
 from django.utils import timezone
-from .models import ScheduledMessage, ServerConfig, Log,ErrorLog
+from django.core.mail import EmailMessage, get_connection
+from .models import ScheduledMessage, ServerConfig, Log,ErrorLog,EmailSettings
 import requests
 import json
 from croniter import croniter
@@ -222,3 +223,57 @@ def check_wechat_status():
         if not ErrorLog.objects.filter(error_type=error_type).exists():
             ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return {'status': 'error', 'message': error_detail}
+
+@shared_task
+@log_activity
+def send_unsent_error_emails():
+    # 获取未发送邮件的错误日志
+    unsent_errors = ErrorLog.objects.filter(emailed=False)
+    email_settings = EmailSettings.objects.first()
+
+    if not email_settings:
+        print("Email settings are not configured.")
+        return
+
+    if unsent_errors.exists() and email_settings:
+        try:
+            if email_settings.email_security == 'tls':
+                connection = get_connection(
+                    backend='django.core.mail.backends.smtp.EmailBackend',
+                    host=email_settings.email_host,
+                    port=email_settings.email_port,
+                    username=email_settings.email_host_user,
+                    password=email_settings.email_host_password,
+                    use_tls=True,
+                    use_ssl=False
+                )
+            else:
+                connection = get_connection(
+                    backend='django.core.mail.backends.smtp.EmailBackend',
+                    host=email_settings.email_host,
+                    port=email_settings.email_port,
+                    username=email_settings.email_host_user,
+                    password=email_settings.email_host_password,
+                    use_tls=False,
+                    use_ssl=True
+                )
+
+            for error in unsent_errors:
+                subject = f"Error Notification: {error.error_type}"
+                message = error.error_detail
+                email = EmailMessage(
+                    subject,
+                    message,
+                    email_settings.default_from_email,
+                    email_settings.recipient_list.split(','),
+                    connection=connection,
+                )
+                email.send()
+
+                # 更新错误日志的 emailed 字段
+                error.emailed = True
+                error.save()
+
+            print("Emails sent successfully.")
+        except Exception as e:
+            print(f"Failed to send email: {e}")
