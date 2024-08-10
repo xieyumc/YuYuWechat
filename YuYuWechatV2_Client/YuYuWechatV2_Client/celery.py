@@ -35,4 +35,8 @@ app.conf.beat_schedule = {
         'task': 'client_app.tasks.send_unsent_error_emails',
         'schedule': crontab(minute='*/1'),
     },
+    'check-scheduled-message-errors-every-minutes': {
+        'task': 'client_app.tasks.check_and_log_scheduled_message_errors',
+        'schedule': crontab(minute='*/1'),
+    },
 }

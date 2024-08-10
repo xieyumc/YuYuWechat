@@ -80,5 +80,7 @@ class ErrorLog(models.Model):
     error_detail = models.TextField()  # 详细错误字符串
     timestamp = models.DateTimeField(auto_now_add=True)  # 日志添加时间
     emailed = models.BooleanField(default=False)  # 判断错误是否已经发送邮箱
+    task_id = models.CharField(max_length=255, null=True, blank=True)  # 新增任务ID字段
+
     def __str__(self):
         return f"{self.error_type}-{self.error_detail}"

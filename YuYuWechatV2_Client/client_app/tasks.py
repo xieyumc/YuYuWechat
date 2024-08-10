@@ -290,3 +290,30 @@ def send_unsent_error_emails():
             print("Emails sent successfully.")
         except Exception as e:
             print(f"Failed to send email: {e}")
+
+@shared_task
+def check_and_log_scheduled_message_errors():
+    now = timezone.localtime(timezone.now())
+    tasks = ScheduledMessage.objects.all()
+    error_type = "定时任务遗漏"
+
+    for task in tasks:
+        if task.is_active:
+            iter = croniter(task.cron_expression, now)
+            last_execution_time = iter.get_prev(datetime)
+
+            if task.last_executed is None or task.last_executed < last_execution_time:
+                error_detail = (
+                    f"应该在 <span class='highlight'>{last_execution_time.strftime('%Y-%m-%d %H:%M:%S')}</span> "
+                    f"给 <span class='highlight'>{task.user.username}</span> 发送 "
+                    f"<span class='highlight'>{task.text}</span> 未能发送"
+                )
+
+                # 检查是否存在相同的任务ID的错误日志
+                if not ErrorLog.objects.filter(error_type=error_type, task_id=str(task.id)).exists():
+                    # 如果不存在，则写入数据库
+                    ErrorLog.objects.create(
+                        error_type=error_type,
+                        error_detail=error_detail,
+                        task_id=str(task.id)
+                    )
