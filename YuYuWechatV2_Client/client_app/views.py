@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse, HttpResponse
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log,ErrorLog
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog
 import json
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -20,6 +20,7 @@ from django.contrib.auth.decorators import login_required
 
 from django.core.mail import EmailMessage, get_connection
 from .models import EmailSettings
+
 
 def login_view(request):
     if request.method == 'POST':
@@ -89,6 +90,7 @@ def set_server_ip(request):
         else:
             return JsonResponse({'status': "No IP address provided"}, status=400)
     return JsonResponse({'status': "Invalid request method"}, status=405)
+
 
 @login_required
 @log_activity
@@ -375,6 +377,7 @@ def check_scheduled_message_errors():
 
     return errors
 
+
 @login_required
 @log_activity
 def error_detection_view(request):
@@ -394,16 +397,25 @@ def handle_error_cron(request):
     if request.method == 'POST':
         data = json.loads(request.body)
         action = data.get('action')
-        task_id = data.get('task_id')
+        error_id = data.get('task_id')
         correct_time_str = data.get('correct_time')
 
         try:
+            error_log = ErrorLog.objects.get(id=int(error_id))
+            task_id = error_log.task_id
             task = ScheduledMessage.objects.get(id=int(task_id))
-            correct_time = datetime.strptime(correct_time_str, '%Y-%m-%d %H:%M:%S')
+
+            if correct_time_str:
+                correct_time = datetime.strptime(correct_time_str, '%Y-%m-%d %H:%M:%S')
+            else:
+                correct_time = timezone.now()  # 如果没有提供时间，则使用当前时间
+
             if action == 'ignore':
                 task.last_executed = correct_time
                 task.save()
-                return JsonResponse({'status': 'success', 'message': '错误已忽略'})
+                # 删除错误日志
+                error_log.delete()
+                return JsonResponse({'status': 'success', 'message': '错误已忽略并删除'})
             elif action == 'resend':
                 user = task.user
                 server_ip = ServerConfig.objects.latest('id').server_ip
@@ -426,13 +438,20 @@ def handle_error_cron(request):
                 if response.ok:
                     task.last_executed = correct_time
                     task.save()
-                    return JsonResponse({'status': 'success', 'message': '消息已补发并修正错误'})
+                    # 删除错误日志
+                    error_log.delete()
+                    return JsonResponse({'status': 'success', 'message': '消息已补发并修正错误，日志已删除'})
                 else:
                     return JsonResponse({'status': 'error', 'message': '消息补发失败'}, status=500)
         except ScheduledMessage.DoesNotExist:
             return JsonResponse({'status': 'error', 'message': '任务不存在'}, status=404)
+        except ErrorLog.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '错误日志不存在'}, status=404)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': '时间格式错误'}, status=400)
 
     return JsonResponse({'status': 'invalid method'}, status=405)
+
 
 def send_email(request):
     if request.method == 'POST':
