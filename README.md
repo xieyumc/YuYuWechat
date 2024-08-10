@@ -17,6 +17,9 @@
 ![img.png](img/img_13.png)
 <h6 align="center">错误检测
 
+![IMG_1737.jpeg](img/IMG_18.jpeg)
+<h6 align="center">自动检测错误，并且邮件报警
+
 ![img_3.png](img/img_3.png)
 <h6 align="center">后台管理界面
 
@@ -252,8 +255,25 @@ python manage.py createsuperuser
 0 0 1 * *    # 每月1日午夜12点执行
 0 0 * * 1 [ "$(date +\%d)" -le 7 ]    # 每个月的第一个周一午夜12点执行
 ```
+# 4.额外功能
 
-# 4.可靠性
+## 邮件报警
+使用邮件报警功能，可以在出现错误时，自动发送邮件给指定的邮箱，方便及时处理错误  
+
+在首页点击邮箱配置，会跳转到后台  
+![img.png](img.png)  
+
+这里建议使用163邮箱，以下是邮箱的详细配置（如果使用163邮箱，前三项不需要改动）
+- `Email host`：smtp的地址
+- `Email port`：smtp的端口
+- `Email security`：选择加密方法
+- `Email host user`：邮箱账号
+- `Email host password`：邮箱密码（这里一般是授权码，请自行申请）
+- `Default from email:`：发送邮件的邮箱，一般跟`Email host user`一样
+- `Recipient list:`：接收邮件的邮箱，可以填多个，用逗号隔开
+
+
+# 5.可靠性
 [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
 
 
@@ -261,7 +281,7 @@ python manage.py createsuperuser
 本项目部署了单元测试，GitHub Action测试以及人工测试，最大程度避免bug的产生，但是仍然可能存在未知的bug，如果遇到问题欢迎提issue👏
 
 
-# 5.感谢
+# 6.感谢
 
 [easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
 
