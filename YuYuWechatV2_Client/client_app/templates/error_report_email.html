@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            border: 1px solid black;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h2>YuYuWechat检测到{{ unsent_errors.count }}个新增错误</h2>
+
+    <h3>新增错误：</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>错误类型</th>
+                <th>错误细节</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for error in unsent_errors %}
+            <tr>
+                <td>{{ error.error_type }}</td>
+                <td>{{ error.error_detail }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>所有错误：</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>错误类型</th>
+                <th>错误细节</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for error in all_errors %}
+            <tr>
+                <td>{{ error.error_type }}</td>
+                <td>{{ error.error_detail }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    <h3>失败日志：</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>函数名称</th>
+                <th>返回数据</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in failed_logs %}
+            <tr>
+                <td>{{ log.function_name }}</td>
+                <td>{{ log.return_data }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

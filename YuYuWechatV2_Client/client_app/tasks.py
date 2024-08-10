@@ -8,6 +8,7 @@ from croniter import croniter
 from datetime import datetime, timedelta
 from functools import wraps
 from django.http import JsonResponse
+from django.template.loader import render_to_string
 
 
 def log_activity(func):
@@ -224,11 +225,14 @@ def check_wechat_status():
             ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
         return {'status': 'error', 'message': error_detail}
 
+
 @shared_task
 @log_activity
 def send_unsent_error_emails():
     # 获取未发送邮件的错误日志
     unsent_errors = ErrorLog.objects.filter(emailed=False)
+    all_errors = ErrorLog.objects.all()
+    failed_logs = Log.objects.filter(result=False)
     email_settings = EmailSettings.objects.first()
 
     if not email_settings:
@@ -237,6 +241,7 @@ def send_unsent_error_emails():
 
     if unsent_errors.exists() and email_settings:
         try:
+            # 设置邮件连接
             if email_settings.email_security == 'tls':
                 connection = get_connection(
                     backend='django.core.mail.backends.smtp.EmailBackend',
@@ -258,21 +263,29 @@ def send_unsent_error_emails():
                     use_ssl=True
                 )
 
-            for error in unsent_errors:
-                subject = f"Error Notification: {error.error_type}"
-                message = error.error_detail
-                email = EmailMessage(
-                    subject,
-                    message,
-                    email_settings.default_from_email,
-                    email_settings.recipient_list.split(','),
-                    connection=connection,
-                )
-                email.send()
+            # 生成邮件标题和内容
+            subject = f"YuYuWechat检测到{unsent_errors.count()}个新增错误"
 
-                # 更新错误日志的 emailed 字段
-                error.emailed = True
-                error.save()
+            # 使用Django模板引擎生成表格内容
+            email_content = render_to_string('error_report_email.html', {
+                'unsent_errors': unsent_errors,
+                'all_errors': all_errors,
+                'failed_logs': failed_logs,
+            })
+
+            # 发送邮件
+            email = EmailMessage(
+                subject,
+                email_content,
+                email_settings.default_from_email,
+                email_settings.recipient_list.split(','),
+                connection=connection,
+            )
+            email.content_subtype = 'html'  # 设置邮件内容为HTML格式
+            email.send()
+
+            # 更新错误日志的 emailed 字段
+            unsent_errors.update(emailed=True)
 
             print("Emails sent successfully.")
         except Exception as e:
