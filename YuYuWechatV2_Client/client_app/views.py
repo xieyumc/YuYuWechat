@@ -454,32 +454,29 @@ def handle_error_cron(request):
 
 def send_email(request):
     if request.method == 'POST':
-        subject = request.POST.get('subject')
-        message = request.POST.get('message')
+        try:
+            data = json.loads(request.body)
+            subject = data.get('subject', 'YuYuWechat测试邮件')
+            message = data.get('message', '邮件自动报警功能正常')
 
-        email_settings = EmailSettings.objects.first()
-        if email_settings:
-            try:
+            email_settings = EmailSettings.objects.first()
+            if email_settings:
+                connection_kwargs = {
+                    'backend': 'django.core.mail.backends.smtp.EmailBackend',
+                    'host': email_settings.email_host,
+                    'port': email_settings.email_port,
+                    'username': email_settings.email_host_user,
+                    'password': email_settings.email_host_password,
+                }
+
                 if email_settings.email_security == 'tls':
-                    connection = get_connection(
-                        backend='django.core.mail.backends.smtp.EmailBackend',
-                        host=email_settings.email_host,
-                        port=email_settings.email_port,
-                        username=email_settings.email_host_user,
-                        password=email_settings.email_host_password,
-                        use_tls=True,
-                        use_ssl=False
-                    )
+                    connection_kwargs['use_tls'] = True
+                    connection_kwargs['use_ssl'] = False
                 else:
-                    connection = get_connection(
-                        backend='django.core.mail.backends.smtp.EmailBackend',
-                        host=email_settings.email_host,
-                        port=email_settings.email_port,
-                        username=email_settings.email_host_user,
-                        password=email_settings.email_host_password,
-                        use_tls=False,
-                        use_ssl=True
-                    )
+                    connection_kwargs['use_tls'] = False
+                    connection_kwargs['use_ssl'] = True
+
+                connection = get_connection(**connection_kwargs)
 
                 email = EmailMessage(
                     subject,
@@ -489,13 +486,13 @@ def send_email(request):
                     connection=connection,
                 )
                 email.send()
-                return HttpResponse("Email sent successfully.")
-            except Exception as e:
-                return HttpResponse(f"Failed to send email: {e}")
-        else:
-            return HttpResponse("Email settings are not configured.")
-
-    return render(request, 'send_email.html')
+                return JsonResponse({"status": "success", "message": "Email sent successfully."})
+            else:
+                return JsonResponse({"status": "error", "message": "Email settings are not configured."}, status=400)
+        except Exception as e:
+            return JsonResponse({"status": "error", "message": str(e)}, status=500)
+    else:
+        return JsonResponse({"status": "error", "message": "Invalid request method."}, status=405)
 
 @csrf_exempt
 @log_activity
