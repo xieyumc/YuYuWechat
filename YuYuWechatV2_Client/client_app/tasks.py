@@ -1,7 +1,7 @@
 from celery import shared_task
 from django.utils import timezone
 from django.core.mail import EmailMessage, get_connection
-from .models import ScheduledMessage, ServerConfig, Log,ErrorLog,EmailSettings
+from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings
 import requests
 import json
 from croniter import croniter
@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 from functools import wraps
 from django.http import JsonResponse
 from django.template.loader import render_to_string
+import time
 
 
 def log_activity(func):
@@ -291,11 +292,13 @@ def send_unsent_error_emails():
         except Exception as e:
             print(f"Failed to send email: {e}")
 
+
 @shared_task
 def check_and_log_scheduled_message_errors():
     now = timezone.localtime(timezone.now())
     tasks = ScheduledMessage.objects.all()
     error_type = "定时任务遗漏"
+    time.sleep(300)  # 300秒 = 5分钟，等待5分钟，确保所有任务都完成，这样的效果就是每分钟检查5分钟前的任务
 
     for task in tasks:
         if task.is_active:
