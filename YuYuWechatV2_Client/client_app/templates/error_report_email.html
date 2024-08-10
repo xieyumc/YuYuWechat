@@ -2,17 +2,38 @@
 <html>
 <head>
     <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f2f2f7;
+        }
+
+        h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
         table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 20px;
+            background-color: #ffffff;
         }
-        th, td {
-            border: 1px solid black;
+
+        table, th, td {
+            border: 1px solid #ddd;
             padding: 8px;
-            text-align: left;
         }
+
         th {
             background-color: #f2f2f2;
+        }
+
+        .highlight {
+            background-color: #d0e9ff; /* 设置为淡蓝色 */
+            padding: 2px 4px;
+            border-radius: 3px;
         }
     </style>
 </head>
@@ -31,7 +52,7 @@
             {% for error in unsent_errors %}
             <tr>
                 <td>{{ error.error_type }}</td>
-                <td>{{ error.error_detail }}</td>
+                <td>{{ error.error_detail|safe }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -49,7 +70,7 @@
             {% for error in all_errors %}
             <tr>
                 <td>{{ error.error_type }}</td>
-                <td>{{ error.error_detail }}</td>
+                <td>{{ error.error_detail|safe }}</td>
             </tr>
             {% endfor %}
         </tbody>

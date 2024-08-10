@@ -273,7 +273,7 @@ def send_unsent_error_emails():
                 'failed_logs': failed_logs,
             })
 
-            # 发送邮件
+            # 创建EmailMessage对象
             email = EmailMessage(
                 subject,
                 email_content,
