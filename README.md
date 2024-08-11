@@ -261,7 +261,7 @@ python manage.py createsuperuser
 使用邮件报警功能，可以在出现错误时，自动发送邮件给指定的邮箱，方便及时处理错误  
 
 在首页点击邮箱配置，会跳转到后台  
-![img.png](img.png)  
+![img.png](img/img_19.png)  
 
 这里建议使用163邮箱，以下是邮箱的详细配置（如果使用163邮箱，前三项不需要改动）
 - `Email host`：smtp的地址
