@@ -216,7 +216,8 @@ def send_message(request):
             response = requests.post(
                 url,
                 headers={'Content-Type': 'application/json'},
-                data=json.dumps(data)
+                data=json.dumps(data),
+                timeout=20  # 设置超时时间为20秒
             )
 
             if response.status_code == 200:
