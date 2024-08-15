@@ -212,12 +212,33 @@ def send_message(request):
         }
 
         url = f'http://{server_ip}/wechat/send_message/'
-        response = requests.post(
-            url,
-            headers={'Content-Type': 'application/json'},
-            data=json.dumps(data)
-        )
-        return JsonResponse({'status': f"{text} sent to {username}"}, status=200)
+        try:
+            response = requests.post(
+                url,
+                headers={'Content-Type': 'application/json'},
+                data=json.dumps(data)
+            )
+
+            if response.status_code == 200:
+                return JsonResponse({'status': f"{text} sent to {username}"}, status=200)
+            else:
+                # 当服务器返回非200状态码时，记录错误日志
+                ErrorLog.objects.create(
+                    error_type="发送消息失败",
+                    error_detail=f"给{username}发送{text}失败",
+                    task_id="N/A"  # 如果有任务ID可替换此处
+                )
+                return JsonResponse({'status': f"Failed to send {text} to {username}"}, status=500)
+
+        except requests.exceptions.RequestException as e:
+            # 捕获请求异常并记录错误日志
+            ErrorLog.objects.create(
+                error_type="发送消息失败",
+                error_detail=f"给{username}发送{text}失败，错误信息: {str(e)}",
+                task_id="N/A"
+            )
+            return JsonResponse({'status': "Failed to send message due to a network error"}, status=500)
+
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
 
@@ -493,6 +514,7 @@ def send_email(request):
             return JsonResponse({"status": "error", "message": str(e)}, status=500)
     else:
         return JsonResponse({"status": "error", "message": "Invalid request method."}, status=405)
+
 
 @csrf_exempt
 @log_activity

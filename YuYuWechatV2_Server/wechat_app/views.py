@@ -26,8 +26,11 @@ def process_queue():
             try:
                 comtypes.CoInitialize()
                 with lock:  # 确保微信操作的线程安全
-                    wechat.send_msg(name, text)
-                response_queue.put({'status': 'Message sent', 'name': name})
+                    success = wechat.send_msg(name, text)
+                if success:
+                    response_queue.put({'status': 'Message sent', 'name': name})
+                else:
+                    response_queue.put({'status': 'Failed to send message', 'name': name})
             except Exception as e:
                 response_queue.put({'status': 'Error sending message', 'name': name, 'error': str(e)})
             message_queue.task_done()
@@ -56,7 +59,10 @@ def send_message(request):
             # 等待处理结果
             result = response_queue.get()
 
-            return JsonResponse(result, status=200 if result['status'] == 'Message sent' else 500)
+            if result['status'] == 'Message sent':
+                return JsonResponse(result, status=200)
+            else:
+                return JsonResponse(result, status=500)
         except (KeyError, json.JSONDecodeError):
             return JsonResponse({'error': 'Invalid request, missing name or text'}, status=400)
     else:
