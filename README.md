@@ -286,3 +286,7 @@ python manage.py createsuperuser
 [easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
 
 如果这个小工具正好对你有帮助，欢迎点个star⭐，谢谢！
+
+# 7.其他
+
+代码仅用于对UIAutomation技术的交流学习使用，禁止用于实际生产项目，请勿用于非法用途和商业用途！如因此产生任何法律纠纷，均与作者无关！
