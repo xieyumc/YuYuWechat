@@ -17,9 +17,9 @@
 ![img.png](img/img_13.png)
 <h6 align="center">错误检测
 
-<img alt="IMG_1737.jpeg" height="1600" src="img/IMG_18.jpeg" width="900"/>
+<img src="img/IMG_18.jpeg" style="max-width: 50%; height: auto;" />
 
-<h6 align="center">自动检测错误，并且邮件报警
+<h6 align="center">自动检测错误，并且通过邮件报警
 
 ![img_3.png](img/img_3.png)
 <h6 align="center">后台管理界面
