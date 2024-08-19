@@ -17,8 +17,7 @@
 ![img.png](img/img_13.png)
 <h6 align="center">错误检测
 
-<img src="img/IMG_18.jpeg" style="max-width: 50%; height: auto;" />
-
+![img.png](img/img_18.png)
 <h6 align="center">自动检测错误，并且通过邮件报警
 
 ![img_3.png](img/img_3.png)
@@ -300,9 +299,7 @@ python manage.py createsuperuser
 [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
 
 
-
 本项目部署了单元测试，GitHub Action测试以及人工测试，最大程度避免bug的产生，但是仍然可能存在未知的bug，如果遇到问题欢迎提issue👏
-
 
 # 6.感谢
 
