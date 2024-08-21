@@ -103,7 +103,7 @@ def home(request):
 @log_activity
 def send_message_management(request):
     messages = Message.objects.all()
-    groups = WechatUser.objects.values_list('group', flat=True).distinct()  # 获取所有分组
+    groups = WechatUser.objects.values_list('group', flat=True).distinct().order_by('group')
     return render(request, 'send_message_management.html', {'messages': messages, 'groups': groups})
 
 
@@ -145,7 +145,9 @@ def schedule_management(request):
         else:
             task.next_run = "不运行"
 
-    groups = WechatUser.objects.values_list('group', flat=True).distinct()  # 获取所有分组
+    # 获取所有分组，并按字典顺序排序
+    groups = WechatUser.objects.values_list('group', flat=True).distinct().order_by('group')
+
     return render(request, 'schedule_management.html',
                   {'tasks': tasks, 'groups': groups, 'celery_status': celery_status})
 
