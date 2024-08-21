@@ -190,7 +190,7 @@ gpedit.msc
 ## 从源码运行
 如果你想自定义数据库结构和增加功能，可以从源码运行
 
-- 首先自行安装redis和postgres数据库，redis默认端口为6379，postgres默认端口为5432
+- 首先自行安装redis和postgres数据库，redis默认端口为6379，postgres默认端口为5432，并且默认连接密码为`tykWyr-bepqu6-fafvym`，你也可以手动在Django的设置里修改
 - cd到`YuYuWechatV2_Client`目录下
 - 安装依赖`pip install -r requirements.txt`
 - 运行`python manage.py runserver 127.0.0.1:7500`
