@@ -3,10 +3,10 @@
 一个让微信定时循环发送消息（使用cron表达式任务可以精确到分钟），批量群发消息的小工具🚀，并且提供了一个简易直观的界面，可部署到任意平台
 
 ![img.png](img/img.png)
-<h6 align="center">首页管理界面
+<h6 align="center">首页管理界面，在这里，可以概览系统的所有功能
 
 ![img.png](img/img_14.png)
-<h6 align="center">登录保护
+<h6 align="center">登录保护，保证数据安全性
 
 ![img_1.png](img/img_1.png)
 <h6 align="center">批量发送消息
@@ -18,10 +18,10 @@
 <h6 align="center">错误检测
 
 ![img.png](img/img_18.png)
-<h6 align="center">自动检测错误，并且通过邮件报警
+<h6 align="center">自动检测错误，并且通过邮件报警，及时处理错误
 
 ![img_3.png](img/img_3.png)
-<h6 align="center">后台管理界面
+<h6 align="center">后台管理界面，对消息数据进行增删改
 
 # ✨功能特点
 
@@ -166,7 +166,7 @@ gpedit.msc
 - 找到不显示锁屏选项，设置为已启用
 ![img_2.png](img/img_17.png)
 
-# 3.运行客户端
+# 3.部署客户端
 ## 使用docker运行（推荐）
 我已经编译好了x86和arm的docker镜像，Windows/mac/Linux的x86和arm架构均可运行
 
@@ -295,11 +295,31 @@ python manage.py createsuperuser
 - `Recipient list:`：接收邮件的邮箱，可以填多个，用逗号隔开
 
 
-# 5.可靠性
-[![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
+# 5.可靠性 [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
+**微信发送的消息通常非常重要，为了确保消息的发送不会出现问题， YuYuWechat使用了多种手段保证系统的可靠性，但仍可能出现错误，若有错误，欢迎提issue**
 
 
-本项目部署了单元测试，GitHub Action测试以及人工测试，最大程度避免bug的产生，但是仍然可能存在未知的bug，如果遇到问题欢迎提issue👏
+## 错误检测
+_错误从理论上来说不可避免，所以错误检测至关重要_
+- **发送消息后检测是否成功发送**：YuYuWechat会检测发送消息后，通过读取最后一条聊天记录判断消息是否发送成功，若未发送成功，会记录错误在错误日志中
+- **定时任务检测**：YuYuWechat会通过cron表达式和上次发送日期，判断定时任务是否遗漏发送，若遗漏，会记录错误在错误日志中
+- **自动检测错误**：YuYuWechat每分钟都会检测典型的错误，如服务器连接情况，消息遗漏，若有错误会记录在错误日志中
+- **错误日志自动报警**：YuYuWechat会记录所有的错误在错误日志中，并且通过邮箱报警，可以及时处理错误
+
+
+## 自动化测试
+_测试是验证代码是否按预期运行的重要手段，YuYuWechat通过GitHub action进行自动化测试，详细的测试样例请参考`.github`文件夹_
+
+#### 每次push代码后测试：
+- **单元测试**：对客户端系统进行单元测试，简单测试每个视图函数的功能是否正常
+- **docker编译测试**：对客户端使用docker编译，并且对编译后的镜像进行完整测试，包含视图的每个函数和url的测试，以及功能测试
+- **服务端自动编译测试**：对服务端使用pyinstaller编译，并且对编译后的exe进行简单的ping测试，由于GitHub action无法模拟完整的微信登录环境，所以只能简单测试
+
+#### 每次release后：
+- **自动编译**：对服务端使用pyinstaller编译，客户端使用docker编译
+- **完整测试**：基于之前的push测试，对编译后的docker镜像和exe进行完整测试
+- **自动推流**：对编译后的docker镜像和exe推流到docker hub以及release界面
+
 
 # 6.感谢
 
