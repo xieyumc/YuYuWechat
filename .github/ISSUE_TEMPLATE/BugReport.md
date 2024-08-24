@@ -1,6 +1,6 @@
 ---
 name: BugReport
-about: Bug报告模板
+about: 程序运行出现Bug
 title: "[BUG] "
 labels: bug
 ---
