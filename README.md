@@ -183,7 +183,7 @@ gpedit.msc
 - 找到不显示锁屏选项，设置为已启用
 ![img_2.png](img/img_17.png)
 
-# 3.部署客户端
+# 3. 部署客户端
 ## 使用docker运行（推荐）
 我已经编译好了x86和arm的docker镜像，Windows/mac/Linux的x86和arm架构均可运行
 
@@ -294,7 +294,7 @@ python manage.py createsuperuser
 0 0 1 * *    # 每月1日午夜12点执行
 0 0 * * 1 [ "$(date +\%d)" -le 7 ]    # 每个月的第一个周一午夜12点执行
 ```
-# 4.额外功能
+# 4. 额外功能
 
 ## 邮件报警
 使用邮件报警功能，可以在出现错误时，自动发送邮件给指定的邮箱，方便及时处理错误  
@@ -312,8 +312,9 @@ python manage.py createsuperuser
 - `Recipient list:`：接收邮件的邮箱，可以填多个，用逗号隔开
 
 
-# 5.可靠性 [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
-**微信发送的消息通常非常重要，为了确保消息的发送不会出现问题， YuYuWechat使用了多种手段保证系统的可靠性，但仍可能出现错误，若有错误，欢迎提issue**
+# 5. 可靠性
+ [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
+ **微信发送的消息通常非常重要，为了确保消息的发送不会出现问题， YuYuWechat使用了多种手段保证系统的可靠性，但仍可能出现错误，若有错误，欢迎提issue**
 
 
 ## 错误检测
@@ -338,12 +339,12 @@ _测试是验证代码是否按预期运行的重要手段，YuYuWechat通过Git
 - **自动推流**：对编译后的docker镜像和exe推流到docker hub以及release界面
 
 
-# 6.感谢
+# 6. 感谢
 
 [easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
 
 如果这个小工具正好对你有帮助，欢迎点个star⭐，谢谢！
 
-# 7.其他
+# 7. 其他
 
 代码仅用于对UIAutomation技术的交流学习使用，禁止用于实际生产项目，请勿用于非法用途和商业用途！如因此产生任何法律纠纷，均与作者无关！
