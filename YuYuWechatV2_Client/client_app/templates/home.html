@@ -102,40 +102,31 @@
 
         function connectServer() {
             var serverIp = document.getElementById('server_ip').value;
-            var pingUrl = `http://${serverIp}/wechat/ping/`; // 构建完整的 URL
             var pingIndicator = document.getElementById('pingStatus');
-            var pingMessage = document.getElementById('pingMessage'); // 假设你已经添加了一个ID为pingMessage的元素来显示消息
+            var pingMessage = document.getElementById('pingMessage');
 
             // 显示正在检测的状态
             pingIndicator.style.backgroundColor = 'orange';
             pingMessage.textContent = "检查连接..."; // 显示检查连接的消息
 
-            // 设置超时时间
-            const timeoutPromise = new Promise((resolve, reject) => {
-                setTimeout(() => {
-                    reject(new Error('Ping Timeout: Server did not respond in 3 seconds.'));
-                }, 3000); // 3秒后触发超时
-            });
-
-            // 发送GET请求检测服务器，与超时promise竞赛
-            const fetchPromise = fetch(pingUrl)
-                .then(response => {
-                    if (response.ok) {
-                        return response.json();
-                    } else {
-                        throw new Error('Server response was not ok.');
-                    }
-                })
+            fetch('{% url "ping_server" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({'server_ip': serverIp})  // 将服务器IP作为数据发送到后端
+            })
+                .then(response => response.json())
                 .then(data => {
-                    if (data.status === "pong") {
+                    if (data.status === 'success') {
                         pingIndicator.style.backgroundColor = 'green';
                         pingMessage.textContent = "已连接到服务器";
                     } else {
-                        throw new Error('Server did not respond correctly.');
+                        pingIndicator.style.backgroundColor = 'red';
+                        pingMessage.textContent = data.message || "未连接到服务器";
                     }
-                });
-
-            Promise.race([fetchPromise, timeoutPromise])
+                })
                 .catch(error => {
                     // 捕获网络、超时或其他错误
                     pingIndicator.style.backgroundColor = 'red';
@@ -143,7 +134,6 @@
                     console.error('Error:', error);
                 });
         }
-
 
         function updateServerIP() {
             var serverIp = document.getElementById('server_ip').value;

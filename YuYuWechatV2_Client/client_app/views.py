@@ -339,6 +339,46 @@ def check_wechat_status(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
+@csrf_exempt
+@log_activity
+def ping_server(request):
+    error_type = "无法连接到服务器"
+
+    try:
+        data = json.loads(request.body)  # 获取前端发送的 JSON 数据
+        server_ip = data.get('server_ip', None)
+
+        if not server_ip:
+            error_detail = "没有设置服务器IP"
+            if not ErrorLog.objects.filter(error_type=error_type).exists():
+                ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
+            return JsonResponse({'status': 'error', 'message': error_detail}, status=400)
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'message': '无效的请求数据'}, status=400)
+
+    try:
+        url = f'http://{server_ip}/wechat/ping/'
+        response = requests.get(url, timeout=3)  # 设置超时时间为3秒
+        if response.status_code != 200:
+            raise requests.RequestException(f"Ping failed with status code {response.status_code}")
+
+        # 没有错误，删除现有的相关错误记录
+        ErrorLog.objects.filter(error_type=error_type).delete()
+        return JsonResponse({'status': 'success', 'message': '已连接到服务器'}, status=200)
+
+    except requests.Timeout:
+        error_detail = "ping超时"
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
+        return JsonResponse({'status': 'error', 'message': error_detail}, status=500)
+
+    except requests.RequestException as e:
+        error_detail = f"ping服务器失败: {e}"
+        if not ErrorLog.objects.filter(error_type=error_type).exists():
+            ErrorLog.objects.create(error_type=error_type, error_detail=error_detail)
+        return JsonResponse({'status': 'error', 'message': error_detail}, status=500)
+
+
 @login_required
 def log_view(request):
     filter_type = request.GET.get('filter', 'all')
