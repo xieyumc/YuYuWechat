@@ -86,3 +86,46 @@ def check_wechat_status(request):
             return JsonResponse({'status': 'Error', 'error': str(e)}, status=500)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
+from django.http import JsonResponse
+
+@csrf_exempt
+def get_dialogs_view(request):
+    """
+    获取指定联系人或群聊的聊天记录
+    """
+    if request.method == 'POST':
+        try:
+            # 解析请求体
+            data = json.loads(request.body)
+            name = data.get('name')  # 联系人或群聊的名称
+            n_msg = data.get('n_msg')  # 获取的聊天记录条数，必须指定
+
+            # 检查是否提供了 name 和 n_msg 参数
+            if not name:
+                return JsonResponse({'error': 'Missing name parameter'}, status=400)
+
+            if not n_msg:
+                return JsonResponse({'error': 'Missing n_msg parameter'}, status=400)
+
+            # 确保 n_msg 是一个正整数
+            try:
+                n_msg = int(n_msg)
+                if n_msg <= 0:
+                    raise ValueError
+            except ValueError:
+                return JsonResponse({'error': 'n_msg must be a positive integer'}, status=400)
+
+            # 使用全局锁来保证线程安全
+            with lock:
+                comtypes.CoInitialize()  # 初始化COM接口，防止线程冲突
+                dialogs = wechat.get_dialogs(name, n_msg)
+
+            # 返回获取到的聊天记录，并禁用ensure_ascii
+            return JsonResponse({'status': 'success', 'dialogs': dialogs}, status=200, json_dumps_params={'ensure_ascii': False})
+
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
