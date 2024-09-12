@@ -323,6 +323,9 @@ python manage.py createsuperuser
 - 运行客户端
 - 工作目录切换到`YuYuWechatV2_Client`
 - 终端运行`python manage.py generate_message_checks`
+- 创建的MessageCheck数量会显示在终端上
+
+![img_22.png](img/img_22.png)
 
 这个迁移器默认会把ScheduledMessage，按照以下规则创建MessageCheck
 
