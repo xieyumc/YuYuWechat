@@ -51,7 +51,7 @@ class MessageCheck(models.Model):
     定期检测微信好友聊天记录的模型
     """
     is_active = models.BooleanField(default=True, help_text="检测规则是否激活")
-    user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, related_name="message_checks")
+    user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, related_name="message_checks", help_text="关联的微信用户")
     keyword = models.CharField(max_length=255, help_text="检测的关键词")
     cron_expression = models.CharField(max_length=255, help_text="用于定时检测的 cron 表达式")
     message_count = models.IntegerField(default=10, help_text="要检测的最近消息数目")
