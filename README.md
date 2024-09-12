@@ -14,6 +14,10 @@
 ![img_.png](img/img_2.png)
 <h6 align="center">定时发送消息
 
+![img_.png](img/img_20.png)
+![img_.png](img/img_21.png)
+<h6 align="center">定时检测聊天记录，并根据检测结果提醒
+
 ![img.png](img/img_13.png)
 <h6 align="center">错误检测
 
@@ -312,6 +316,26 @@ python manage.py createsuperuser
 - `Default from email:`：发送邮件的邮箱，一般跟`Email host user`一样
 - `Recipient list:`：接收邮件的邮箱，可以填多个，用逗号隔开
 
+## 根据 ScheduledMessage 生成 MessageCheck
+
+写好ScheduledMessage后，有时候需要同时生成 MessageCheck，这是很常见的场景，所以我写了个迁移器来方便从cheduledMessage 生成 MessageCheck
+
+- 运行客户端
+- 工作目录切换到`YuYuWechatV2_Client`
+- 终端运行`python manage.py generate_message_checks`
+
+这个迁移器默认会把ScheduledMessage，按照以下规则创建MessageCheck
+
+```
+is_active=scheduled_message.is_active,  # 保持与 ScheduledMessage 一致的激活状态
+user=scheduled_message.user,  # 关联的用户与 ScheduledMessage 相同
+keyword="",  # keyword 留空
+cron_expression=cron_expression_day_after,  # 设置为第二天 15:00 的 cron 表达式
+message_count=1,  # 默认仅检查一条消息
+report_on_found=False  # 默认不报告找到的关键词
+```
+
+若想自定义生成规则，可以修改`YuYuWechatV2_Client/client_app/management/commands/generate_message_checks.py`函数
 
 # 5. 可靠性
  [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
