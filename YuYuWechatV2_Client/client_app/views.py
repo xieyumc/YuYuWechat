@@ -1,5 +1,5 @@
 from django.http import JsonResponse, HttpResponse
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog, MessageCheck
 import json
 import requests
 from django.views.decorators.csrf import csrf_exempt
@@ -150,6 +150,28 @@ def schedule_management(request):
 
     return render(request, 'schedule_management.html',
                   {'tasks': tasks, 'groups': groups, 'celery_status': celery_status})
+
+
+@login_required
+def message_check_view(request):
+    tasks = MessageCheck.objects.all()
+    now = timezone.localtime(timezone.now())
+
+    for task in tasks:
+        if task.is_active:
+            # 计算下次执行时间
+            base = now
+            iter = croniter(task.cron_expression, base)
+            next_time = iter.get_next(datetime)
+            task.next_run = next_time
+        else:
+            task.next_run = "不运行"
+
+    # 获取所有分组，并按字典顺序排序
+    groups = WechatUser.objects.values_list('group', flat=True).distinct().order_by('group')
+
+    return render(request, 'message_check.html',
+                  {'tasks': tasks, 'groups': groups})
 
 
 @csrf_exempt

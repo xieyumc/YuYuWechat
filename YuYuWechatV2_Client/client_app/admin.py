@@ -45,12 +45,13 @@ class ErrorLogAdmin(admin.ModelAdmin):
 class LogAdmin(admin.ModelAdmin):
     list_display = ('timestamp', 'function_name', 'result', 'return_data')  # 在列表页显示字段
     ordering = ('-timestamp',)  # 按照 timestamp 字段倒序排列记录
+    search_fields = ('function_name', 'result')  # 支持按函数名和结果搜索
 
 class MessageCheckAdmin(admin.ModelAdmin):
-    list_display = ('user', 'keyword', 'cron_expression', 'message_count', 'report_on_found', 'execution_count', 'execution_skip', 'is_active')  # 在列表页显示字段
+    list_display = ('user', 'keyword', 'cron_expression', 'message_count', 'report_on_found', 'is_active')  # 在列表页显示字段
     search_fields = ('keyword', 'user__username')  # 支持按关键词和用户名搜索
     list_filter = ('is_active', 'user__group')  # 按是否激活和用户分组过滤
-    ordering = ('-execution_count',)  # 按照 execution_count 字段倒序排列记录
+    ordering = ('user',)  # 按照 execution_count 字段倒序排列记录
 
 admin.site.register(Log, LogAdmin)
 admin.site.register(WechatUser, WechatUserAdmin)

@@ -56,10 +56,11 @@ class MessageCheck(models.Model):
     cron_expression = models.CharField(max_length=255, help_text="用于定时检测的 cron 表达式")
     message_count = models.IntegerField(default=10, help_text="要检测的最近消息数目")
     report_on_found = models.BooleanField(default=True, help_text="如果为 True，则在检测到关键词时报错；否则在未检测到时报错")
-    execution_count = models.IntegerField(default=0, help_text="任务执行的次数")
-    execution_skip = models.IntegerField(default=0, help_text="跳过执行的次数")
     last_checked = models.DateTimeField(null=True, blank=True, help_text="上次检测的时间")
 
+    @property
+    def group(self):
+        return self.user.group
 
     def __str__(self):
         report_condition = "关键词检测到" if self.report_on_found else "关键词未检测到"

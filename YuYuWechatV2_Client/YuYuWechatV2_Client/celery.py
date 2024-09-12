@@ -27,16 +27,20 @@ app.conf.beat_schedule = {
         'task': 'client_app.tasks.ping_server',
         'schedule': crontab(minute='*/1'),
     },
-    'check-wechat-status-every-hour': {
+    'check-wechat-status-every-5minute': {
         'task': 'client_app.tasks.check_wechat_status',
         'schedule': crontab(minute='*/5'),
     },
-    'send-unsent-error-emails-every-10-minutes': {
+    'send-unsent-error-emails-every-minutes': {
         'task': 'client_app.tasks.send_unsent_error_emails',
         'schedule': crontab(minute='*/1'),
     },
     'check-scheduled-message-errors-every-minutes': {
         'task': 'client_app.tasks.check_and_log_scheduled_message_errors',
+        'schedule': crontab(minute='*/1'),
+    },
+    'message-check-every-minute': {
+        'task': 'client_app.tasks.message_check',
         'schedule': crontab(minute='*/1'),
     },
 }

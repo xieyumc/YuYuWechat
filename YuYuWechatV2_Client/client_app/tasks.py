@@ -1,7 +1,7 @@
 from celery import shared_task
 from django.utils import timezone
 from django.core.mail import EmailMessage, get_connection
-from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings
+from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings, MessageCheck
 import requests
 import json
 from croniter import croniter
@@ -108,6 +108,82 @@ def check_and_send_messages():
 
             except requests.RequestException as e:
                 print(f"Failed to send message to {message.user.username}: {e}")
+
+
+@shared_task
+@log_activity
+def message_check():
+    """
+    定时获取聊天记录并根据MessageCheck规则进行检测，必要时记录错误日志
+    """
+    now = timezone.localtime(timezone.now())
+
+    # 获取所有活跃的 MessageCheck 任务
+    checks = MessageCheck.objects.filter(is_active=True)
+
+    # 获取服务器IP
+    try:
+        server_config = ServerConfig.objects.first()
+        if not server_config:
+            print("Server IP not set")
+            return
+        server_ip = server_config.server_ip
+    except ServerConfig.DoesNotExist:
+        print("Server IP configuration is missing")
+        return
+
+    for check in checks:
+        # 检查cron表达式，确保只在符合时间点执行
+        if not check_cron(now, check.cron_expression, check.last_checked):
+            continue
+
+        # 构建请求数据，获取聊天记录
+        data = {
+            'name': check.user.username,
+            'n_msg': check.message_count
+        }
+
+        try:
+            # 请求获取聊天记录
+            url = f'http://{server_ip}/wechat/get_dialogs/'
+            response = requests.post(
+                url,
+                headers={'Content-Type': 'application/json'},
+                data=json.dumps(data)
+            )
+
+            if response.status_code == 200:
+                response_data = response.json()
+                dialogs = response_data.get('dialogs', [])
+
+                # 检查聊天记录中是否包含关键词
+                keyword_found = any(check.keyword in dialog[2] for dialog in dialogs)
+
+                # 根据report_on_found判断是否记录错误
+                if (check.report_on_found and keyword_found) or (not check.report_on_found and not keyword_found):
+                    # 记录错误日志
+                    error_type = "聊天记录检测错误"
+                    error_detail = (
+                        f"在 <span class='highlight'>{check.user.username}</span> 的聊天记录中"
+                        f"{'检测到' if check.report_on_found else '未检测到'} 关键词 "
+                        f"<span class='highlight'>{check.keyword}</span>"
+                    )
+                    # 确保不重复记录相同的错误日志
+                    if not ErrorLog.objects.filter(error_type=error_type, task_id=str(check.id)).exists():
+                        ErrorLog.objects.create(
+                            error_type=error_type,
+                            error_detail=error_detail,
+                            task_id=str(check.id)
+                        )
+
+                # 更新检测时间，表示这次检测已完成
+                check.last_checked = now
+                check.save()
+            else:
+                print(f"Failed to retrieve chat logs for {check.user.username}: {response.status_code}")
+
+        except requests.RequestException as e:
+            print(f"Failed to send message to {check.user.username}: {e}")
 
 
 @log_activity
