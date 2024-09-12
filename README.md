@@ -333,10 +333,15 @@ python manage.py createsuperuser
 
 ```
 is_active=scheduled_message.is_active,  # 保持与 ScheduledMessage 一致的激活状态
+
 user=scheduled_message.user,  # 关联的用户与 ScheduledMessage 相同
+
 keyword="",  # keyword 留空
+
 cron_expression=cron_expression_day_after,  # 设置为第二天 15:00 的 cron 表达式
+
 message_count=1,  # 默认仅检查一条消息
+
 report_on_found=False  # 默认不报告找到的关键词
 ```
 
