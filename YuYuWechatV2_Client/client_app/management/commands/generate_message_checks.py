@@ -1,7 +1,8 @@
 import datetime
+
+from client_app.models import ScheduledMessage, MessageCheck
 from croniter import croniter
 from django.core.management.base import BaseCommand
-from client_app.models import ScheduledMessage, MessageCheck
 
 
 class Command(BaseCommand):
@@ -28,9 +29,14 @@ class Command(BaseCommand):
             day_after_next_execution = next_execution_time + datetime.timedelta(days=1)
             day_after_next_execution = day_after_next_execution.replace(hour=15, minute=0, second=0, microsecond=0)
 
-            # 根据计算后的时间生成新的 cron 表达式，设置为第二天 15:00 执行
-            # 这里 cron 表达式的格式为： 分 小时 天 * *
-            cron_expression_day_after = f"0 15 {day_after_next_execution.day} * *"
+            # 将原始的 cron 表达式拆解为分钟、小时、天、月、星期
+            cron_parts = cron_expression.split()
+            if len(cron_parts) != 5:
+                self.stdout.write(self.style.ERROR(f"无效的 cron 表达式: {cron_expression}"))
+                continue
+
+            # 生成新的 cron 表达式，分钟和小时为 0 15，天为计算后的一天，月份和星期保持不变
+            cron_expression_day_after = f"0 15 {day_after_next_execution.day} {cron_parts[3]} {cron_parts[4]}"
 
             # 创建一个新的 MessageCheck 实例，设置相关的字段
             MessageCheck.objects.create(
