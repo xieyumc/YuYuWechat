@@ -1,24 +1,24 @@
-from django.http import JsonResponse, HttpResponse
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog, MessageCheck
 import json
-import requests
-from django.views.decorators.csrf import csrf_exempt
-from django.utils import timezone
 import os
-from django.core.management import call_command
-from django.conf import settings
 import subprocess
-from croniter import croniter
 from datetime import datetime
 from functools import wraps
-from django.core.paginator import Paginator
 
+import requests
+from croniter import croniter
+from django.conf import settings
 from django.contrib.auth import authenticate, login
-from django.shortcuts import render, redirect
 from django.contrib.auth.decorators import login_required
-
 from django.core.mail import EmailMessage, get_connection
+from django.core.management import call_command
+from django.core.paginator import Paginator
+from django.http import JsonResponse, HttpResponse
+from django.shortcuts import render, redirect
+from django.utils import timezone
+from django.views.decorators.csrf import csrf_exempt
+
 from .models import EmailSettings
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog, MessageCheck
 
 
 def login_view(request):
@@ -479,6 +479,7 @@ def check_errors(request):
 @csrf_exempt
 @log_activity
 def handle_error_cron(request):
+    # 这里是处理定时任务遗漏的函数
     if request.method == 'POST':
         data = json.loads(request.body)
         action = data.get('action')
@@ -537,6 +538,32 @@ def handle_error_cron(request):
 
     return JsonResponse({'status': 'invalid method'}, status=405)
 
+
+@csrf_exempt
+@log_activity
+def delete_chat_record_error(request):
+    if request.method == 'POST':
+        data = json.loads(request.body)
+        error_id = data.get('task_id')
+
+        try:
+            # 查找对应的错误日志
+            error_log = ErrorLog.objects.get(id=int(error_id))
+
+            # 确认错误类型是聊天记录检测错误
+            if error_log.error_type == '聊天记录检测错误':
+                # 删除错误日志
+                error_log.delete()
+                return JsonResponse({'status': 'success', 'message': '聊天记录检测错误已删除'})
+            else:
+                return JsonResponse({'status': 'error', 'message': '错误类型不匹配'}, status=400)
+
+        except ErrorLog.DoesNotExist:
+            return JsonResponse({'status': 'error', 'message': '错误日志不存在'}, status=404)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': '无效的错误ID'}, status=400)
+
+    return JsonResponse({'status': 'invalid method'}, status=405)
 
 def send_email(request):
     if request.method == 'POST':

@@ -1,9 +1,11 @@
+from django.contrib.auth.views import LogoutView
 from django.urls import path
+
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
     check_wechat_status, log_view, log_counts, clear_logs, check_scheduled_message_errors, error_detection_view, \
-    handle_error_cron,check_errors, login_view, send_email,check_email_settings,ping_server,message_check_view
-from django.contrib.auth.views import LogoutView
+    handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view, \
+    delete_chat_record_error
 
 urlpatterns = [
     path('login/', login_view, name='login'),
@@ -33,5 +35,5 @@ urlpatterns = [
     path('send-email/', send_email, name='send_email'),
     path('check-email-settings/', check_email_settings, name='check_email_settings'),
     path('message_check/', message_check_view, name='message_check'),
-
+    path('delete_chat_record_error/', delete_chat_record_error, name='delete_chat_record_error')
 ]

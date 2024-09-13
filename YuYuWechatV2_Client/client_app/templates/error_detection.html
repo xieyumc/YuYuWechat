@@ -5,74 +5,107 @@
 {% block header %}错误检测{% endblock %}
 
 {% block content %}
-<table>
-    <thead>
-    <tr>
-        <th>序号</th>
-        <th>错误类型</th>
-        <th>详细错误</th>
-        <th>时间</th>  <!-- 新增时间列 -->
-        <th>操作</th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for error in errors %}
+    <table>
+        <thead>
         <tr>
-            <td class="index">{{ forloop.counter }}</td>
-            <td>{{ error.error_type }}</td>
-            <td>{{ error.error_detail|safe }}</td>
-            <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td> <!-- 显示错误日志的时间 -->
-            <td>
-                {% if error.error_type == '定时任务遗漏' %}
-                    <button onclick="handleAction({{ error.id }}, 'ignore', '', this)">
-                        忽略错误
-                    </button>
-                    <button onclick="handleAction({{ error.id }}, 'resend', '', this)">
-                        补发消息
-                    </button>
-                {% else %}
-                    无操作 <!-- 或者显示一个空白或者其他占位符 -->
-                {% endif %}
-            </td>
+            <th>序号</th>
+            <th>错误类型</th>
+            <th>详细错误</th>
+            <th>时间</th>  <!-- 新增时间列 -->
+            <th>操作</th>
         </tr>
-    {% endfor %}
-    </tbody>
-</table>
+        </thead>
+        <tbody>
+        {% for error in errors %}
+            <tr>
+                <td class="index">{{ forloop.counter }}</td>
+                <td>{{ error.error_type }}</td>
+                <td>{{ error.error_detail|safe }}</td>
+                <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td>
+                <td>
+                    {% if error.error_type == '定时任务遗漏' %}
+                        <button onclick="handleAction({{ error.id }}, 'ignore', '', this)">
+                            忽略错误
+                        </button>
+                        <button onclick="handleAction({{ error.id }}, 'resend', '', this)">
+                            补发消息
+                        </button>
+                    {% elif error.error_type == '聊天记录检测错误' %}
+                        <button onclick="deleteChatRecordError({{ error.id }}, this)">
+                            删除错误
+                        </button>
+                    {% else %}
+                        无操作
+                    {% endif %}
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
 
-<script>
-    function handleAction(error_id, action, correct_time, button) {
-        button.disabled = true;
-        button.classList.add('loading');
-        button.innerText = '正在发送...';
+    <script>
+        function handleAction(error_id, action, correct_time, button) {
+            button.disabled = true;
+            button.classList.add('loading');
+            button.innerText = '正在发送...';
 
-        fetch("{% url 'handle_error_cron' %}", {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': '{{ csrf_token }}'
-            },
-            body: JSON.stringify({
-                action: action,
-                task_id: error_id,
-                correct_time: correct_time
-            })
-        }).then(response => response.json()).then(data => {
-            alert(data.message);
-            location.reload();
-        }).catch(error => {
-            console.error('Error:', error);
-            button.disabled = false;
-            button.classList.remove('loading');
-            button.innerText = action === 'ignore' ? '忽略错误' : '补发消息';
+            fetch("{% url 'handle_error_cron' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    action: action,
+                    task_id: error_id,
+                    correct_time: correct_time
+                })
+            }).then(response => response.json()).then(data => {
+                alert(data.message);
+                location.reload();
+            }).catch(error => {
+                console.error('Error:', error);
+                button.disabled = false;
+                button.classList.remove('loading');
+                button.innerText = action === 'ignore' ? '忽略错误' : '补发消息';
+            });
+        }
+
+        // 重新计算序号
+        document.addEventListener('DOMContentLoaded', () => {
+            var rows = document.querySelectorAll('tbody tr');
+            rows.forEach((row, index) => {
+                row.querySelector('.index').textContent = index + 1;
+            });
         });
-    }
 
-    // 重新计算序号
-    document.addEventListener('DOMContentLoaded', () => {
-        var rows = document.querySelectorAll('tbody tr');
-        rows.forEach((row, index) => {
-            row.querySelector('.index').textContent = index + 1;
-        });
-    });
-</script>
+
+        // 处理删除聊天记录检测错误
+        function deleteChatRecordError(error_id, button) {
+            button.disabled = true;
+            button.classList.add('loading');
+            button.innerText = '正在删除...';
+
+            fetch("{% url 'delete_chat_record_error' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    task_id: error_id
+                })
+            }).then(response => response.json()).then(data => {
+                alert(data.message);
+                location.reload();
+            }).catch(error => {
+                console.error('Error:', error);
+                button.disabled = false;
+                button.classList.remove('loading');
+                button.innerText = '删除错误';
+            });
+        }
+
+
+    </script>
 {% endblock %}
