@@ -44,8 +44,8 @@ class Command(BaseCommand):
                 user=scheduled_message.user,  # 关联的用户与 ScheduledMessage 相同
                 keyword="",  # keyword 留空
                 cron_expression=cron_expression_day_after,  # 设置为第二天 15:00 的 cron 表达式
-                message_count=1,  # 仅检查一条消息
-                report_on_found=False  # 默认不报告找到的关键词
+                message_count=1,  # 检查一条消息
+                report_on_found=False  # 默认找不到的关键词报错
             )
 
             # 每创建一个 MessageCheck，就增加计数
