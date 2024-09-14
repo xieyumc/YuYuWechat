@@ -1,15 +1,18 @@
-from celery import shared_task
-from django.utils import timezone
-from django.core.mail import EmailMessage, get_connection
-from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings, MessageCheck
-import requests
 import json
-from croniter import croniter
+import re
+import time
 from datetime import datetime, timedelta
 from functools import wraps
+
+import requests
+from celery import shared_task
+from croniter import croniter
+from django.core.mail import EmailMessage, get_connection
 from django.http import JsonResponse
 from django.template.loader import render_to_string
-import time
+from django.utils import timezone
+
+from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings, MessageCheck
 
 
 def log_activity(func):
@@ -156,8 +159,8 @@ def message_check():
                 response_data = response.json()
                 dialogs = response_data.get('dialogs', [])
 
-                # 检查聊天记录中是否包含关键词
-                keyword_found = any(check.keyword in dialog[2] for dialog in dialogs)
+                # 检查聊天记录中是否匹配正则表达式关键词
+                keyword_found = any(re.search(check.keyword, dialog[2]) for dialog in dialogs)
 
                 # 根据report_on_found判断是否记录错误
                 if (check.report_on_found and keyword_found) or (not check.report_on_found and not keyword_found):
@@ -165,7 +168,7 @@ def message_check():
                     error_type = "聊天记录检测错误"
                     error_detail = (
                         f"在 <span class='highlight'>{check.user.username}</span> 的聊天记录中"
-                        f"{'检测到' if check.report_on_found else '未检测到'} 关键词 "
+                        f"{'检测到' if check.report_on_found else '未检测到'} 关键词/正则表达式 "
                         f"<span class='highlight'>{check.keyword}</span>"
                     )
                     # 确保不重复记录相同的错误日志
