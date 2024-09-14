@@ -52,7 +52,7 @@ class MessageCheck(models.Model):
     """
     is_active = models.BooleanField(default=True, help_text="检测规则是否激活")
     user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, related_name="message_checks", help_text="关联的微信用户")
-    keyword = models.CharField(max_length=255, help_text="检测的关键词")
+    keyword = models.CharField(max_length=255, help_text="检测的关键词/正则表达式")
     cron_expression = models.CharField(max_length=255, help_text="用于定时检测的 cron 表达式")
     message_count = models.IntegerField(default=10, help_text="要检测的最近消息数目")
     report_on_found = models.BooleanField(default=True, help_text="如果为 True，则在检测到关键词时报错；否则在未检测到时报错")
