@@ -35,14 +35,22 @@
   - [YuYuWechatV2_Server服务端](#yuyuwechatv2_server服务端)
   - [YuYuWechatV2_Client客户端](#yuyuwechatv2_client客户端)
 - [2. 部署服务端](#2-部署服务端)
+  - [使用编译后EXE直接部署（推荐）](#使用编译后exe直接部署推荐)
+  - [使用源码部署](#使用源码部署)
+  - [测试服务端是否正常运行](#测试服务端是否正常运行)
+  - [确保Windows不锁屏](#确保windows不锁屏)
 - [3. 部署客户端](#3-部署客户端)
+  - [使用docker运行（推荐）](#使用docker运行推荐)
+  - [从源码运行](#从源码运行)
 - [4. 额外功能](#4-额外功能)
   - [邮件报警](#邮件报警)
+  - [根据 ScheduledMessage 生成 MessageCheck](#根据-scheduledmessage-生成-messagecheck)
 - [5. 可靠性](#5-可靠性)
   - [错误检测](#错误检测)
   - [自动化测试](#自动化测试)
 - [6. 感谢](#6-感谢)
-- [7. 其他](#7-其他)
+- [7. 支持YuYu](#7-支持yuyu)
+- [8. 其他](#8-其他)
 
 # ✨功能特点
 
@@ -288,6 +296,7 @@ python manage.py createsuperuser
 关于`cron表达式`，本程序是5段式的cron表达式，精确到分钟，请不要和7段式搞混  
 网上有在线生成器或者ChatGPT生成也可以
 以下是一些例子
+
 ```
 * * * * *：每分钟执行一次
 0 * * * *：每小时执行一次
@@ -299,7 +308,6 @@ python manage.py createsuperuser
 0 0 */2 * * # 每隔一天午夜12点执行
 0 0 * * 1    # 每周一午夜12点执行
 0 0 1 * *    # 每月1日午夜12点执行
-0 0 * * 1 [ "$(date +\%d)" -le 7 ]    # 每个月的第一个周一午夜12点执行
 ```
 # 4. 额外功能
 
@@ -378,8 +386,16 @@ _测试是验证代码是否按预期运行的重要手段，YuYuWechat通过Git
 
 [easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
 
-如果这个小工具正好对你有帮助，欢迎点个star⭐，谢谢！
+# 7. 支持YuYu
 
-# 7. 其他
+软件的维护需要一定的成本，如果你觉得这个软件对你有帮助，欢迎打赏作者一杯咖啡☕️
+
+YuYuWechat是完全免费的，捐赠只是为了支持作者继续开发和维护软件，并非强制性的
+
+![img_23.JPG](img/img_23.JPG)
+
+![img_24.JPG](img/img_24.JPG)
+
+# 8. 其他
 
 代码仅用于对UIAutomation技术的交流学习使用，禁止用于实际生产项目，请勿用于非法用途和商业用途！如因此产生任何法律纠纷，均与作者无关！
