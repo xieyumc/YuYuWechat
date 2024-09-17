@@ -46,16 +46,21 @@ class ScheduledMessage(models.Model):
     def __str__(self):
         return f"{self.user.username} - {self.text[:30]}"
 
+
 class MessageCheck(models.Model):
     """
     定期检测微信好友聊天记录的模型
     """
     is_active = models.BooleanField(default=True, help_text="检测规则是否激活")
-    user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, related_name="message_checks", help_text="关联的微信用户")
+    user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, related_name="message_checks",
+                             help_text="关联的微信用户")
     keyword = models.CharField(max_length=255, help_text="检测的关键词/正则表达式")
     cron_expression = models.CharField(max_length=255, help_text="用于定时检测的 cron 表达式")
-    message_count = models.IntegerField(default=10, help_text="要检测的最近消息数目")
-    report_on_found = models.BooleanField(default=True, help_text="如果为 True，则在检测到关键词时报错；否则在未检测到时报错")
+    message_count = models.IntegerField(default=10, help_text="要检测的最近消息数目或时间分组的数量")
+    use_time_blocks = models.BooleanField(default=False,
+                                          help_text="如果为 True，则 message_count 代表时间分组的个数；如果为 False，则 message_count 代表消息条数")
+    report_on_found = models.BooleanField(default=True,
+                                          help_text="如果为 True，则在检测到关键词时报错；否则在未检测到时报错")
     last_checked = models.DateTimeField(null=True, blank=True, help_text="上次检测的时间")
 
     @property
@@ -63,9 +68,13 @@ class MessageCheck(models.Model):
         return self.user.group
 
     def __str__(self):
-        report_condition = "关键词检测到" if self.report_on_found else "关键词未检测到"
-        return f"检测 {self.user.username} 的 {self.message_count} 条消息, {report_condition}: {self.keyword}"
+        if self.use_time_blocks:
+            message_detail = f"{self.message_count} 个时间分组"
+        else:
+            message_detail = f"{self.message_count} 条消息"
 
+        report_condition = "关键词检测到" if self.report_on_found else "关键词未检测到"
+        return f"检测 {self.user.username} 的 {message_detail}, {report_condition}: {self.keyword}"
 
 
 class Log(models.Model):
@@ -93,9 +102,9 @@ class EmailSettings(models.Model):
     default_from_email = models.EmailField(help_text="发送邮件的邮箱，一般也是email_host_user")
     recipient_list = models.TextField(help_text="收件人邮箱列表，用逗号分隔")
 
-
     def __str__(self):
         return self.default_from_email
+
 
 class ErrorLog(models.Model):
     error_type = models.CharField(max_length=255, help_text="错误的类型")
