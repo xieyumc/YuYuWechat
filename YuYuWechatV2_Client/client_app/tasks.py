@@ -140,15 +140,22 @@ def message_check():
         if not check_cron(now, check.cron_expression, check.last_checked):
             continue
 
-        # 构建请求数据，获取聊天记录
-        data = {
-            'name': check.user.username,
-            'n_msg': check.message_count
-        }
+        # 根据 use_time_blocks 来构建请求数据和URL
+        if check.use_time_blocks:
+            data = {
+                'name': check.user.username,
+                'n_time_blocks': check.message_count
+            }
+            url = f'http://{server_ip}/wechat/get_dialogs_by_time_blocks/'
+        else:
+            data = {
+                'name': check.user.username,
+                'n_msg': check.message_count
+            }
+            url = f'http://{server_ip}/wechat/get_dialogs/'
 
         try:
             # 请求获取聊天记录
-            url = f'http://{server_ip}/wechat/get_dialogs/'
             response = requests.post(
                 url,
                 headers={'Content-Type': 'application/json'},
@@ -159,10 +166,30 @@ def message_check():
                 response_data = response.json()
                 dialogs = response_data.get('dialogs', [])
 
-                # 检查聊天记录中是否匹配正则表达式关键词
-                keyword_found = any(re.search(check.keyword, dialog[2]) for dialog in dialogs)
+                # 初始化关键词检测结果
+                keyword_found = False
 
-                # 根据report_on_found判断是否记录错误
+                if check.use_time_blocks:
+                    # 处理按时间分组的嵌套列表
+                    for time_block in dialogs:
+                        for dialog in time_block:
+                            if len(dialog) >= 3:
+                                # 搜索关键词，包括 "时间信息" 类型的消息
+                                if re.search(check.keyword, dialog[2]):
+                                    keyword_found = True
+                                    break
+                        if keyword_found:
+                            break
+                else:
+                    # 处理平铺的消息列表
+                    for dialog in dialogs:
+                        if len(dialog) >= 3:
+                            # 搜索关键词，包括 "时间信息" 类型的消息
+                            if re.search(check.keyword, dialog[2]):
+                                keyword_found = True
+                                break
+
+                # 根据 report_on_found 判断是否记录错误
                 if (check.report_on_found and keyword_found) or (not check.report_on_found and not keyword_found):
                     # 记录错误日志
                     error_type = "聊天记录检测错误"
