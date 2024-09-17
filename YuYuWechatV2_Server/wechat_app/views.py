@@ -1,10 +1,10 @@
-from django.shortcuts import render
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
 import json
-import comtypes
 import threading
 from queue import Queue, Empty
+
+import comtypes
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
 
 from .ui_auto_wechat import WeChat
 
@@ -88,7 +88,6 @@ def check_wechat_status(request):
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
 
-from django.http import JsonResponse
 
 @csrf_exempt
 def get_dialogs_view(request):
