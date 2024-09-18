@@ -1,1 +1,8 @@
 /.idea/
+YuYuWechatV2_Client/client_app/management/commands/Test_generate_message_checks.py
+YuYuWechatV2_Client/celerybeat-schedule.db
+/YuYuWechatV2_Server/.idea/misc.xml
+/YuYuWechatV2_Server/.idea/inspectionProfiles/profiles_settings.xml
+/YuYuWechatV2_Server/.idea/vcs.xml
+/YuYuWechatV2_Server/.idea/workspace.xml
+/YuYuWechatV2_Server/.idea/YuYuWechatV2_Server.iml
