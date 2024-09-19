@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, EmailSettings, ErrorLog,MessageCheck
+
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, EmailSettings, ErrorLog, MessageCheck
 
 
 class WechatUserAdmin(admin.ModelAdmin):
@@ -48,7 +49,8 @@ class LogAdmin(admin.ModelAdmin):
     search_fields = ('function_name', 'result')  # 支持按函数名和结果搜索
 
 class MessageCheckAdmin(admin.ModelAdmin):
-    list_display = ('user', 'keyword', 'cron_expression', 'message_count', 'report_on_found', 'is_active')  # 在列表页显示字段
+    list_display = ('user', 'keyword', 'cron_expression', 'message_count', 'use_time_blocks', 'report_on_found',
+                    'is_active')  # 在列表页显示字段
     search_fields = ('keyword', 'user__username')  # 支持按关键词和用户名搜索
     list_filter = ('is_active', 'user__group')  # 按是否激活和用户分组过滤
     ordering = ('user',)  # 按照 execution_count 字段倒序排列记录
