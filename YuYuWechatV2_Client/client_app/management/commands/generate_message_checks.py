@@ -13,6 +13,14 @@ class Command(BaseCommand):
         scheduled_messages = ScheduledMessage.objects.all()
         created_count = 0  # 记录成功创建的 MessageCheck 数量
 
+        # 公共的 MessageCheck 默认配置
+        default_message_check_config = {
+            'keyword': "",
+            'message_count': 1,
+            'use_time_blocks': False,
+            'report_on_found': False
+        }
+
         # 遍历每一个 ScheduledMessage 对象
         for scheduled_message in scheduled_messages:
             # 获取当前 ScheduledMessage 的 cron 表达式
@@ -38,15 +46,26 @@ class Command(BaseCommand):
             # 生成新的 cron 表达式，分钟和小时为 0 15，天为计算后的一天，月份和星期保持不变
             cron_expression_day_after = f"0 15 {day_after_next_execution.day} {cron_parts[3]} {cron_parts[4]}"
 
+            # 检查是否已经存在相同的 MessageCheck
+            existing_check = MessageCheck.objects.filter(
+                is_active=scheduled_message.is_active,
+                user=scheduled_message.user,
+                cron_expression=cron_expression_day_after,
+                **default_message_check_config  # 使用默认配置
+            ).first()
+
+            if existing_check:
+                self.stdout.write(self.style.WARNING(
+                    f"已存在相同的 MessageCheck（ScheduledMessage ID: {scheduled_message.id}），跳过创建。"
+                ))
+                continue
+
             # 创建一个新的 MessageCheck 实例，设置相关的字段
             MessageCheck.objects.create(
                 is_active=scheduled_message.is_active,  # 保持与 ScheduledMessage 一致的激活状态
                 user=scheduled_message.user,  # 关联的用户与 ScheduledMessage 相同
-                keyword="",  # keyword 留空
                 cron_expression=cron_expression_day_after,  # 设置为第二天 15:00 的 cron 表达式
-                message_count=1,  # 检查一条消息
-                use_time_blocks=False,  # 不使用时间分组
-                report_on_found=False  # 默认找不到的关键词报错
+                **default_message_check_config  # 使用默认配置
             )
 
             # 每创建一个 MessageCheck，就增加计数
