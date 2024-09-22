@@ -21,4 +21,4 @@ COPY . .
 EXPOSE 7500
 
 # 启动Django应用
-CMD python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:7500
+CMD python manage.py migrate --noinput && python manage.py runserver 0.0.0.0:7500 --insecure
