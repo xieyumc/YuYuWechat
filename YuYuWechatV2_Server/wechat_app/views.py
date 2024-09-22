@@ -6,10 +6,15 @@ import comtypes
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
+from .models import WeChatConfig
 from .ui_auto_wechat import WeChat
 
 # 初始化 WeChat 类实例
-wechat = WeChat(path="C:/Program Files/Tencent/WeChat/WeChat.exe", locale="zh-CN")
+# wechat = WeChat(path="C:/Program Files/Tencent/WeChat/WeChat.exe", locale="zh-CN")
+
+# 获取微信配置，如果数据库中没有记录，则使用默认值
+config = WeChatConfig.objects.first()
+wechat = WeChat(path=config.path, locale=config.locale)
 
 # 创建一个队列
 message_queue = Queue()

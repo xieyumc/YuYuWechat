@@ -37,8 +37,8 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "wechat_app.apps.WechatAppConfig",
     'corsheaders',
+    'wechat_app',
 ]
 
 MIDDLEWARE = [
