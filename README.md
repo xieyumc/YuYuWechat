@@ -110,7 +110,8 @@
 
 **为了简化服务端配置，请把微信安装在`C:/Program Files/Tencent/WeChat/WeChat.exe`，这个位置是默认的微信安装位置**
 
-⚠️如果你微信安装在其他地方，启动服务端后，请访问`http://127.0.0.1:8000/admin/wechat_app/wechatconfig/1/change/`
+⚠️如果你微信安装在其他地方，启动服务端后，请访问`http://127.0.0.1:8000/admin/wechat_app/wechatconfig/1/change/` ，用户名
+`admin`,密码`tykWyr-bepqu6-fafvym`
 ，手动修改微信的安装位置
 
 注意windows的路径分隔符是`\`，但是在python中`\`是转义字符，所以需要用`/`代替，例如
