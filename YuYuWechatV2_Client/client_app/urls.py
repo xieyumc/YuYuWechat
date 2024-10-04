@@ -5,7 +5,7 @@ from .views import home, send_message, set_server_ip, schedule_management, send_
     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
     check_wechat_status, log_view, log_counts, clear_logs, check_scheduled_message_errors, error_detection_view, \
     handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view, \
-    delete_chat_record_error
+    delete_chat_record_error, file_schedule_management
 
 urlpatterns = [
     path('login/', login_view, name='login'),
@@ -14,6 +14,7 @@ urlpatterns = [
     path('get_server_ip/', get_server_ip, name='get_server_ip'),
     path('set_server_ip/', set_server_ip, name='set_server_ip'),
     path('schedule_management/', schedule_management, name='schedule_management'),
+    path('file_schedule_management/', file_schedule_management, name='file_schedule_management'),
     path('send_message_management/', send_message_management, name='send_message_management'),
     path('export_database/', export_database, name='export_database'),
     path('import_database/', import_database, name='import_database'),
@@ -35,5 +36,5 @@ urlpatterns = [
     path('send-email/', send_email, name='send_email'),
     path('check-email-settings/', check_email_settings, name='check_email_settings'),
     path('message_check/', message_check_view, name='message_check'),
-    path('delete_chat_record_error/', delete_chat_record_error, name='delete_chat_record_error')
+    path('delete_chat_record_error/', delete_chat_record_error, name='delete_chat_record_error'),
 ]

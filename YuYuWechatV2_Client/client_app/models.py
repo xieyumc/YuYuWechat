@@ -47,6 +47,23 @@ class ScheduledMessage(models.Model):
         return f"{self.user.username} - {self.text[:30]}"
 
 
+class ScheduledFileMessage(models.Model):
+    is_active = models.BooleanField(default=True, help_text="是否激活该定时文件消息")
+    user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, help_text="关联的微信用户")
+    file_path = models.CharField(max_length=1024, help_text="定时发送的文件路径，不需要带引号")
+    cron_expression = models.CharField(max_length=255, help_text="定时任务的 cron 表达式")
+    execution_count = models.IntegerField(default=0, help_text="任务执行的次数")
+    execution_skip = models.IntegerField(default=0, help_text="任务被跳过的次数")
+    last_executed = models.DateTimeField(null=True, blank=True, help_text="任务上次执行的时间")
+
+    @property
+    def group(self):
+        return self.user.group
+
+    def __str__(self):
+        return f"{self.user.username} - {self.file_path}"
+
+
 class MessageCheck(models.Model):
     """
     定期检测微信好友聊天记录的模型

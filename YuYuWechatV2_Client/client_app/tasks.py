@@ -12,7 +12,7 @@ from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
 
-from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings, MessageCheck
+from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage
 
 
 def log_activity(func):
@@ -111,6 +111,62 @@ def check_and_send_messages():
 
             except requests.RequestException as e:
                 print(f"Failed to send message to {message.user.username}: {e}")
+
+
+@shared_task
+@log_activity
+def check_and_send_files():
+    # 获取当前时间并转换到默认时区
+    now = timezone.localtime(timezone.now())
+
+    # 查询所有活跃的定时文件任务
+    file_messages = ScheduledFileMessage.objects.filter(execution_count__gt=0, is_active=True)
+
+    # 尝试获取服务器IP
+    try:
+        server_config = ServerConfig.objects.first()
+        if not server_config:
+            print("Server IP not set")
+            return
+        server_ip = server_config.server_ip
+    except ServerConfig.DoesNotExist:
+        print("Server IP configuration is missing")
+        return
+
+    for file_message in file_messages:
+        if check_cron(now, file_message.cron_expression, file_message.last_executed):
+            # 检查跳过次数
+            if file_message.execution_skip > 0:
+                file_message.execution_skip -= 1
+                file_message.save()
+                continue
+
+            # 构建请求数据和发送文件
+            data = {
+                'name': file_message.user.username,
+                'file_path': file_message.file_path
+            }
+
+            try:
+                # 发送文件请求
+                url = f'http://{server_ip}/wechat/send_file/'
+                response = requests.post(
+                    url,
+                    headers={'Content-Type': 'application/json'},
+                    data=json.dumps(data)
+                )
+                print(response.text)
+
+                if response.status_code == 200:
+                    # 更新任务状态
+                    file_message.execution_count -= 1
+                    file_message.last_executed = now
+                    file_message.save()
+                else:
+                    print(f"Failed to send file to {file_message.user.username}: {response.status_code}")
+
+            except requests.RequestException as e:
+                print(f"Failed to send file to {file_message.user.username}: {e}")
 
 
 @shared_task

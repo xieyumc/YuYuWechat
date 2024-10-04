@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, EmailSettings, ErrorLog, MessageCheck
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, EmailSettings, ErrorLog, MessageCheck, \
+    ScheduledFileMessage
 
 
 class WechatUserAdmin(admin.ModelAdmin):
@@ -30,6 +31,12 @@ class ScheduledMessageAdmin(admin.ModelAdmin):
     ordering = ('-last_executed',)  # 按照 last_executed 字段倒序排列记录
 
 
+class ScheduledFileMessageAdmin(admin.ModelAdmin):
+    list_display = ('user', 'file_path', 'cron_expression', 'execution_count', 'last_executed', 'is_active')  # 在列表页显示字段
+    search_fields = ('file_path', 'user__username')  # 支持按文件路径和用户名搜索
+    list_filter = ('is_active', 'user__group')  # 按是否激活和用户分组过滤
+    ordering = ('-last_executed',)  # 按照 last_executed 字段倒序排列记录
+
 class EmailSettingsAdmin(admin.ModelAdmin):
     list_display = ('email_host', 'email_port', 'email_security', 'email_host_user', 'default_from_email')  # 在列表页显示字段
     search_fields = ('email_host_user', 'default_from_email')  # 支持按用户邮箱和发件人邮箱搜索
@@ -55,9 +62,11 @@ class MessageCheckAdmin(admin.ModelAdmin):
     list_filter = ('is_active', 'user__group')  # 按是否激活和用户分组过滤
     ordering = ('user',)  # 按照 execution_count 字段倒序排列记录
 
+
 admin.site.register(Log, LogAdmin)
 admin.site.register(WechatUser, WechatUserAdmin)
 admin.site.register(Message, MessageAdmin)
+admin.site.register(ScheduledFileMessage, ScheduledFileMessageAdmin)
 admin.site.register(ServerConfig, ServerConfigAdmin)
 admin.site.register(ScheduledMessage, ScheduledMessageAdmin)
 admin.site.register(EmailSettings, EmailSettingsAdmin)

@@ -1,7 +1,8 @@
-from celery.schedules import crontab
 # from __future__ import absolute_import, unicode_literals
 import os
+
 from celery import Celery
+from celery.schedules import crontab
 from django.conf import settings
 
 # 设置Django的默认设置模块
@@ -41,6 +42,11 @@ app.conf.beat_schedule = {
     },
     'message-check-every-minute': {
         'task': 'client_app.tasks.message_check',
+        'schedule': crontab(minute='*/1'),
+    },
+
+    'send-file-every-minute': {
+        'task': 'client_app.tasks.check_and_send_files',
         'schedule': crontab(minute='*/1'),
     },
 }

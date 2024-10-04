@@ -1,13 +1,13 @@
+import json
+from io import BytesIO
+from unittest.mock import patch
+
+from django.contrib.auth.models import User
+from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
-from .models import WechatUser, Message, ServerConfig, ScheduledMessage, Log
-from django.utils import timezone
-import json
-from unittest.mock import patch
-from django.test import Client
-from io import BytesIO
-import subprocess
-from django.contrib.auth.models import User
+
+from .models import WechatUser, ServerConfig, ScheduledMessage, Log
 
 
 class ViewTests(TestCase):
@@ -50,7 +50,7 @@ class ViewTests(TestCase):
         self.login()
         response = self.client.get(reverse('schedule_management'))
         self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'schedule_management.html')
+        self.assertTemplateUsed(response, 'message_schedule_management.html')
 
     @patch('requests.post')
     def test_send_message_view(self, mock_post):
