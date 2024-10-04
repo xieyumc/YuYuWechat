@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 from queue import Queue, Empty
 
@@ -16,14 +17,14 @@ from .ui_auto_wechat import WeChat
 config = WeChatConfig.objects.first()
 wechat = WeChat(path=config.path, locale=config.locale)
 
-# 创建一个队列
+# 创建队列
 message_queue = Queue()
-
+file_queue = Queue()
 # 创建一个锁
 lock = threading.Lock()
 
 
-# 处理队列中的消息
+# 处理消息队列中的消息
 def process_queue():
     while True:
         try:
@@ -43,7 +44,26 @@ def process_queue():
             pass
 
 
-# 启动一个线程来处理队列
+# 处理文件队列中的发送文件任务
+def process_file_queue():
+    while True:
+        try:
+            name, file_path, response_queue = file_queue.get()
+            try:
+                comtypes.CoInitialize()
+                with lock:  # 确保微信操作的线程安全
+                    wechat.send_file(name, file_path)
+                response_queue.put({'status': 'File sent', 'name': name})
+            except Exception as e:
+                response_queue.put({'status': 'Error sending file', 'name': name, 'error': str(e)})
+            file_queue.task_done()
+        except Empty:
+            pass
+
+
+# 启动一个线程来处理文件队列
+threading.Thread(target=process_file_queue, daemon=True).start()
+# 启动一个线程来处理消息队列
 threading.Thread(target=process_queue, daemon=True).start()
 
 
@@ -70,6 +90,39 @@ def send_message(request):
                 return JsonResponse(result, status=500)
         except (KeyError, json.JSONDecodeError):
             return JsonResponse({'error': 'Invalid request, missing name or text'}, status=400)
+    else:
+        return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+
+@csrf_exempt
+def send_file_view(request):
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            name = data['name']
+            file_path = data['file_path']
+
+            # 检查参数
+            if not name:
+                return JsonResponse({'error': 'Missing name parameter'}, status=400)
+            if not file_path or not os.path.exists(file_path):
+                return JsonResponse({'error': 'Invalid or missing file_path'}, status=400)
+
+            # 用于存储处理结果的队列
+            response_queue = Queue()
+
+            # 将文件发送任务加入文件队列
+            file_queue.put((name, file_path, response_queue))
+
+            # 等待处理结果
+            result = response_queue.get()
+
+            if result['status'] == 'File sent':
+                return JsonResponse(result, status=200)
+            else:
+                return JsonResponse(result, status=500)
+        except (KeyError, json.JSONDecodeError):
+            return JsonResponse({'error': 'Invalid request, missing name or file_path'}, status=400)
     else:
         return JsonResponse({'error': 'Invalid request method'}, status=405)
 
