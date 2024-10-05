@@ -14,6 +14,9 @@
 ![img_.png](img/img_2.png)
 <h6 align="center">定时发送消息
 
+![img.png](img/img_25.png)
+<h6 align="center">定时发送文件
+
 ![img_.png](img/img_20.png)
 ![img_.png](img/img_21.png)
 <h6 align="center">定时检测聊天记录，并根据检测结果提醒
