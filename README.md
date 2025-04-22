@@ -414,6 +414,8 @@ _测试是验证代码是否按预期运行的重要手段，YuYuWechat通过Git
 
 [easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
 
+[NodeSupport](https://github.com/NodeSeekDev/NodeSupport)赞助了本项目
+
 # 7. 其他
 
 代码仅用于对UIAutomation技术的交流学习使用，禁止用于实际生产项目，请勿用于非法用途和商业用途！如因此产生任何法律纠纷，均与作者无关！
