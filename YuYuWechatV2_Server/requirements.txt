@@ -21,3 +21,4 @@ pywin32
 pywin32-ctypes
 uiautomation
 pyautogui
+drf-spectacular
