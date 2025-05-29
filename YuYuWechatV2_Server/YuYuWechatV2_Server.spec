@@ -1,12 +1,19 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import os
+import drf_spectacular
+
+# 动态获取 drf-spectacular 的 templates 目录路径
+drf_spectacular_templates_path = os.path.join(os.path.dirname(drf_spectacular.__file__), 'templates')
 
 a = Analysis(
     ['run.py'],
     pathex=[],
     binaries=[],
     datas=[('wechat_app', 'wechat_app'),
-        ('YuYuWechatV2', 'YuYuWechatV2')
+        ('YuYuWechatV2', 'YuYuWechatV2'),
+        (drf_spectacular_templates_path, r'drf_spectacular/templates'), # 使用动态路径
+        # ('templates', 'templates') # 移除这一行，如果项目根目录没有 templates 文件夹
        ],
        hiddenimports=[
         'comtypes',
