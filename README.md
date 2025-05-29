@@ -98,6 +98,9 @@
 - `wechat/get_dialogs_by_time_blocks`:根据时间段获取聊天记录，返回嵌套列表
 - `wechat/send_file`:发送文件
 
+```
+.....更多接口请部署服务的后访问交互式文档 `http://127.0.0.1:8000/api/schema/swagger-ui/`
+```
 ### 并发保证
 
 服务端有消息队列和互斥锁，只需要把消息发送给服务端，服务端会自动处理消息队列，保证消息依次发送，所以你还可以部署多个客户端对同一个服务端发送消息
@@ -150,62 +153,17 @@ Windows资源管理器复制出来文件路径是：`C:\Program Files\Tencent\We
 
 ## 测试服务端是否正常运行
 
-上一步安装并运行服务端后，可以用简单的命令测试服务端是否成功运行
+上一步安装并运行服务端后，可以访问`http://127.0.0.1:8000/api/schema/swagger-ui/`
+![img.png](img/img29.png)
+可以看到服务端的接口文档，并且进行接口测试
 
-### 在Windows上：
-打开终端（powershell）：
+另外还有其他类型的接口文档可选：
+`http://127.0.0.1:8000/api/schema/redoc/`
+![img.png](img/img_30.png)
 
-#### 测试服务端是否正常运行
 
-```shell
-curl http://127.0.0.1:8000/wechat/ping
-```
 
-正常会返回
 
-```shell
-StatusCode        : 200
-StatusDescription : OK
-Content           : {"status": "pong"}
-RawContent        : HTTP/1.1 200 OK
-                    Vary: origin
-                    X-Frame-Options: DENY
-                    X-Content-Type-Options: nosniff
-                    Referrer-Policy: same-origin
-                    Cross-Origin-Opener-Policy: same-origin
-                    Content-Length: 18
-                    Content-Type: applicat...
-Forms             : {}
-Headers           : {[Vary, origin], [X-Frame-Options, DENY], [X-Content-Type-Options, nosniff], [Referrer-Policy, same
-                    -origin]...}
-Images            : {}
-InputFields       : {}
-Links             : {}
-Links             : {}                                                                                                  ParsedHtml        : System.__ComObject                                                                                  RawContentLength  : 18
-```
-
-#### 发送消息
-
-```shell
-$jsonData = '{"name": "文件传输助手", "text": "hi"}'
-Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -Headers @{"Content-Type"="application/json"} -Body $jsonData -ContentType "application/json; charset=utf-8"
-```
-这个命令会给文件传输助手发送一条消息`hi`
-
-### 在linux/mac上：
-打开终端：
-
-#### 测试服务端是否正常运行
-
-```shell
-curl -X GET http://替换成服务器的ip地址:8000/wechat/ping/
-```
-
-#### 发送消息
-
-```shell
-curl -X POST http://替换成服务器的ip地址:8000/wechat/send_message/ -H "Content-Type: application/json" -d '{"name": "文件传输助手", "text": "hi"}'
-```
 ## 确保Windows不锁屏
 YuYuWechatV2_Server需要GUI界面，所以需要保证Windows不会锁屏
 - 首先在电源选项里设置不永不关闭屏幕
