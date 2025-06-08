@@ -513,7 +513,65 @@ def check_scheduled_message_errors():
 @log_activity
 def error_detection_view(request):
     errors = ErrorLog.objects.all().order_by('-timestamp')
-    return render(request, 'error_detection.html', {'errors': errors})
+    
+    # 按用户名分组错误
+    grouped_errors = {}
+    for error in errors:
+        # 从错误详情中提取用户名
+        username = None
+        if '用户名' in error.error_detail:
+            # 尝试解析错误详情中的用户名
+            try:
+                username_part = error.error_detail.split('用户名:')[1].split('<')[0].strip()
+                if username_part:
+                    username = username_part
+            except:
+                pass
+        
+        # 如果没有用户名，查看错误详情中的其他可能包含用户名的部分
+        if not username and '用户' in error.error_detail:
+            try:
+                username_part = error.error_detail.split('用户')[1].split('的')[0].strip()
+                if username_part:
+                    username = username_part
+            except:
+                pass
+                
+        # 如果仍然没有找到用户名，尝试从task_id关联的ScheduledMessage中获取
+        if not username and error.task_id:
+            try:
+                task = ScheduledMessage.objects.get(id=int(error.task_id))
+                username = task.user.username
+            except:
+                try:
+                    # 也可能是MessageCheck的任务
+                    task = MessageCheck.objects.get(id=int(error.task_id))
+                    username = task.user.username
+                except:
+                    pass
+        
+        # 如果仍然没有找到用户名，使用'未知用户'作为分组键
+        if not username:
+            username = '未知用户'
+            
+        # 添加到分组中
+        if username not in grouped_errors:
+            grouped_errors[username] = []
+        grouped_errors[username].append(error)
+    
+    # 按用户分组的结果转换为列表，便于在模板中使用
+    error_groups = []
+    for username, user_errors in grouped_errors.items():
+        error_groups.append({
+            'username': username,
+            'errors': user_errors,
+            'count': len(user_errors)
+        })
+    
+    # 按用户名字母顺序排序
+    error_groups.sort(key=lambda x: x['username'])
+        
+    return render(request, 'error_detection.html', {'error_groups': error_groups})
 
 
 def check_errors(request):

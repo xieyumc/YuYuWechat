@@ -4,45 +4,56 @@
 
 {% block header %}错误检测{% endblock %}
 {% block content %}
-    <table>
-        <thead>
-        <tr>
-            <th>序号</th>
-            <th>错误类型</th>
-            <th>详细错误</th>
-            <th>时间</th>
-            <th>操作</th>
-        </tr>
-        </thead>
-        <tbody>
-        {% for error in errors %}
-            <tr>
-                <td class="index">{{ forloop.counter }}</td>
-                <td>{{ error.error_type }}</td>
-                <td>
-                    {{ error.error_detail|safe }}
-                </td>
-                <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td>
-                <td>
-                    {% if error.error_type == '定时任务遗漏' %}
-                        <button onclick="handleAction({{ error.id }}, 'ignore', '', this)">
-                            忽略错误
-                        </button>
-                        <button onclick="handleAction({{ error.id }}, 'resend', '', this)">
-                            补发消息
-                        </button>
-                    {% elif error.error_type == '聊天记录检测错误' %}
-                        <button onclick="deleteChatRecordError({{ error.id }}, this)">
-                            删除错误
-                        </button>
-                    {% else %}
-                        无操作
-                    {% endif %}
-                </td>
-            </tr>
+    {% if error_groups %}
+        {% for group in error_groups %}
+            <div class="error-group">
+                <h3>用户: {{ group.username }} ({{ group.count }}个错误)</h3>
+                <div class="user-errors-container">
+                    <table class="user-errors">
+                        <thead>
+                        <tr>
+                            <th>序号</th>
+                            <th>错误类型</th>
+                            <th>详细错误</th>
+                            <th>时间</th>
+                            <th>操作</th>
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {% for error in group.errors %}
+                            <tr data-username="{{ group.username }}" data-error-id="{{ error.id }}" data-error-type="{{ error.error_type }}">
+                                <td class="index">{{ forloop.counter }}</td>
+                                <td>{{ error.error_type }}</td>
+                                <td>
+                                    {{ error.error_detail|safe }}
+                                </td>
+                                <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td>
+                                <td>
+                                    {% if error.error_type == '定时任务遗漏' %}
+                                        <button onclick="handleAction({{ error.id }}, 'ignore', '', this)">
+                                            忽略错误
+                                        </button>
+                                        <button onclick="handleAction({{ error.id }}, 'resend', '', this)">
+                                            补发消息
+                                        </button>
+                                    {% elif error.error_type == '聊天记录检测错误' %}
+                                        <button onclick="deleteChatRecordError({{ error.id }}, this)">
+                                            删除错误
+                                        </button>
+                                    {% else %}
+                                        无操作
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         {% endfor %}
-        </tbody>
-    </table>
+    {% else %}
+        <p>没有检测到错误。</p>
+    {% endif %}
 
     <!-- 通知框 -->
     <div id="notification"
@@ -116,14 +127,6 @@
             });
         }
 
-        // 重新计算序号
-        document.addEventListener('DOMContentLoaded', () => {
-            var rows = document.querySelectorAll('tbody tr');
-            rows.forEach((row, index) => {
-                row.querySelector('.index').textContent = index + 1;
-            });
-        });
-
         // 处理删除聊天记录检测错误
         function deleteChatRecordError(error_id, button) {
             button.disabled = true;
@@ -156,6 +159,28 @@
         /* 鼠标悬停时显示手型光标 */
         .highlight {
             cursor: pointer;
+        }
+        
+        /* 用户错误分组样式 */
+        .error-group {
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        
+        .error-group h3 {
+            background-color: #f5f5f5;
+            padding: 10px;
+            margin: 0;
+        }
+        
+        .user-errors-container {
+            padding: 10px;
+        }
+        
+        .user-errors {
+            width: 100%;
         }
     </style>
 {% endblock %}

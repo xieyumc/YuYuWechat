@@ -7,3 +7,6 @@ YuYuWechatV2_Client/celerybeat-schedule.db
 /YuYuWechatV2_Server/.idea/workspace.xml
 /YuYuWechatV2_Server/.idea/YuYuWechatV2_Server.iml
 /YuYuWechatV2_Client/db_backup.json
+/YuYuWechatV2_Client/postgres_data/
+/YuYuWechatV2_Server/dist/YuYuWechatV2_Server.exe
+/YuYuWechatV2_Server/build/
