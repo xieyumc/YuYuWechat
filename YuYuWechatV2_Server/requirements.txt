@@ -7,7 +7,7 @@ docopt
 easydict
 future
 json5
-numpy
+numpy==1.26.4
 pefile
 pqi
 pyinstaller
