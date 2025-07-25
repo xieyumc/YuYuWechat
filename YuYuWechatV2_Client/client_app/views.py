@@ -24,7 +24,7 @@ from django.utils.timezone import now
 
 from .models import CustomScript
 from .models import EmailSettings
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, ErrorLog, MessageCheck, \
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, ErrorLog, MessageCheck, \
     ScheduledFileMessage
 
 
@@ -42,46 +42,11 @@ def login_view(request):
     return render(request, 'login.html')
 
 
-def log_activity(func):
-    @wraps(func)
-    def wrapper(request, *args, **kwargs):
-        response = None
-        result = True
-        return_data = ""
-
-        # 尝试调用函数并捕获返回数据
-        try:
-            response = func(request, *args, **kwargs)
-            if isinstance(response, JsonResponse):
-                return_data = response.content.decode('utf-8')
-
-        except Exception as e:
-            result = False
-            return_data = str(e)
-            response = JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-        # 获取函数名称
-        function_name = func.__name__
-
-        # 记录日志
-        Log.objects.create(
-            result=result,
-            function_name=function_name,
-            return_data=return_data
-        )
-
-        return response
-
-    return wrapper
-
-
-@log_activity
 def get_server_ip(request):
     server_ip = ServerConfig.objects.latest('id').server_ip if ServerConfig.objects.exists() else "none"
     return JsonResponse({'server_ip': server_ip})
 
 
-@log_activity
 def set_server_ip(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -98,7 +63,6 @@ def set_server_ip(request):
 
 
 @login_required
-@log_activity
 def home(request):
     messages = Message.objects.all()
     groups = WechatUser.objects.values_list('group', flat=True).distinct()  # 获取所有分组
@@ -106,14 +70,12 @@ def home(request):
 
 
 @login_required
-@log_activity
 def send_message_management(request):
     messages = Message.objects.all()
     groups = WechatUser.objects.values_list('group', flat=True).distinct().order_by('group')
     return render(request, 'send_message_management.html', {'messages': messages, 'groups': groups})
 
 
-@log_activity
 @login_required
 def schedule_management(request):
     tasks = ScheduledMessage.objects.all()
@@ -158,7 +120,6 @@ def schedule_management(request):
                   {'tasks': tasks, 'groups': groups, 'celery_status': celery_status})
 
 
-@log_activity
 @login_required
 def file_schedule_management(request):
     tasks = ScheduledFileMessage.objects.all()
@@ -224,7 +185,6 @@ def message_check_view(request):
                   {'tasks': tasks, 'groups': groups})
 
 
-@log_activity
 def skip_execution(request):
     # 这里是提前发送的处理函数
     if request.method == 'POST':
@@ -263,7 +223,6 @@ def skip_execution(request):
     return JsonResponse({'status': 'error', 'message': '无效请求'}, status=400)
 
 
-@log_activity
 def send_message(request):
     if request.method == 'POST':
         username = request.POST.get('username')
@@ -315,7 +274,6 @@ def send_message(request):
     return JsonResponse({'status': "Invalid request method"}, status=405)
 
 
-@log_activity
 def export_database(request):
     if request.method == 'POST':
         output = io.StringIO()
@@ -332,7 +290,6 @@ def export_database(request):
     return JsonResponse({'error': 'Invalid request method'}, status=400)
 
 
-@log_activity
 def import_database(request):
     if request.method == 'POST':
         file = request.FILES['db_file']
@@ -353,7 +310,6 @@ def import_database(request):
     return render(request, 'import.html')
 
 
-@log_activity
 def start_celery(request):
     try:
         subprocess.Popen(['celery', '-A', 'YuYuWechatV2_Client', 'worker', '--loglevel=info'])
@@ -363,7 +319,6 @@ def start_celery(request):
         return JsonResponse({'status': 'Failed to start Celery', 'error': str(e)}, status=500)
 
 
-@log_activity
 def stop_celery(request):
     try:
         subprocess.call(['pkill', '-f', 'celery'])
@@ -372,7 +327,6 @@ def stop_celery(request):
         return JsonResponse({'status': 'Failed to stop Celery', 'error': str(e)}, status=500)
 
 
-@log_activity
 def check_celery_running(request):
     try:
         # 检查系统中运行的进程并搜索包含'celery'的进程
@@ -385,7 +339,6 @@ def check_celery_running(request):
         return JsonResponse({'status': 'Failed to check Celery status', 'error': str(e)}, status=500)
 
 
-@log_activity
 def check_wechat_status(request):
     try:
         # 从数据库中提取最新的服务器IP
@@ -409,7 +362,6 @@ def check_wechat_status(request):
         return JsonResponse({'status': 'error', 'message': str(e)})
 
 
-@log_activity
 def ping_server(request):
     error_type = "无法连接到服务器"
 
@@ -449,68 +401,6 @@ def ping_server(request):
 
 
 @login_required
-def log_view(request):
-    filter_type = request.GET.get('filter', 'all')
-
-    if filter_type == 'success':
-        log_list = Log.objects.filter(result=True).order_by('-timestamp')
-    elif filter_type == 'failure':
-        log_list = Log.objects.filter(result=False).order_by('-timestamp')
-    else:
-        log_list = Log.objects.all().order_by('-timestamp')
-
-    paginator = Paginator(log_list, 100)  # 每页显示100条记录
-    page_number = request.GET.get('page')
-    page_obj = paginator.get_page(page_number)
-
-    return render(request, 'log.html', {'page_obj': page_obj, 'filter': filter_type})
-
-
-def log_counts(request):
-    total_logs = Log.objects.count()
-    success_logs = Log.objects.filter(result=True).count()
-    failure_logs = Log.objects.filter(result=False).count()
-    return JsonResponse({
-        'total': total_logs,
-        'success': success_logs,
-        'failure': failure_logs,
-    })
-
-
-def clear_logs(request):
-    if request.method == 'POST':
-        Log.objects.all().delete()
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'status': 'invalid method'}, status=405)
-
-
-def check_scheduled_message_errors():
-    errors = []
-    now = timezone.localtime(timezone.now())
-
-    tasks = ScheduledMessage.objects.all()
-    for task in tasks:
-        if task.is_active:
-            iter = croniter(task.cron_expression, now)
-            last_execution_time = iter.get_prev(datetime)
-
-            if task.last_executed is None or task.last_executed < last_execution_time:
-                errors.append({
-                    'error_type': '定时任务遗漏',
-                    'error_detail': (
-                        f"应该在 <span class='highlight'>{last_execution_time.strftime('%Y-%m-%d %H:%M:%S')}</span> "
-                        f"给 <span class='highlight'>{task.user.username}</span> 发送 "
-                        f"<span class='highlight'>{task.text}</span> 未能发送"
-                    ),
-                    'task_id': task.id,
-                    'correct_time': last_execution_time.strftime('%Y-%m-%d %H:%M:%S')
-                })
-
-    return errors
-
-
-@login_required
-@log_activity
 def error_detection_view(request):
     errors = ErrorLog.objects.all().order_by('-timestamp')
     
@@ -580,7 +470,6 @@ def check_errors(request):
     return JsonResponse({'errors': error_count})
 
 
-@log_activity
 def handle_error_cron(request):
     # 这里是处理定时任务遗漏的函数
     if request.method == 'POST':
@@ -642,7 +531,6 @@ def handle_error_cron(request):
     return JsonResponse({'status': 'invalid method'}, status=405)
 
 
-@log_activity
 def delete_chat_record_error(request):
     if request.method == 'POST':
         data = json.loads(request.body)
@@ -710,7 +598,6 @@ def send_email(request):
         return JsonResponse({"status": "error", "message": "Invalid request method."}, status=405)
 
 
-@log_activity
 def check_email_settings(request):
     # 检查 Celery 是否运行
     result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)

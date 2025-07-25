@@ -70,17 +70,6 @@
     </div>
 
     <div class="card">
-        <h3>日志信息</h3>
-        <p>总日志条数: <span id="totalLogs">0</span></p>
-        <p>成功: <span id="successLogs">0</span></p>
-        <p>失败: <span id="failureLogs">0</span></p>
-        <div class="button-status-container">
-            <button type="button" onclick="viewLogs()">查看日志</button>
-            <button type="button" onclick="clearLogs()">清空日志</button>
-        </div>
-    </div>
-
-    <div class="card">
         <h3>导入数据库</h3>
         <form method="post" action="{% url 'import_database' %}" enctype="multipart/form-data">
             {% csrf_token %}
@@ -269,44 +258,6 @@
                 });
         }
 
-        function fetchLogCounts() {
-            fetch('{% url "log_counts" %}')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('totalLogs').textContent = data.total;
-                    document.getElementById('successLogs').textContent = data.success;
-                    document.getElementById('failureLogs').textContent = data.failure;
-                })
-                .catch(error => {
-                    console.error('Failed to fetch log counts:', error);
-                });
-        }
-
-        function viewLogs() {
-            window.location.href = '{% url "log_view" %}';
-        }
-
-        function clearLogs() {
-            fetch('{% url "clear_logs" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-            })
-                .then(response => {
-                    if (response.ok) {
-                        fetchLogCounts(); // 更新日志计数
-                        alert('日志已清空');
-                    } else {
-                        throw new Error('Failed to clear logs.');
-                    }
-                })
-                .catch(error => {
-                    alert('清空日志失败: ' + error.message);
-                    console.error('Error:', error);
-                });
-        }
-
         function checkErrors() {
             var errorIndicator = document.getElementById('errorStatus');
             var errorMessage = document.getElementById('errorMessage');
@@ -411,9 +362,6 @@
 
             await delay(200);
             checkErrors(); // 检查错误
-
-            await delay(200);
-            fetchLogCounts(); // 获取日志计数
 
         });
     </script>

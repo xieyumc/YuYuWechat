@@ -17,53 +17,10 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.timezone import now
 
-from .models import ScheduledMessage, ServerConfig, Log, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage
-
-
-def log_activity(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        response = None
-        result = True
-        return_data = ""
-        input_data = ""
-
-        # 捕获输入参数
-        try:
-            input_data = json.dumps({
-                'args': args,
-                'kwargs': kwargs
-            })
-        except Exception as e:
-            input_data = json.dumps({'error': 'Failed to capture input parameters', 'message': str(e)})
-
-        # 尝试调用函数并捕获返回数据
-        try:
-            response = func(*args, **kwargs)
-            return_data = json.dumps(response) if response is not None else ""
-        except Exception as e:
-            result = False
-            return_data = str(e)
-            response = JsonResponse({'status': 'error', 'message': str(e)}, status=500)
-
-        # 获取函数名称
-        function_name = func.__name__
-
-        # 记录日志
-        Log.objects.create(
-            result=result,
-            function_name=function_name,
-            input_params=input_data,
-            return_data=return_data
-        )
-
-        return response
-
-    return wrapper
+from .models import ScheduledMessage, ServerConfig, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage
 
 
 @shared_task
-@log_activity
 def check_and_send_messages():
     # 获取当前时间并转换到默认时区
     now = timezone.localtime(timezone.now())
@@ -119,7 +76,6 @@ def check_and_send_messages():
 
 
 @shared_task
-@log_activity
 def check_and_send_files():
     # 获取当前时间并转换到默认时区
     now = timezone.localtime(timezone.now())
@@ -175,7 +131,6 @@ def check_and_send_files():
 
 
 @shared_task
-@log_activity
 def message_check():
     """
     定时获取聊天记录并根据MessageCheck规则进行检测，必要时记录错误日志
@@ -277,7 +232,6 @@ def message_check():
             print(f"Failed to send message to {check.user.username}: {e}")
 
 
-@log_activity
 def check_cron(current_time, cron_expression, last_executed):
     """使用croniter来检查当前时间是否符合cron表达式，同时确保每个时间点只执行一次"""
     # 以当前时间为基准，但去掉秒数，确保精确比较到分钟
@@ -299,7 +253,6 @@ def check_cron(current_time, cron_expression, last_executed):
     return next_time == current_time
 
 
-@log_activity
 def send_message(data, server_ip):
     """调用视图发送消息"""
     url = f'http://{server_ip}/wechat/send_message/'
@@ -312,7 +265,6 @@ def send_message(data, server_ip):
 
 
 @shared_task
-@log_activity
 def ping_server():
     error_type = "无法连接到服务器"
 
@@ -351,7 +303,6 @@ def ping_server():
 
 
 @shared_task
-@log_activity
 def check_wechat_status():
     error_type = "微信状态检查失败"
 
@@ -395,7 +346,6 @@ def check_wechat_status():
 
 
 @shared_task
-@log_activity
 def send_unsent_error_emails():
     # 获取未发送邮件的错误日志
     unsent_errors = ErrorLog.objects.filter(emailed=False)

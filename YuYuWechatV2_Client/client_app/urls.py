@@ -3,7 +3,7 @@ from django.urls import path
 
 from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
-    check_wechat_status, log_view, log_counts, clear_logs, check_scheduled_message_errors, error_detection_view, \
+    check_wechat_status, error_detection_view, \
     handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view, \
     delete_chat_record_error, file_schedule_management, scripts_view, run_script_view, backup_list, download_backup, \
     manual_backup
@@ -25,10 +25,6 @@ urlpatterns = [
     path('check_celery_running/', check_celery_running, name='check_celery_running'),
     path('ping_server/', ping_server, name='ping_server'),
     path('check_wechat_status/', check_wechat_status, name='check_wechat_status'),
-    path('logs/', log_view, name='log_view'),
-    path('log_counts/', log_counts, name='log_counts'),
-    path('clear_logs/', clear_logs, name='clear_logs'),
-    path('check_scheduled_message_errors/', check_scheduled_message_errors, name='check_scheduled_message_errors'),
     path('error_detection/', error_detection_view, name='error_detection'),
     path('check_errors/', check_errors, name='check_errors'),
     path('handle_error_cron/', handle_error_cron, name='handle_error_cron'),

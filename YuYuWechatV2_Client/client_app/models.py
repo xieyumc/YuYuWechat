@@ -94,17 +94,6 @@ class MessageCheck(models.Model):
         return f"检测 {self.user.username} 的 {message_detail}, {report_condition}: {self.keyword}"
 
 
-class Log(models.Model):
-    timestamp = models.DateTimeField(auto_now_add=True, help_text="日志创建的时间")
-    result = models.BooleanField(help_text="函数调用的结果，成功为 True，失败为 False")
-    function_name = models.CharField(max_length=255, help_text="调用的函数名称")
-    input_params = models.TextField(help_text="函数的输入参数，JSON 字符串", default="null")
-    return_data = models.TextField(default="null", help_text="函数的返回数据")
-
-    def __str__(self):
-        return f"{self.function_name} - {'Success' if self.result else 'Failure'} at {self.timestamp}"
-
-
 class EmailSettings(models.Model):
     SECURITY_CHOICES = [
         ('tls', 'TLS'),

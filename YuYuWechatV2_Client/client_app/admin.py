@@ -1,6 +1,6 @@
 from django.contrib import admin
 
-from .models import Message, WechatUser, ServerConfig, ScheduledMessage, Log, EmailSettings, ErrorLog, MessageCheck, \
+from .models import Message, WechatUser, ServerConfig, ScheduledMessage, EmailSettings, ErrorLog, MessageCheck, \
     ScheduledFileMessage, CustomScript
 
 
@@ -53,12 +53,6 @@ class ErrorLogAdmin(admin.ModelAdmin):
     ordering = ('-timestamp',)  # 按照 timestamp 字段倒序排列记录
 
 
-class LogAdmin(admin.ModelAdmin):
-    list_display = ('timestamp', 'function_name', 'result', 'return_data')  # 在列表页显示字段
-    ordering = ('-timestamp',)  # 按照 timestamp 字段倒序排列记录
-    search_fields = ('function_name', 'result')  # 支持按函数名和结果搜索
-
-
 class MessageCheckAdmin(admin.ModelAdmin):
     list_display = ('user', 'keyword', 'cron_expression', 'message_count', 'use_time_blocks', 'report_on_found',
                     'is_active')  # 在列表页显示字段
@@ -71,7 +65,6 @@ class MessageCheckAdmin(admin.ModelAdmin):
 class CustomScriptAdmin(admin.ModelAdmin):
     list_display = ('slot', 'code')
 
-admin.site.register(Log, LogAdmin)
 admin.site.register(WechatUser, WechatUserAdmin)
 admin.site.register(Message, MessageAdmin)
 admin.site.register(ScheduledFileMessage, ScheduledFileMessageAdmin)
