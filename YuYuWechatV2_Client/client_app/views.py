@@ -278,7 +278,7 @@ def export_database(request):
     if request.method == 'POST':
         output = io.StringIO()
         # 排除 Logs 模型
-        call_command('dumpdata', 'client_app', '--exclude', 'client_app.Log', stdout=output)
+        call_command('dumpdata', 'client_app', stdout=output)
         output.seek(0)  # 将指针移动到开始位置
 
         # 设置动态文件名，避免文件覆盖
@@ -754,7 +754,7 @@ def manual_backup(request):
         try:
             # 1. 创建StringIO对象，用于捕获dumpdata输出
             output = io.StringIO()
-            call_command('dumpdata', 'client_app', '--exclude', 'client_app.Log', stdout=output)
+            call_command('dumpdata', 'client_app', stdout=output)
             output.seek(0)
 
             # 2. 生成带时间戳的文件名

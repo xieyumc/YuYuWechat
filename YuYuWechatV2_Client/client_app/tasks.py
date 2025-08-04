@@ -447,7 +447,7 @@ def daily_backup_database():
     """
     # 1. 创建StringIO对象，用于捕获dumpdata输出
     output = io.StringIO()
-    call_command('dumpdata', 'client_app', '--exclude', 'client_app.Log', stdout=output)
+    call_command('dumpdata', 'client_app', stdout=output)
     output.seek(0)
 
     # 2. 生成带时间戳的文件名
