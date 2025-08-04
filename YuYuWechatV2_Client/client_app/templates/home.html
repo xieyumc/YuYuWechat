@@ -2,367 +2,370 @@
 
 {% block title %}Home{% endblock %}
 
-{% block header %}YuYuWechat{% endblock %}
+{% block header %}Dashboard{% endblock %}
 
 {% block content %}
-    <div class="card">
-        <h3>连接服务器</h3>
-        <form id="connectForm" method="post" action="">
-            {% csrf_token %}
-            <div class="input-container">
-            <span id="pingStatus"
-                  style="height: 10px; width: 10px; background-color: gray; border-radius: 50%;"></span>
-                <div id="pingMessage" class="status-indicator">检查中...</div>
-                <label for="server_ip"></label>
-                <input type="text" id="server_ip" name="server_ip" placeholder="Enter Server IP">
-                <input type="hidden" id="server_ip_hidden" name="server_ip">
+<div class="row">
+    <!-- Connection Card -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">连接服务器</h5>
+                <form id="connectForm" method="post" action="">
+                    {% csrf_token %}
+                    <div class="input-group mb-3">
+                        <span class="input-group-text">
+                            <span id="pingStatus" class="d-inline-block rounded-circle bg-secondary" style="width: 12px; height: 12px;"></span>
+                        </span>
+                        <input type="text" id="server_ip" name="server_ip" class="form-control" placeholder="Enter Server IP">
+                    </div>
+                    <div id="pingMessage" class="text-muted small mb-2">检查中...</div>
+                    <div class="mt-auto btn-group w-100">
+                        <button type="button" onclick="connectServer()" class="btn btn-primary">测试连接</button>
+                        <button type="button" onclick="updateServerIP()" class="btn btn-success">保存IP</button>
+                    </div>
+                </form>
             </div>
-            <div>
-                <button type="button" onclick="connectServer()">测试连接</button>
-                <button type="button" onclick="updateServerIP()">保存服务器IP</button>
+        </div>
+    </div>
+
+    <!-- WeChat Status Card -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">微信状态</h5>
+                <div class="d-flex align-items-center mb-3">
+                    <span id="wechatStatus" class="d-inline-block rounded-circle bg-secondary me-3" style="width: 12px; height: 12px;"></span>
+                    <span id="wechatMessage">检查中...</span>
+                </div>
+                <div class="mt-auto d-grid">
+                    <button type="button" onclick="checkWeChatStatus()" class="btn btn-info">重新检测</button>
+                </div>
             </div>
-        </form>
-    </div>
-
-    <div class="card">
-        <h3>微信状态</h3>
-        <div class="input-container">
-        <span id="wechatStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-            <span id="wechatMessage">检查中...</span>
         </div>
-        <button type="button" onclick="checkWeChatStatus()">重新检测微信状态</button>
     </div>
 
-    <div class="card">
-        <h3>定时任务状态</h3>
-        <div class="input-container">
-        <span id="celeryStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-            <span id="celeryMessage">检查中...</span>
+    <!-- Celery Status Card -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">定时任务状态</h5>
+                <div class="d-flex align-items-center mb-3">
+                    <span id="celeryStatus" class="d-inline-block rounded-circle bg-secondary me-3" style="width: 12px; height: 12px;"></span>
+                    <span id="celeryMessage">检查中...</span>
+                </div>
+                <div class="mt-auto btn-group w-100">
+                    <button type="button" onclick="startCelery()" class="btn btn-success">启动</button>
+                    <button type="button" onclick="stopCelery()" class="btn btn-danger">停止</button>
+                </div>
+            </div>
         </div>
-        <button type="button" onclick="startCelery()">启动Celery定时任务</button>
-        <button type="button" onclick="stopCelery()">取消Celery定时任务</button>
     </div>
 
-    <div class="card">
-        <h3>错误检测</h3>
-        <div class="input-container">
-        <span id="errorStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-            <span id="errorMessage">检查中...</span>
+    <!-- Error Detection Card -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">错误检测</h5>
+                <div class="d-flex align-items-center mb-3">
+                    <span id="errorStatus" class="d-inline-block rounded-circle bg-secondary me-3" style="width: 12px; height: 12px;"></span>
+                    <span id="errorMessage">检查中...</span>
+                </div>
+                <div class="mt-auto d-grid">
+                    <button type="button" onclick="viewErrors()" class="btn btn-warning">查看错误</button>
+                </div>
+            </div>
         </div>
-        <button type="button" onclick="viewErrors()">查看错误</button>
     </div>
 
-
-    <div class="card">
-        <h3>邮箱报警</h3>
-        <div class="input-container">
-        <span id="emailStatus"
-              style="height: 10px; width: 10px; background-color: gray; border-radius: 50%; display: inline-block; margin-right: 5px;"></span>
-            <span id="emailMessage">检查中...</span>
+    <!-- Email Alert Card -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">邮箱报警</h5>
+                <div class="d-flex align-items-center mb-3">
+                    <span id="emailStatus" class="d-inline-block rounded-circle bg-secondary me-3" style="width: 12px; height: 12px;"></span>
+                    <span id="emailMessage">检查中...</span>
+                </div>
+                <div class="mt-auto btn-group w-100">
+                    <button type="button" onclick="sendTestEmail()" class="btn btn-primary">发送测试邮件</button>
+                    <button type="button" onclick="window.open('{% url 'admin:client_app_emailsettings_add' %}', '_blank')" class="btn btn-secondary">邮箱配置</button>
+                </div>
+            </div>
         </div>
-        <button type="button" onclick="sendTestEmail()">发送测试邮件</button>
-        <button type="button" onclick="window.open('{% url 'admin:client_app_emailsettings_add' %}', '_blank')">
-            邮箱配置
-        </button>
     </div>
 
-    <div class="card">
-        <h3>导入数据库</h3>
-        <form method="post" action="{% url 'import_database' %}" enctype="multipart/form-data">
-            {% csrf_token %}
-            <input type="file" name="db_file" required>
-            <button type="submit">导入数据库</button>
-        </form>
+    <!-- Database Management Card -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body d-flex flex-column">
+                <h5 class="card-title">数据库管理</h5>
+                <div class="mt-auto">
+                    <form method="post" action="{% url 'import_database' %}" enctype="multipart/form-data" class="mb-3">
+                        {% csrf_token %}
+                        <div class="input-group">
+                            <input type="file" name="db_file" class="form-control" required>
+                            <button type="submit" class="btn btn-success">导入</button>
+                        </div>
+                    </form>
+                    <form method="post" action="{% url 'export_database' %}">
+                        {% csrf_token %}
+                        <div class="d-grid">
+                            <button type="submit" class="btn btn-danger">导出</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
+</div>
 
-    <div class="card">
-        <h3>导出数据库</h3>
-        <form method="post" action="{% url 'export_database' %}">
-            {% csrf_token %}
-            <button type="submit">导出数据库</button>
-        </form>
-    </div>
+<script>
+    function updateStatusIndicator(element, state, message) {
+        const indicator = document.getElementById(element);
+        const messageEl = document.getElementById(element.replace('Status', 'Message'));
+        
+        // Remove only the color classes, preserving layout classes like me-3
+        indicator.classList.remove('bg-success', 'bg-danger', 'bg-warning', 'bg-secondary');
 
-
-    <script>
-
-        function connectServer() {
-            var serverIp = document.getElementById('server_ip').value;
-            var pingIndicator = document.getElementById('pingStatus');
-            var pingMessage = document.getElementById('pingMessage');
-
-            // 显示正在检测的状态
-            pingIndicator.style.backgroundColor = 'orange';
-            pingMessage.textContent = "检查连接..."; // 显示检查连接的消息
-
-            fetch('{% url "ping_server" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({'server_ip': serverIp})  // 将服务器IP作为数据发送到后端
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        pingIndicator.style.backgroundColor = 'green';
-                        pingMessage.textContent = "已连接到服务器";
-                    } else {
-                        pingIndicator.style.backgroundColor = 'red';
-                        pingMessage.textContent = data.message || "未连接到服务器";
-                    }
-                })
-                .catch(error => {
-                    // 捕获网络、超时或其他错误
-                    pingIndicator.style.backgroundColor = 'red';
-                    pingMessage.textContent = "未连接到服务器";
-                    console.error('Error:', error);
-                });
+        // Add the new color class based on the state
+        if (state === 'success') {
+            indicator.classList.add('bg-success');
+        } else if (state === 'error') {
+            indicator.classList.add('bg-danger');
+        } else if (state === 'loading') {
+            indicator.classList.add('bg-warning');
+        } else {
+            indicator.classList.add('bg-secondary');
         }
 
-        function updateServerIP() {
-            var serverIp = document.getElementById('server_ip').value;
-            fetch('{% url "set_server_ip" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({'server_ip': serverIp})
-            }).then(response => {
-                if (response.ok) {
-                    alert('Server IP updated to: ' + serverIp);
-                } else {
-                    throw new Error('Failed to update server IP.');
-                }
-            }).catch(error => {
-                alert(error.message);
-                console.error('Error:', error);
-            });
+        if (messageEl) {
+            messageEl.textContent = message;
         }
+    }
 
-        function startCelery() {
-            fetch('{% url "start_celery" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-            }).then(response => {
-                if (response.ok) {
-                    // 状态检查延时开始
-                    updateCeleryStatusMessage('检查中...');
-                    setTimeout(checkCeleryStatus, 1000); // 1秒后检查并更新 Celery 状态
-                } else {
-                    alert('启动 Celery 失败');
-                }
-            }).catch(error => {
-                alert('启动 Celery 失败: ' + error.message);
-                console.error('Error:', error);
-            });
-        }
+    function connectServer() {
+        const serverIp = document.getElementById('server_ip').value;
+        updateStatusIndicator('pingStatus', 'loading', '检查连接...');
 
-        function stopCelery() {
-            fetch('{% url "stop_celery" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-            }).then(response => {
-                if (response.ok) {
-                    // 状态检查延时开始
-                    updateCeleryStatusMessage('检查中...');
-                    setTimeout(checkCeleryStatus, 4000); // 4秒后检查并更新 Celery 状态
-                } else {
-                    alert('取消 Celery 失败');
-                }
-            }).catch(error => {
-                alert('取消 Celery 失败: ' + error.message);
-                console.error('Error:', error);
-            });
-        }
-
-
-        function updateCeleryStatusMessage(message) {
-            var celeryMessage = document.getElementById('celeryMessage');
-            celeryMessage.textContent = message;
-        }
-
-        function checkCeleryStatus() {
-            var celeryIndicator = document.getElementById('celeryStatus');
-            var celeryMessage = document.getElementById('celeryMessage');
-
-            // 发送请求到后端以检查 Celery 状态
-            fetch('{% url "check_celery_running" %}')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'Celery is running') {
-                        celeryIndicator.style.backgroundColor = 'green';
-                        celeryMessage.textContent = 'Celery 正在运行';
-                    } else {
-                        celeryIndicator.style.backgroundColor = 'red';
-                        celeryMessage.textContent = 'Celery 未运行';
-                    }
-                })
-                .catch(error => {
-                    celeryIndicator.style.backgroundColor = 'red';
-                    celeryMessage.textContent = '状态检查失败';
-                    console.error('Error:', error);
-                });
-        }
-
-        function fetchServerIP() {
-            fetch('{% url "get_server_ip" %}')
-                .then(response => response.json())
-                .then(data => {
-                    document.getElementById('server_ip').value = data.server_ip; // 设置输入框的值为获取到的IP
-                    connectServer(); // 页面加载时自动Ping服务器
-                })
-                .catch(error => {
-                    console.error('Failed to fetch server IP:', error);
-                });
-        }
-
-        function checkWeChatStatus() {
-            var wechatIndicator = document.getElementById('wechatStatus');
-            var wechatMessage = document.getElementById('wechatMessage');
-
-            // 显示正在检测的状态
-            wechatIndicator.style.backgroundColor = 'orange';
-            wechatMessage.textContent = "检查中...";
-
-            // 发送请求到后端以检查微信状态
-            fetch('{% url "check_wechat_status" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'success') {
-                        wechatIndicator.style.backgroundColor = 'green';
-                        wechatMessage.textContent = '微信在线';
-                    } else {
-                        wechatIndicator.style.backgroundColor = 'red';
-                        wechatMessage.textContent = data.message || '微信不在线';
-                    }
-                })
-                .catch(error => {
-                    wechatIndicator.style.backgroundColor = 'red';
-                    wechatMessage.textContent = '状态检查失败';
-                    console.error('Error:', error);
-                });
-        }
-
-        function checkErrors() {
-            var errorIndicator = document.getElementById('errorStatus');
-            var errorMessage = document.getElementById('errorMessage');
-
-            // 显示正在检测的状态
-            errorIndicator.style.backgroundColor = 'orange';
-            errorMessage.textContent = "检查中...";
-
-            // 发送请求到后端以检查错误
-            fetch('{% url "check_errors" %}', {
-                method: 'GET',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                },
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.errors === 0) {
-                        errorIndicator.style.backgroundColor = 'green';
-                        errorMessage.textContent = '没有检测到错误';
-                    } else {
-                        errorIndicator.style.backgroundColor = 'red';
-                        errorMessage.textContent = `检测到 ${data.errors} 个错误`;
-                    }
-                })
-                .catch(error => {
-                    errorIndicator.style.backgroundColor = 'red';
-                    errorMessage.textContent = '状态检查失败';
-                    console.error('Error:', error);
-                });
-        }
-
-        function viewErrors() {
-            window.location.href = '{% url "error_detection" %}';
-        }
-
-
-        function delay(ms) {
-            return new Promise(resolve => setTimeout(resolve, ms));
-        }
-
-        function checkEmailSettings() {
-            var emailIndicator = document.getElementById('emailStatus');
-            var emailMessage = document.getElementById('emailMessage');
-
-            // 发送请求到后端以检查邮箱配置和Celery状态
-            fetch('{% url "check_email_settings" %}')
-                .then(response => response.json())
-                .then(data => {
-                    if (data.status === 'ok') {
-                        emailIndicator.style.backgroundColor = 'green';
-                        emailMessage.textContent = '运行中';
-                    } else {
-                        emailIndicator.style.backgroundColor = 'red';
-                        emailMessage.textContent = data.message;
-                    }
-                })
-                .catch(error => {
-                    emailIndicator.style.backgroundColor = 'red';
-                    emailMessage.textContent = '状态检查失败';
-                    console.error('Error:', error);
-                });
-        }
-
-        document.addEventListener('DOMContentLoaded', function () {
-            checkEmailSettings(); // 检查邮箱设置
+        fetch('{% url "ping_server" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 'server_ip': serverIp })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateStatusIndicator('pingStatus', 'success', '已连接到服务器');
+            } else {
+                updateStatusIndicator('pingStatus', 'error', data.message || '未连接到服务器');
+            }
+        })
+        .catch(error => {
+            updateStatusIndicator('pingStatus', 'error', '未连接到服务器');
+            console.error('Error:', error);
         });
+    }
 
-        function sendTestEmail() {
-            fetch('{% url "send_email" %}', {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    'subject': 'YuYuWechat测试邮件',
-                    'message': '邮件自动报警功能正常'
-                })
-            }).then(response => {
-                if (response.ok) {
-                    alert('测试邮件发送成功');
+    function updateServerIP() {
+        const serverIp = document.getElementById('server_ip').value;
+        fetch('{% url "set_server_ip" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ 'server_ip': serverIp })
+        })
+        .then(response => {
+            if (response.ok) {
+                alert('Server IP updated to: ' + serverIp);
+            } else {
+                throw new Error('Failed to update server IP.');
+            }
+        })
+        .catch(error => {
+            alert(error.message);
+            console.error('Error:', error);
+        });
+    }
+
+    function startCelery() {
+        updateStatusIndicator('celeryStatus', 'loading', '启动中...');
+        fetch('{% url "start_celery" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        })
+        .then(response => {
+            if (response.ok) {
+                setTimeout(checkCeleryStatus, 1000);
+            } else {
+                alert('启动 Celery 失败');
+                updateStatusIndicator('celeryStatus', 'error', '启动失败');
+            }
+        })
+        .catch(error => {
+            alert('启动 Celery 失败: ' + error.message);
+            updateStatusIndicator('celeryStatus', 'error', '启动失败');
+            console.error('Error:', error);
+        });
+    }
+
+    function stopCelery() {
+        updateStatusIndicator('celeryStatus', 'loading', '停止中...');
+        fetch('{% url "stop_celery" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        })
+        .then(response => {
+            if (response.ok) {
+                setTimeout(checkCeleryStatus, 4000);
+            } else {
+                alert('取消 Celery 失败');
+                updateStatusIndicator('celeryStatus', 'error', '停止失败');
+            }
+        })
+        .catch(error => {
+            alert('取消 Celery 失败: ' + error.message);
+            updateStatusIndicator('celeryStatus', 'error', '停止失败');
+            console.error('Error:', error);
+        });
+    }
+
+    function checkCeleryStatus() {
+        fetch('{% url "check_celery_running" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'Celery is running') {
+                    updateStatusIndicator('celeryStatus', 'success', 'Celery 正在运行');
                 } else {
-                    throw new Error('发送测试邮件失败');
+                    updateStatusIndicator('celeryStatus', 'error', 'Celery 未运行');
                 }
-            }).catch(error => {
-                alert('测试邮件发送失败: ' + error.message);
+            })
+            .catch(error => {
+                updateStatusIndicator('celeryStatus', 'error', '状态检查失败');
                 console.error('Error:', error);
             });
+    }
+
+    function fetchServerIP() {
+        fetch('{% url "get_server_ip" %}')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('server_ip').value = data.server_ip;
+                connectServer();
+            })
+            .catch(error => {
+                console.error('Failed to fetch server IP:', error);
+            });
+    }
+
+    function checkWeChatStatus() {
+        updateStatusIndicator('wechatStatus', 'loading', '检查中...');
+        fetch('{% url "check_wechat_status" %}', {
+            method: 'POST',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'success') {
+                updateStatusIndicator('wechatStatus', 'success', '微信在线');
+            } else {
+                updateStatusIndicator('wechatStatus', 'error', data.message || '微信不在线');
+            }
+        })
+        .catch(error => {
+            updateStatusIndicator('wechatStatus', 'error', '状态检查失败');
+            console.error('Error:', error);
+        });
+    }
+
+    function checkErrors() {
+        updateStatusIndicator('errorStatus', 'loading', '检查中...');
+        fetch('{% url "check_errors" %}', {
+            method: 'GET',
+            headers: { 'X-CSRFToken': '{{ csrf_token }}' },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.errors === 0) {
+                updateStatusIndicator('errorStatus', 'success', '没有检测到错误');
+            } else {
+                updateStatusIndicator('errorStatus', 'error', `检测到 ${data.errors} 个错误`);
+            }
+        })
+        .catch(error => {
+            updateStatusIndicator('errorStatus', 'error', '状态检查失败');
+            console.error('Error:', error);
+        });
+    }
+
+    function viewErrors() {
+        window.location.href = '{% url "error_detection" %}';
+    }
+
+    function checkEmailSettings() {
+        updateStatusIndicator('emailStatus', 'loading', '检查中...');
+        fetch('{% url "check_email_settings" %}')
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'ok') {
+                    updateStatusIndicator('emailStatus', 'success', '运行中');
+                } else {
+                    updateStatusIndicator('emailStatus', 'error', data.message);
+                }
+            })
+            .catch(error => {
+                updateStatusIndicator('emailStatus', 'error', '状态检查失败');
+                console.error('Error:', error);
+            });
+    }
+
+    function sendTestEmail() {
+        fetch('{% url "send_email" %}', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                'subject': 'YuYuWechat测试邮件',
+                'message': '邮件自动报警功能正常'
+            })
+        })
+        .then(response => {
+            if (response.ok) {
+                alert('测试邮件发送成功');
+            } else {
+                throw new Error('发送测试邮件失败');
+            }
+        })
+        .catch(error => {
+            alert('测试邮件发送失败: ' + error.message);
+            console.error('Error:', error);
+        });
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        const delay = ms => new Promise(res => setTimeout(res, ms));
+        
+        async function initDashboard() {
+            await delay(200);
+            fetchServerIP();
+            await delay(200);
+            checkWeChatStatus();
+            await delay(200);
+            checkCeleryStatus();
+            await delay(200);
+            checkErrors();
+            await delay(200);
+            checkEmailSettings();
         }
 
-        // 当文档加载完毕时执行
-        document.addEventListener('DOMContentLoaded', async function () {
-            await delay(200);
-            fetchServerIP(); // 获取服务器IP
-
-            await delay(200);
-            checkWeChatStatus(); // 检查微信状态
-
-            await delay(200);
-            checkCeleryStatus(); // 检查Celery状态
-
-            await delay(200);
-            checkErrors(); // 检查错误
-
-        });
-    </script>
+        initDashboard();
+    });
+</script>
 {% endblock %}

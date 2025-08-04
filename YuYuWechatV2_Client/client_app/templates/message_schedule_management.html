@@ -1,70 +1,80 @@
 {% extends "base.html" %}
 
-{% block title %}定时任务管理{% endblock %}
+{% block title %}Scheduled Message Management{% endblock %}
 
 {% block header %}定时任务管理{% endblock %}
 
 {% block content %}
-<div>
-    <label for="groupFilter">选择分组:</label>
-    <select id="groupFilter" onchange="filterTasks()">
-        <option value="all">所有分组</option>
-        {% for group in groups %}
-            <option value="{{ group }}">{{ group }}</option>
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <label class="input-group-text" for="groupFilter">选择分组:</label>
+            <select class="form-select" id="groupFilter" onchange="filterTasks()">
+                <option value="all">所有分组</option>
+                {% for group in groups %}
+                    <option value="{{ group }}">{{ group }}</option>
+                {% endfor %}
+            </select>
+            <button type="button" class="btn btn-primary" onclick="skipGroupExecution()">一键提前发送</button>
+        </div>
+    </div>
+</div>
+
+<div id="progressContainer" class="mb-3" style="display: none;">
+    <div class="progress">
+        <div id="progressBar" class="progress-bar" role="progressbar" style="width: 0%;" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100"></div>
+    </div>
+    <p id="progressText" class="mt-1">正在处理...</p>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>用户名</th>
+                <th>消息内容</th>
+                <th>分组</th>
+                <th>Cron表达式</th>
+                <th>上次发送时间</th>
+                <th>下次执行时间</th>
+                <th>操作</th>
+                <th>发送状态</th>
+            </tr>
+        </thead>
+        <tbody id="taskContainer">
+        {% for task in tasks %}
+            <tr data-group="{{ task.group }}">
+                <td class="index"></td>
+                <td>{{ task.user.username }}</td>
+                <td>{{ task.text }}</td>
+                <td>{{ task.group }}</td>
+                <td><code>{{ task.cron_expression }}</code></td>
+                <td>{{ task.last_executed|date:"Y-m-d H:i:s"|default:"N/A" }}</td>
+                <td>{{ task.next_run|date:"Y-m-d H:i:s"|default:"N/A" }}</td>
+                <td>
+                    <form method="post" onsubmit="return skipExecution(this);">
+                        {% csrf_token %}
+                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-primary">提前发送</button>
+                    </form>
+                </td>
+                <td>
+                    <span class="status-message badge bg-light text-dark" style="display:none;"></span>
+                </td>
+            </tr>
         {% endfor %}
-    </select>
-    <button type="button" onclick="skipGroupExecution()">一键提前发送</button>
+        </tbody>
+    </table>
 </div>
-<div id="progressContainer" style="display: none;">
-    <progress id="progressBar" value="0" max="100"></progress>
-    <p id="progressText">正在处理...</p>
-</div>
-<table>
-    <thead>
-    <tr>
-        <th>序号</th>
-        <th>用户名</th>
-        <th>消息内容</th>
-        <th>分组</th>
-        <th>Cron表达式</th>
-        <th>上次发送时间</th>
-        <th>下次执行时间</th>
-        <th>操作</th>
-        <th>发送状态</th>
-    </tr>
-    </thead>
-    <tbody id="taskContainer">
-    {% for task in tasks %}
-        <tr data-group="{{ task.group }}">
-            <td class="index"></td>
-            <td>{{ task.user.username }}</td>
-            <td>{{ task.text }}</td>
-            <td>{{ task.group }}</td>
-            <td>{{ task.cron_expression }}</td>
-            <td>{{ task.last_executed }}</td>
-            <td>{{ task.next_run }}</td>
-            <td>
-                <form method="post" onsubmit="return skipExecution(this);">
-                    {% csrf_token %}
-                    <input type="hidden" name="task_id" value="{{ task.id }}">
-                    <button type="submit">提前发送</button>
-                </form>
-            </td>
-            <td>
-                <span class="status-message" style="display:none;"></span>
-            </td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
 
 <script>
     function filterTasks() {
-        var selectedGroup = document.getElementById('groupFilter').value;
-        var rows = document.querySelectorAll('#taskContainer tr');
-        var index = 1;
+        const selectedGroup = document.getElementById('groupFilter').value;
+        const rows = document.querySelectorAll('#taskContainer tr');
+        let index = 1;
         rows.forEach(row => {
-            var group = row.getAttribute('data-group');
+            const group = row.getAttribute('data-group');
             if (selectedGroup === 'all' || group === selectedGroup) {
                 row.style.display = '';
                 row.querySelector('.index').textContent = index++;
@@ -75,13 +85,12 @@
     }
 
     function skipExecution(form) {
-        var statusMessage = form.parentNode.nextElementSibling.querySelector('.status-message');
-        statusMessage.style.display = 'block';
+        const statusMessage = form.closest('tr').querySelector('.status-message');
+        statusMessage.style.display = 'inline';
         statusMessage.textContent = '正在处理...';
-        statusMessage.style.opacity = 0;
-        setTimeout(() => statusMessage.style.opacity = 1, 100);
+        statusMessage.className = 'status-message badge bg-info';
 
-        var formData = new FormData(form);
+        const formData = new FormData(form);
 
         fetch('{% url "skip_execution" %}', {
             method: 'POST',
@@ -89,88 +98,100 @@
             headers: {
                 'X-CSRFToken': formData.get('csrfmiddlewaretoken')
             }
-        }).then(response => {
-            if (response.ok) {
-                return response.json();
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.status.includes('sent to')) {
+                statusMessage.textContent = '处理成功';
+                statusMessage.className = 'status-message badge bg-success';
             } else {
-                throw new Error('Network response was not ok.');
+                statusMessage.textContent = '处理失败';
+                statusMessage.className = 'status-message badge bg-danger';
             }
-        }).then(data => {
-            statusMessage.textContent = '处理成功';
-        }).catch(error => {
+        })
+        .catch(error => {
             statusMessage.textContent = '处理失败';
+            statusMessage.className = 'status-message badge bg-danger';
             console.error('Error:', error);
         });
         return false;
     }
 
-    function skipGroupExecution() {
-        var selectedGroup = document.getElementById('groupFilter').value;
+    async function skipGroupExecution() {
+        const selectedGroup = document.getElementById('groupFilter').value;
         if (selectedGroup === 'all') {
             alert('请选择一个分组');
             return;
         }
 
-        var rows = document.querySelectorAll(`#taskContainer tr[data-group='${selectedGroup}']`);
-        var csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
-        var totalTasks = rows.length;
-        var processedCount = 0;
-        var successCount = 0;
-        var failureCount = 0;
-        var failedUsers = [];
+        const rows = Array.from(document.querySelectorAll(`#taskContainer tr[data-group='${selectedGroup}']`));
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const totalTasks = rows.length;
+        let processedCount = 0;
+        let successCount = 0;
+        let failureCount = 0;
+        const failedUsers = [];
 
         if (totalTasks === 0) {
             alert('当前分组没有任务');
             return;
         }
 
-        // 显示进度条
-        var progressContainer = document.getElementById('progressContainer');
-        var progressBar = document.getElementById('progressBar');
-        var progressText = document.getElementById('progressText');
-        progressContainer.style.display = 'block';
-        progressBar.value = 0;
-        progressText.textContent = `正在处理... 0/${totalTasks}`;
+        document.getElementById('progressContainer').style.display = 'block';
+        const progressBar = document.getElementById('progressBar');
+        const progressText = document.getElementById('progressText');
 
-        rows.forEach(row => {
-            var form = row.querySelector('form');
-            var formData = new FormData(form);
+        for (const row of rows) {
+            const form = row.querySelector('form');
+            const formData = new FormData(form);
+            const statusMessage = row.querySelector('.status-message');
+            statusMessage.style.display = 'inline';
+            statusMessage.textContent = '正在处理...';
+            statusMessage.className = 'status-message badge bg-info';
 
-            fetch('{% url "skip_execution" %}', {
-                method: 'POST',
-                body: formData,
-                headers: {
-                    'X-CSRFToken': csrfToken
-                }
-            }).then(response => {
-                if (response.ok) {
-                    successCount++;
-                    return response.json();
-                } else {
-                    throw new Error('Network response was not ok.');
-                }
-            }).catch(error => {
-                failureCount++;
-                var username = formData.get('username');
-                failedUsers.push(username);
-                console.error('Error:', error);
-            }).finally(() => {
-                processedCount++;
-                var progress = (processedCount / totalTasks) * 100;
-                progressBar.value = progress;
-                progressText.textContent = `正在处理... ${processedCount}/${totalTasks}`;
-
-                if (processedCount === totalTasks) {
-                    progressText.textContent = `处理完成！成功: ${successCount}，失败: ${failureCount}`;
-                    if (failedUsers.length > 0) {
-                        alert(`以下用户处理失败: ${failedUsers.join(', ')}`);
+            try {
+                const response = await fetch('{% url "skip_execution" %}', {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-CSRFToken': csrfToken
                     }
+                });
+                const data = await response.json();
+                if (response.ok && data.status.includes('sent to')) {
+                    successCount++;
+                    statusMessage.textContent = '处理成功';
+                    statusMessage.className = 'status-message badge bg-success';
+                } else {
+                    throw new Error(data.status || 'Execution failed');
                 }
-            });
-        });
+            } catch (error) {
+                failureCount++;
+                const username = row.cells[1].textContent;
+                failedUsers.push(username);
+                statusMessage.textContent = '处理失败';
+                statusMessage.className = 'status-message badge bg-danger';
+                console.error('Error:', error);
+            }
+            processedCount++;
+            updateProgress(processedCount, totalTasks, progressBar, progressText, successCount, failureCount, failedUsers);
+        }
     }
 
-    // 初次加载时过滤任务
+    function updateProgress(processedCount, totalTasks, progressBar, progressText, successCount, failureCount, failedUsers) {
+        const progress = (processedCount / totalTasks) * 100;
+        progressBar.style.width = `${progress}%`;
+        progressBar.setAttribute('aria-valuenow', progress);
+        progressText.textContent = `正在处理... ${processedCount}/${totalTasks}`;
+
+        if (processedCount === totalTasks) {
+            progressText.textContent = `处理完成！成功: ${successCount}，失败: ${failureCount}`;
+            if (failedUsers.length > 0) {
+                setTimeout(() => alert(`以下用户处理失败: ${failedUsers.join(', ')}`), 100);
+            }
+        }
+    }
+
     document.addEventListener('DOMContentLoaded', filterTasks);
 </script>
 {% endblock %}

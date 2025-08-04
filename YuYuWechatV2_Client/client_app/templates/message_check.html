@@ -5,50 +5,56 @@
 {% block header %}定时检测聊天记录管理{% endblock %}
 
 {% block content %}
-<div>
-    <label for="groupFilter">选择分组:</label>
-    <select id="groupFilter" onchange="filterTasks()">
-        <option value="all">所有分组</option>
-        {% for group in groups %}
-            <option value="{{ group }}">{{ group }}</option>
-        {% endfor %}
-    </select>
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <label class="input-group-text" for="groupFilter">选择分组:</label>
+            <select class="form-select" id="groupFilter" onchange="filterTasks()">
+                <option value="all">所有分组</option>
+                {% for group in groups %}
+                    <option value="{{ group }}">{{ group }}</option>
+                {% endfor %}
+            </select>
+        </div>
+    </div>
 </div>
 
-<table>
-    <thead>
-    <tr>
-        <th>序号</th>
-        <th>用户名</th>
-        <th>关键词</th>
-        <th>分组</th>
-        <th>Cron表达式</th>
-        <th>上次检测时间</th>
-        <th>下次检测时间</th>
-    </tr>
-    </thead>
-    <tbody id="taskContainer">
-    {% for task in tasks %}
-        <tr data-group="{{ task.group }}">
-            <td class="index"></td>
-            <td>{{ task.user.username }}</td>
-            <td>{{ task.keyword }}</td>
-            <td>{{ task.group }}</td>
-            <td>{{ task.cron_expression }}</td>
-            <td>{{ task.last_checked }}</td>
-            <td>{{ task.next_run }}</td>
-        </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="table-responsive">
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>用户名</th>
+                <th>关键词</th>
+                <th>分组</th>
+                <th>Cron表达式</th>
+                <th>上次检测时间</th>
+                <th>下次检测时间</th>
+            </tr>
+        </thead>
+        <tbody id="taskContainer">
+        {% for task in tasks %}
+            <tr data-group="{{ task.group }}">
+                <td class="index"></td>
+                <td>{{ task.user.username }}</td>
+                <td><code>{{ task.keyword }}</code></td>
+                <td>{{ task.group }}</td>
+                <td><code>{{ task.cron_expression }}</code></td>
+                <td>{{ task.last_checked|date:"Y-m-d H:i:s"|default:"N/A" }}</td>
+                <td>{{ task.next_run|date:"Y-m-d H:i:s"|default:"N/A" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
 
 <script>
     function filterTasks() {
-        var selectedGroup = document.getElementById('groupFilter').value;
-        var rows = document.querySelectorAll('#taskContainer tr');
-        var index = 1;
+        const selectedGroup = document.getElementById('groupFilter').value;
+        const rows = document.querySelectorAll('#taskContainer tr');
+        let index = 1;
         rows.forEach(row => {
-            var group = row.getAttribute('data-group');
+            const group = row.getAttribute('data-group');
             if (selectedGroup === 'all' || group === selectedGroup) {
                 row.style.display = '';
                 row.querySelector('.index').textContent = index++;
@@ -58,7 +64,6 @@
         });
     }
 
-    // 初次加载时过滤任务
     document.addEventListener('DOMContentLoaded', filterTasks);
 </script>
 {% endblock %}

@@ -1,330 +1,67 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-bs-theme="auto">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Default Title{% endblock %}</title>
-    <style>
-        /* ======= 浅色默认样式 ======= */
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            margin: 0;
-            padding: 0;
-            display: flex;
-            height: 100vh;
-            background-color: #f2f2f7;
-            color: #000000;
-        }
-
-        .sidebar {
-            width: 200px;
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 20px;
-            border-right: 1px solid #e0e0e0;
-        }
-
-        .main-content {
-            flex: 1;
-            padding: 20px;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 20px;
-        }
-
-        .card {
-            background-color: #ffffff;
-            padding: 20px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            border-radius: 10px;
-            border: 1px solid #e0e0e0;
-            width: calc(50% - 20px);
-            box-sizing: border-box;
-        }
-
-        .card h3 {
-            margin-top: 0;
-        }
-
-        .input-container {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        #pingStatus {
-            margin-right: 5px;
-            align-self: center;
-        }
-
-        .status-indicator {
-            display: flex;
-            align-items: center;
-            gap: 2px;
-        }
-
-        .input-container input {
-            flex: 1;
-            max-width: 70%;
-        }
-
-        input, button {
-            padding: 10px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            outline: none; /* 移除默认聚焦轮廓 */
-        }
-
-        button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        button:hover {
-            background-color: #005bb5;
-        }
-
-        h2 {
-            font-size: 18px;
-            margin-bottom: 10px;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-            margin: 0; /* 让 ul 本身无外边距，避免超出 */
-        }
-
-        ul li {
-            margin-bottom: 10px;
-        }
-
-        /* 菜单链接 & 退出登录按钮 共用样式 */
-        ul li a,
-        ul li form button {
-            text-decoration: none;
-            color: #007aff;
-            padding: 10px;
-            display: block;
-            border-radius: 10px;
-            transition: background-color 0.3s ease;
-            background: none;
-            border: none;
-            cursor: pointer;
-            text-align: left;
-            width: 100%; /* 保证在侧边栏内自适应宽度 */
-            box-sizing: border-box;
-            font-size: 15px;
-            outline: none; /* 移除默认聚焦轮廓 */
-        }
-
-        ul li a:hover,
-        ul li form button:hover {
-            background-color: #e0e0e0;
-        }
-
-        .content {
-            flex: 1;
-            padding: 20px;
-            background-color: #ffffff;
-            border-radius: 10px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            margin: 20px;
-        }
-
-        .topbar {
-            background-color: #007aff;
-            color: white;
-            padding: 10px;
-            text-align: center;
-            border-radius: 10px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-
-        table, th, td {
-            border: 1px solid #ddd;
-            border-radius: 10px;
-        }
-
-        th, td {
-            padding: 8px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f2f2f2;
-        }
-
-        .status-message {
-            transition: opacity 0.5s ease;
-        }
-
-        select, button {
-            border-radius: 10px;
-            padding: 10px;
-            margin: 5px 0;
-            outline: none; /* 再次移除默认聚焦轮廓 */
-        }
-
-        button.skip-button {
-            background-color: #ccc;
-            color: white;
-            cursor: pointer;
-        }
-
-        .button-status-container {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        button.skip-button.active {
-            background-color: #007aff;
-        }
-
-        @media (max-width: 768px) {
-            body {
-                flex-direction: column;
-            }
-
-            .sidebar {
-                width: 100%;
-                height: auto;
-                border-right: none;
-                border-bottom: 1px solid #e0e0e0;
-            }
-
-            .main-content {
-                width: 100%;
-                padding-top: 0;
-            }
-
-            .card {
-                width: calc(100% - 40px);
-            }
-        }
-
-        .highlight {
-            background-color: #d0e9ff;
-            padding: 2px 4px;
-            border-radius: 3px;
-        }
-
-        /* ======= 深色模式支持 ======= */
-        @media (prefers-color-scheme: dark) {
-            body {
-                background-color: #121212;
-                color: #ffffff;
-            }
-
-            .sidebar {
-                background-color: #1f1f1f;
-                color: #ffffff;
-                border-right: 1px solid #3a3a3a;
-                box-shadow: none;
-            }
-
-            .card {
-                background-color: #1f1f1f;
-                border: 1px solid #3a3a3a;
-                box-shadow: none;
-            }
-
-            .card h3 {
-                color: #ffffff;
-            }
-
-            .topbar {
-                background-color: #333333;
-                color: #ffffff;
-            }
-
-            input, button, select,
-            .sidebar ul li a,
-            .sidebar ul li form button {
-                background-color: #333333;
-                color: #ffffff;
-                border: 1px solid #444444;
-                outline: none; /* 去掉聚焦时的轮廓 */
-                box-shadow: none; /* 移除阴影，避免视觉上外扩 */
-            }
-
-            /* Hover / Active 时的颜色调和 */
-            .sidebar ul li a:hover,
-            .sidebar ul li form button:hover {
-                background-color: #444444;
-                border-color: #555555;
-            }
-
-            .content {
-                background-color: #1f1f1f;
-                border-radius: 10px;
-                box-shadow: none;
-            }
-
-            th {
-                background-color: #2c2c2c;
-                color: #ffffff;
-            }
-
-            td {
-                border-color: #444444;
-            }
-
-            .highlight {
-                background-color: #375f80;
-            }
-        }
-    </style>
+    <title>{% block title %}YuYuWechat{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
 </head>
 <body>
-<div class="sidebar">
-    <h2>Menu</h2>
-    <ul>
-        <li><a href="{% url 'home' %}">首页</a></li>
-        <li><a href="{% url 'error_detection' %}">错误检测</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li>
-        <li><a href="{% url 'send_message_management' %}">群发消息</a></li>
-        <li><a href="{% url 'schedule_management' %}">定时发送消息</a></li>
-        <li><a href="{% url 'file_schedule_management' %}">定时发送文件</a></li>
-        <li><a href="{% url 'message_check' %}">定时检测聊天记录</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li>
-        <li><a href="{% url 'scripts_view' %}">执行自定义脚本</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li>
-        <li><a href="/admin" target="_blank">后台数据管理</a></li>
-        <li><a href="{% url 'backup_list' %}">数据库定期备份下载</a></li>
-        <li style="border-bottom: 1px solid #e0e0e0; margin: 10px 0;"></li>
 
-        <li>
-            <form id="logout-form" method="post" action="{% url 'logout' %}">
+<nav class="navbar navbar-expand-lg bg-body-tertiary">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="{% url 'home' %}">YuYuWechat</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarSupportedContent" aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+            <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarSupportedContent">
+            <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+                <li class="nav-item"><a class="nav-link" href="{% url 'home' %}">首页</a></li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'error_detection' %}">错误检测</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        消息管理
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="{% url 'send_message_management' %}">群发消息</a></li>
+                        <li><a class="dropdown-item" href="{% url 'schedule_management' %}">定时发送消息</a></li>
+                        <li><a class="dropdown-item" href="{% url 'file_schedule_management' %}">定时发送文件</a></li>
+                        <li><a class="dropdown-item" href="{% url 'message_check' %}">定时检测聊天记录</a></li>
+                    </ul>
+                </li>
+                <li class="nav-item"><a class="nav-link" href="{% url 'scripts_view' %}">自定义脚本</a></li>
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        系统管理
+                    </a>
+                    <ul class="dropdown-menu">
+                        <li><a class="dropdown-item" href="/admin" target="_blank">后台数据管理</a></li>
+                        <li><a class="dropdown-item" href="{% url 'backup_list' %}">数据库备份</a></li>
+                    </ul>
+                </li>
+            </ul>
+            <form id="logout-form" class="d-flex" method="post" action="{% url 'logout' %}">
                 {% csrf_token %}
-                <button type="submit">退出登录</button>
+                <button class="btn btn-outline-danger" type="submit">退出登录</button>
             </form>
-        </li>
-    </ul>
-</div>
-<div class="content">
-    <div class="topbar">
-        <h1>{% block header %}Default Header{% endblock %}</h1>
+        </div>
     </div>
-    <div class="main-content">
-        {% block content %}
-            <!-- 子模板的内容将在这里注入 -->
-        {% endblock %}
+</nav>
+
+<div class="container-fluid">
+    <div class="row">
+        <main class="col-md-12 ms-sm-auto col-lg-12 px-md-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                <h1 class="h2">{% block header %}Dashboard{% endblock %}</h1>
+            </div>
+            {% block content %}
+            {% endblock %}
+        </main>
     </div>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
 <script>
     /* ...所有的JavaScript代码... */
 </script>

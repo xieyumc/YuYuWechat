@@ -4,60 +4,63 @@
 {% block header %}备份文件列表{% endblock %}
 
 {% block content %}
-    <div>
-        <h2>现有备份文件</h2>
-        <h3>YuYuWechat的数据库每天会自动备份一次，可以在这里下载每天的备份文件</h3>
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">现有备份文件</h5>
+        <p class="card-text">YuYuWechat的数据库每天会自动备份一次，可以在这里下载每天的备份文件。</p>
 
-        <!-- 手动备份按钮 -->
-        <form method="post" action="{% url 'manual_backup' %}">
+        <form method="post" action="{% url 'manual_backup' %}" class="mb-3">
             {% csrf_token %}
-            <button type="submit" class="backup-button">手动备份数据库</button>
+            <button type="submit" class="btn btn-primary">手动备份数据库</button>
         </form>
 
         {% if backup_files %}
-            <table id="backupTable">
+        <div class="table-responsive">
+            <table id="backupTable" class="table table-striped table-hover">
                 <thead>
-                <tr>
-                    <th>文件名</th>
-                    <th>操作</th>
-                </tr>
+                    <tr>
+                        <th>文件名</th>
+                        <th>操作</th>
+                    </tr>
                 </thead>
                 <tbody>
                 {% for file_name in backup_files %}
                     <tr>
                         <td>{{ file_name }}</td>
                         <td>
-                            <a href="{% url 'download_backup' file_name %}" class="download-button">下载</a>
+                            <a href="{% url 'download_backup' file_name %}" class="btn btn-sm btn-success">下载</a>
                         </td>
                     </tr>
                 {% endfor %}
                 </tbody>
             </table>
+        </div>
         {% else %}
-            <p>暂无备份文件。</p>
+            <div class="alert alert-info" role="alert">
+                暂无备份文件。
+            </div>
         {% endif %}
     </div>
+</div>
 
-    <script>
-        // 自动排序表格
-        window.onload = function () {
-            const table = document.getElementById("backupTable");
-            const rows = Array.from(table.rows).slice(1);  // 获取所有表格行，去掉表头
+<script>
+    window.onload = function () {
+        const table = document.getElementById("backupTable");
+        if (!table) return;
+        const tbody = table.querySelector("tbody");
+        const rows = Array.from(tbody.rows);
 
-            // 排序：按文件名中的日期部分进行排序
-            rows.sort((rowA, rowB) => {
-                const fileNameA = rowA.cells[0].innerText;
-                const fileNameB = rowB.cells[0].innerText;
+        rows.sort((rowA, rowB) => {
+            const fileNameA = rowA.cells[0].innerText;
+            const fileNameB = rowB.cells[0].innerText;
+            
+            const dateA = new Date(fileNameA.split('_').slice(-2).join('').replace(/(\d{8})(\d{6})/, "$1T$2").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"));
+            const dateB = new Date(fileNameB.split('_').slice(-2).join('').replace(/(\d{8})(\d{6})/, "$1T$2").replace(/(\d{4})(\d{2})(\d{2})/, "$1-$2-$3"));
 
-                // 提取文件名中的时间戳部分并转换为 Date 对象
-                const dateA = new Date(fileNameA.split('_').pop().split('.')[0].replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6"));
-                const dateB = new Date(fileNameB.split('_').pop().split('.')[0].replace(/(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})/, "$1-$2-$3T$4:$5:$6"));
+            return dateB - dateA;
+        });
 
-                return dateB - dateA;  // 降序排列，最新的排在最上面
-            });
-
-            // 重新附加排序后的行
-            rows.forEach(row => table.appendChild(row));
-        };
-    </script>
+        rows.forEach(row => tbody.appendChild(row));
+    };
+</script>
 {% endblock %}

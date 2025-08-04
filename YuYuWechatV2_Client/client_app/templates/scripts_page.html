@@ -4,365 +4,115 @@
 {% block header %}脚本管理{% endblock %}
 
 {% block content %}
-
-    <style>
-        @media (prefers-color-scheme: dark) {
-            /* 覆盖 card 的默认浅色背景及文字 */
-            .card.custom-script-card {
-                background-color: #2a2a2a !important; /* 深色背景 */
-                border-color: #444 !important; /* 深色边框 */
-                color: #f0f0f0 !important; /* 浅色文字 */
-            }
-
-            /* 卡片标题颜色统一 */
-            .card.custom-script-card h3 {
-                color: #ffffff !important;
-            }
-
-            /* 提示文字在深色下稍微调亮一些 */
-            .info-text {
-                color: #cccccc !important;
-            }
-
-            /* 危险提示保持红色即可，也可以根据需要改成更亮的红色 */
-            .danger-notice {
-                color: #ff5f5f; /* 或者你可以依然保持 #d9534f */
-            }
-
-            /* details 里面的 pre 背景，适合深色 */
-            details pre {
-                background-color: #333333 !important;
-                color: #cccccc !important;
-                border: 1px solid #444 !important;
-            }
-
-            /* 脚本编辑区的 textarea */
-            .script-editor textarea {
-                background-color: #333333 !important;
-                color: #ffffff !important;
-                border: 1px solid #444444 !important;
-            }
-
-            /* 输出区域 */
-            pre.output-area {
-                background-color: #333333 !important;
-                color: #d0d0d0 !important;
-                border: 1px solid #444444 !important;
-            }
-
-            /* 错误区域，底色可以再偏暗红一些以示区别 */
-            pre.error-area {
-                background-color: #442222 !important;
-                color: #ffcdd2 !important;
-                border: 1px solid #cc6666 !important;
-            }
-        }
-
-        /* 让卡片更美观一些 */
-        .card.custom-script-card {
-            width: 100%;
-            border: 1px solid #ddd;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-            padding: 20px;
-            margin-bottom: 20px;
-            background-color: #fff;
-        }
-
-        /* 卡片标题颜色加深一点 */
-        .card.custom-script-card h3 {
-            margin-top: 0;
-            color: #333;
-        }
-
-        /* 用于提示文字的样式 */
-        .info-text {
-            color: #555;
-            line-height: 1.6;
-        }
-
-        /* 按钮组的样式 */
-        .script-buttons {
-            margin-bottom: 15px;
-        }
-
-        .script-buttons button {
-            background-color: #007aff;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            padding: 8px 12px;
-            margin-right: 10px;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-
-        .script-buttons button:hover {
-            background-color: #005bb5;
-        }
-
-        /* 默认隐藏的块，如果想放顶部说明可以这样写 */
-        .danger-notice {
-            color: #d9534f; /* 类似Bootstrap的红色 */
-            font-weight: bold;
-        }
-
-        /* 示例脚本区域可折叠 */
-        details {
-            margin-top: 10px;
-            margin-bottom: 20px;
-        }
-
-        details summary {
-            cursor: pointer;
-            font-weight: bold;
-            color: #007aff;
-            outline: none; /* 去掉点击时的虚线 */
-        }
-
-        details summary:hover {
-            text-decoration: underline;
-        }
-
-        details pre {
-            background-color: #f8f8f8;
-            padding: 10px;
-            border-radius: 5px;
-            margin-top: 8px;
-            max-height: 300px; /* 防止太高 */
-            overflow: auto; /* 可滚动 */
-        }
-
-        /* 脚本编辑区 */
-        .script-editor {
-            margin-top: 20px;
-        }
-
-        .script-editor textarea {
-            width: 100%;
-            border: 1px solid #ccc;
-            border-radius: 4px;
-            padding: 10px;
-            font-family: monospace; /* 让输入区看起来更像写代码 */
-            line-height: 1.4;
-        }
-
-        /* 运行结果区域 */
-        pre.output-area {
-            background: #eee;
-            padding: 10px;
-            border-radius: 4px;
-            margin-top: 10px;
-            max-height: 200px;
-            overflow: auto;
-        }
-
-        pre.error-area {
-            background: #fdd;
-            padding: 10px;
-            color: red;
-            border-radius: 4px;
-            margin-top: 10px;
-            max-height: 200px;
-            overflow: auto;
-        }
-
-    </style>
-
-
-    <div class="card custom-script-card">
-        <h3>运行自定义脚本</h3>
-        <p class="danger-notice">
-            请谨慎执行，运行自定义脚本可能会造成严重的后果。
-        </p>
-        <p class="info-text">
-            在这里，你可以手动执行 Python 脚本，以实现一些特殊功能，如对数据库进行批量操作。<br>
-            自定义的程序将会使用 <em>python manage.py</em> 来调用执行，即实际上是在
-            <strong>YuYuWechatV2_Client</strong> 工作目录下手动执行
-            <em>python manage.py xxxxx.py</em>。
+<div class="card">
+    <div class="card-body">
+        <h5 class="card-title">运行自定义脚本</h5>
+        <div class="alert alert-danger" role="alert">
+            <strong>请谨慎执行！</strong> 运行自定义脚本可能会造成严重的后果。
+        </div>
+        <p class="card-text">
+            在这里，你可以手动执行 Python 脚本，以实现一些特殊功能，如对数据库进行批量操作。自定义的程序将会使用 <code>python manage.py</code> 来调用执行。
         </p>
 
-        <details>
-            <summary>示例脚本：根据 ScheduledMessage 生成 MessageCheck</summary>
-            <pre>
-import datetime
-
-from client_app.models import ScheduledMessage, MessageCheck
-from croniter import croniter
-from django.core.management.base import BaseCommand
-
-
-class Command(BaseCommand):
-    help = "根据 ScheduledMessage 生成 MessageCheck，时间为第二天的 15:00"
-
-    def handle(self, *args, **kwargs):
-        # 获取所有的 ScheduledMessage 对象
-        scheduled_messages = ScheduledMessage.objects.all()
-        created_count = 0  # 记录成功创建的 MessageCheck 数量
-
-        # 公共的 MessageCheck 默认配置
-        default_message_check_config = {
-            'keyword': "",
-            'message_count': 1,
-            'use_time_blocks': False,
-            'report_on_found': False
-        }
-
-        # 遍历每一个 ScheduledMessage 对象
-        for scheduled_message in scheduled_messages:
-            # 获取当前 ScheduledMessage 的 cron 表达式
-            cron_expression = scheduled_message.cron_expression
-
-            # 获取当前时间作为基准时间
-            base_time = datetime.datetime.now()
-
-            # 使用 croniter 解析 ScheduledMessage 的 cron 表达式，并获取下一个执行时间
-            cron_iter = croniter(cron_expression, base_time)
-            next_execution_time = cron_iter.get_next(datetime.datetime)
-
-            # 将下一个执行时间推迟一天，并设置为 15:00
-            day_after_next_execution = next_execution_time + datetime.timedelta(days=1)
-            day_after_next_execution = day_after_next_execution.replace(hour=15, minute=0, second=0, microsecond=0)
-
-            # 将原始的 cron 表达式拆解为分钟、小时、天、月、星期
-            cron_parts = cron_expression.split()
-            if len(cron_parts) != 5:
-                self.stdout.write(self.style.ERROR(f"无效的 cron 表达式: {cron_expression}"))
-                continue
-
-            # 生成新的 cron 表达式，分钟和小时为 0 15，天为计算后的一天，月份和星期保持不变
-            cron_expression_day_after = f"0 15 {day_after_next_execution.day} {cron_parts[3]} {cron_parts[4]}"
-
-            # 检查是否已经存在相同的 MessageCheck
-            existing_check = MessageCheck.objects.filter(
-                is_active=scheduled_message.is_active,
-                user=scheduled_message.user,
-                cron_expression=cron_expression_day_after,
-                **default_message_check_config  # 使用默认配置
-            ).first()
-
-            if existing_check:
-                self.stdout.write(self.style.WARNING(
-                    f"已存在相同的 MessageCheck（ScheduledMessage ID: {scheduled_message.id}），跳过创建。"
-                ))
-                continue
-
-            # 创建一个新的 MessageCheck 实例，设置相关的字段
-            MessageCheck.objects.create(
-                is_active=scheduled_message.is_active,  # 保持与 ScheduledMessage 一致的激活状态
-                user=scheduled_message.user,  # 关联的用户与 ScheduledMessage 相同
-                cron_expression=cron_expression_day_after,  # 设置为第二天 15:00 的 cron 表达式
-                **default_message_check_config  # 使用默认配置
-            )
-
-            # 每创建一个 MessageCheck，就增加计数
-            created_count += 1
-
-        # 输出成功创建的 MessageCheck 数量
-        self.stdout.write(self.style.SUCCESS(f"成功创建 {created_count} 条 MessageCheck"))
-        </pre>
-        </details>
-
-        <p class="info-text">
-            程序可以同时存储3个脚本供快速切换，每次保存脚本后会自动运行，输出结果会显示在下方。<br>
-        </p>
-
-        <div class="script-buttons">
-            <button type="button" onclick="showSlot(1)">脚本 1</button>
-            <button type="button" onclick="showSlot(2)">脚本 2</button>
-            <button type="button" onclick="showSlot(3)">脚本 3</button>
+        <div class="accordion mb-3" id="exampleAccordion">
+            <div class="accordion-item">
+                <h2 class="accordion-header" id="exampleHeading">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseExample" aria-expanded="false" aria-controls="collapseExample">
+                        示例脚本：根据 ScheduledMessage 生成 MessageCheck
+                    </button>
+                </h2>
+                <div id="collapseExample" class="accordion-collapse collapse" aria-labelledby="exampleHeading" data-bs-parent="#exampleAccordion">
+                    <div class="accordion-body">
+                        <pre><code>{{ script_objs.0.code|escape }}</code></pre>
+                    </div>
+                </div>
+            </div>
         </div>
 
-        <!-- 三个槽位的编辑区 -->
-        {% for script_obj in script_objs %}
-            <div id="slot-{{ script_obj.slot }}" class="script-editor" style="display:none;">
-                <label>脚本 {{ script_obj.slot }}:</label><br>
-                <textarea id="code-slot-{{ script_obj.slot }}" rows="10">{{ script_obj.code }}</textarea><br>
+        <p class="card-text">程序可以同时存储3个脚本供快速切换。每次保存脚本后会自动运行，输出结果会显示在下方。</p>
 
-                <!-- 只保留一个按钮「保存并运行」 -->
-                <button type="button" onclick="saveAndRunScript({{ script_obj.slot }})" class="script-buttons">
-                    保存并运行
-                </button>
+        <ul class="nav nav-tabs" id="scriptTabs" role="tablist">
+            {% for script_obj in script_objs %}
+            <li class="nav-item" role="presentation">
+                <button class="nav-link {% if forloop.first %}active{% endif %}" id="slot-{{ script_obj.slot }}-tab" data-bs-toggle="tab" data-bs-target="#slot-{{ script_obj.slot }}" type="button" role="tab" aria-controls="slot-{{ script_obj.slot }}" aria-selected="{% if forloop.first %}true{% else %}false{% endif %}">脚本 {{ script_obj.slot }}</button>
+            </li>
+            {% endfor %}
+        </ul>
 
-                <!-- 输出区域 -->
-                <pre id="output-{{ script_obj.slot }}" class="output-area"></pre>
-                <pre id="error-{{ script_obj.slot }}" class="error-area"></pre>
+        <div class="tab-content" id="scriptTabsContent">
+            {% for script_obj in script_objs %}
+            <div class="tab-pane fade {% if forloop.first %}show active{% endif %}" id="slot-{{ script_obj.slot }}" role="tabpanel" aria-labelledby="slot-{{ script_obj.slot }}-tab">
+                <div class="mt-3">
+                    <textarea id="code-slot-{{ script_obj.slot }}" class="form-control" rows="10" style="font-family: monospace;">{{ script_obj.code }}</textarea>
+                    <button type="button" onclick="saveAndRunScript({{ script_obj.slot }})" class="btn btn-primary mt-2">保存并运行</button>
+                    
+                    <h6 class="mt-3">输出:</h6>
+                    <pre id="output-{{ script_obj.slot }}" class="bg-light p-2 rounded"> </pre>
+                    <h6 class="mt-3">错误:</h6>
+                    <pre id="error-{{ script_obj.slot }}" class="bg-danger-subtle text-danger-emphasis p-2 rounded"> </pre>
+                </div>
             </div>
-        {% endfor %}
+            {% endfor %}
+        </div>
     </div>
+</div>
 
+<script>
+    function saveAndRunScript(slot) {
+        const code = document.getElementById(`code-slot-${slot}`).value;
+        const outputEl = document.getElementById(`output-${slot}`);
+        const errorEl = document.getElementById(`error-${slot}`);
+        
+        outputEl.textContent = '正在保存和运行...';
+        errorEl.textContent = '';
 
-    <script>
-        // 默认显示槽位1
-        document.addEventListener("DOMContentLoaded", function () {
-            showSlot(1);
-        });
-
-        function showSlot(slot) {
-            // 隐藏所有槽位
-            for (let i = 1; i <= 3; i++) {
-                document.getElementById("slot-" + i).style.display = "none";
+        // Step 1: Save the script
+        fetch("{% url 'scripts_view' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: `slot=${slot}&code=${encodeURIComponent(code)}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                errorEl.textContent = `保存脚本时出错: ${data.error}`;
+                outputEl.textContent = '';
+            } else {
+                // Step 2: Run the script
+                runScript(slot);
             }
-            // 显示对应槽位
-            document.getElementById("slot-" + slot).style.display = "block";
-        }
+        })
+        .catch(err => {
+            errorEl.textContent = `保存脚本时出错: ${err}`;
+            outputEl.textContent = '';
+        });
+    }
 
-        // 保存并运行
-        function saveAndRunScript(slot) {
-            // 清空上一次的输出和错误
-            document.getElementById("output-" + slot).innerText = "";
-            document.getElementById("error-" + slot).innerText = "";
+    function runScript(slot) {
+        const outputEl = document.getElementById(`output-${slot}`);
+        const errorEl = document.getElementById(`error-${slot}`);
 
-            // 读取 textarea 的内容
-            const code = document.getElementById("code-slot-" + slot).value;
-
-            // 第一步：保存脚本
-            fetch("{% url 'scripts_view' %}", {
-                method: "POST",
-                headers: {
-                    "X-CSRFToken": "{{ csrf_token }}",
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: "slot=" + slot + "&code=" + encodeURIComponent(code)
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.error) {
-                        // 如果保存出错，直接显示信息
-                        document.getElementById("error-" + slot).innerText = data.error;
-                    } else {
-                        // 保存成功后，第二步：运行脚本
-                        runScript(slot);
-                    }
-                })
-                .catch(err => {
-                    document.getElementById("error-" + slot).innerText = "保存脚本时出错：" + err;
-                });
-        }
-
-        // 真正调用 run_script_view 的逻辑
-        function runScript(slot) {
-            fetch("{% url 'run_script_view' %}", {
-                method: "POST",
-                headers: {
-                    "X-CSRFToken": "{{ csrf_token }}",
-                    "Content-Type": "application/x-www-form-urlencoded"
-                },
-                body: "slot=" + slot
-            })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.output) {
-                        document.getElementById("output-" + slot).innerText = data.output;
-                    }
-                    if (data.error) {
-                        document.getElementById("error-" + slot).innerText = data.error;
-                    }
-                })
-                .catch(err => {
-                    document.getElementById("error-" + slot).innerText = "运行脚本时出错：" + err;
-                });
-        }
-    </script>
+        fetch("{% url 'run_script_view' %}", {
+            method: "POST",
+            headers: {
+                "X-CSRFToken": "{{ csrf_token }}",
+                "Content-Type": "application/x-www-form-urlencoded"
+            },
+            body: `slot=${slot}`
+        })
+        .then(response => response.json())
+        .then(data => {
+            outputEl.textContent = data.output || '没有输出。';
+            errorEl.textContent = data.error || '没有错误。';
+        })
+        .catch(err => {
+            errorEl.textContent = `运行脚本时出错: ${err}`;
+            outputEl.textContent = '';
+        });
+    }
+</script>
 
 {% endblock %}

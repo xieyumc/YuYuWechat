@@ -3,184 +3,142 @@
 {% block title %}错误检测{% endblock %}
 
 {% block header %}错误检测{% endblock %}
+
 {% block content %}
+<div class="accordion" id="errorAccordion">
     {% if error_groups %}
         {% for group in error_groups %}
-            <div class="error-group">
-                <h3>用户: {{ group.username }} ({{ group.count }}个错误)</h3>
-                <div class="user-errors-container">
-                    <table class="user-errors">
-                        <thead>
-                        <tr>
-                            <th>序号</th>
-                            <th>错误类型</th>
-                            <th>详细错误</th>
-                            <th>时间</th>
-                            <th>操作</th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {% for error in group.errors %}
-                            <tr data-username="{{ group.username }}" data-error-id="{{ error.id }}" data-error-type="{{ error.error_type }}">
-                                <td class="index">{{ forloop.counter }}</td>
-                                <td>{{ error.error_type }}</td>
-                                <td>
-                                    {{ error.error_detail|safe }}
-                                </td>
-                                <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td>
-                                <td>
-                                    {% if error.error_type == '定时任务遗漏' %}
-                                        <button onclick="handleAction({{ error.id }}, 'ignore', '', this)">
-                                            忽略错误
-                                        </button>
-                                        <button onclick="handleAction({{ error.id }}, 'resend', '', this)">
-                                            补发消息
-                                        </button>
-                                    {% elif error.error_type == '聊天记录检测错误' %}
-                                        <button onclick="deleteChatRecordError({{ error.id }}, this)">
-                                            删除错误
-                                        </button>
-                                    {% else %}
-                                        无操作
-                                    {% endif %}
-                                </td>
-                            </tr>
-                        {% endfor %}
-                        </tbody>
-                    </table>
+        <div class="accordion-item">
+            <h2 class="accordion-header" id="heading{{ forloop.counter }}">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapse{{ forloop.counter }}" aria-expanded="true" aria-controls="collapse{{ forloop.counter }}">
+                    用户: {{ group.username }} <span class="badge bg-danger ms-2">{{ group.count }}个错误</span>
+                </button>
+            </h2>
+            <div id="collapse{{ forloop.counter }}" class="accordion-collapse collapse {% if forloop.first %}show{% endif %}" aria-labelledby="heading{{ forloop.counter }}" data-bs-parent="#errorAccordion">
+                <div class="accordion-body">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered">
+                            <thead>
+                                <tr>
+                                    <th>#</th>
+                                    <th>错误类型</th>
+                                    <th>详细错误</th>
+                                    <th>时间</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            {% for error in group.errors %}
+                                <tr data-error-id="{{ error.id }}">
+                                    <td>{{ forloop.counter }}</td>
+                                    <td><span class="badge bg-warning text-dark">{{ error.error_type }}</span></td>
+                                    <td>{{ error.error_detail|safe }}</td>
+                                    <td>{{ error.timestamp|date:"Y-m-d H:i:s" }}</td>
+                                    <td>
+                                        {% if error.error_type == '定时任务遗漏' %}
+                                            <button class="btn btn-sm btn-warning" onclick="handleAction({{ error.id }}, 'ignore', this)">忽略</button>
+                                            <button class="btn btn-sm btn-success" onclick="handleAction({{ error.id }}, 'resend', this)">补发</button>
+                                        {% elif error.error_type == '聊天记录检测错误' %}
+                                            <button class="btn btn-sm btn-danger" onclick="deleteChatRecordError({{ error.id }}, this)">删除</button>
+                                        {% else %}
+                                            <span class="text-muted">无操作</span>
+                                        {% endif %}
+                                    </td>
+                                </tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
+        </div>
         {% endfor %}
     {% else %}
-        <p>没有检测到错误。</p>
+        <div class="alert alert-success" role="alert">
+            没有检测到错误。
+        </div>
     {% endif %}
+</div>
 
-    <!-- 通知框 -->
-    <div id="notification"
-         style="display: none; position: fixed; background: #4caf50; color: white; padding: 10px; border-radius: 5px;">
-        <!-- 消息内容将被填充在这里 -->
+<!-- Toast container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3">
+  <div id="notificationToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+    <div class="toast-header">
+      <strong class="me-auto">通知</strong>
+      <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
     </div>
+    <div class="toast-body">
+      <!-- Message will be inserted here -->
+    </div>
+  </div>
+</div>
 
-    <script>
-        // 点击复制功能实现
-        document.addEventListener('click', (event) => {
-            if (event.target.classList.contains('highlight')) {
-                const text = event.target.innerText;
-                navigator.clipboard.writeText(text).then(() => {
-                    showNotification('已复制到粘贴板');  // 显示提示框
-                }).catch(err => {
-                    console.error('复制失败:', err);
-                    showNotification('复制失败，请重试', true);
-                });
-            }
+<script>
+    function showNotification(message, isError = false) {
+        const toastEl = document.getElementById('notificationToast');
+        const toastBody = toastEl.querySelector('.toast-body');
+        toastBody.textContent = message;
+        
+        if (isError) {
+            toastEl.classList.remove('bg-success');
+            toastEl.classList.add('bg-danger');
+        } else {
+            toastEl.classList.remove('bg-danger');
+            toastEl.classList.add('bg-success');
+        }
+
+        const toast = new bootstrap.Toast(toastEl);
+        toast.show();
+    }
+
+    function handleAction(error_id, action, button) {
+        button.disabled = true;
+        button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...`;
+
+        fetch("{% url 'handle_error_cron' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ action: action, task_id: error_id })
+        })
+        .then(response => response.json())
+        .then(data => {
+            showNotification(data.message);
+            setTimeout(() => location.reload(), 2000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('操作失败，请重试', true);
+            button.disabled = false;
+            button.textContent = action === 'ignore' ? '忽略' : '补发';
         });
+    }
 
-        // 显示非侵入式的通知框
-        function showNotification(message, isError = false) {
-            const notificationBox = document.getElementById('notification');
-            notificationBox.innerText = message;
-            notificationBox.style.background = isError ? '#f44336' : '#4caf50'; // 红色表示错误，绿色表示成功
-            notificationBox.style.display = 'block';
+    function deleteChatRecordError(error_id, button) {
+        button.disabled = true;
+        button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deleting...`;
 
-            // 将提示框定位到屏幕中央
-            const {innerWidth, innerHeight} = window;
-            const {offsetWidth, offsetHeight} = notificationBox;
-            notificationBox.style.left = `${(innerWidth - offsetWidth) / 2}px`;
-            notificationBox.style.top = `${(innerHeight - offsetHeight) / 2}px`;
-
-            // 如果之前有定时器，先清除
-            if (window.notificationTimeout) {
-                clearTimeout(window.notificationTimeout);
-            }
-
-            // 5秒后隐藏提示框
-            window.notificationTimeout = setTimeout(() => {
-                notificationBox.style.display = 'none';
-            }, 5000);  // 将时间延长到5秒
-        }
-
-        function handleAction(error_id, action, correct_time, button) {
-            button.disabled = true;
-            button.classList.add('loading');
-            button.innerText = '正在发送...';
-
-            fetch("{% url 'handle_error_cron' %}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    action: action,
-                    task_id: error_id,
-                    correct_time: correct_time
-                })
-            }).then(response => response.json()).then(data => {
-                showNotification(data.message);
-                location.reload();
-            }).catch(error => {
-                console.error('Error:', error);
-                button.disabled = false;
-                button.classList.remove('loading');
-                button.innerText = action === 'ignore' ? '忽略错误' : '补发消息';
-                showNotification('操作失败，请重试', true);
-            });
-        }
-
-        // 处理删除聊天记录检测错误
-        function deleteChatRecordError(error_id, button) {
-            button.disabled = true;
-            button.classList.add('loading');
-            button.innerText = '正在删除...';
-
-            fetch("{% url 'delete_chat_record_error' %}", {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
-                },
-                body: JSON.stringify({
-                    task_id: error_id
-                })
-            }).then(response => response.json()).then(data => {
-                showNotification(data.message);
-                location.reload();
-            }).catch(error => {
-                console.error('Error:', error);
-                button.disabled = false;
-                button.classList.remove('loading');
-                button.innerText = '删除错误';
-                showNotification('删除失败，请重试', true);
-            });
-        }
-    </script>
-
-    <style>
-        /* 鼠标悬停时显示手型光标 */
-        .highlight {
-            cursor: pointer;
-        }
-        
-        /* 用户错误分组样式 */
-        .error-group {
-            margin-bottom: 20px;
-            border: 1px solid #ddd;
-            border-radius: 10px;
-            overflow: hidden;
-        }
-        
-        .error-group h3 {
-            background-color: #f5f5f5;
-            padding: 10px;
-            margin: 0;
-        }
-        
-        .user-errors-container {
-            padding: 10px;
-        }
-        
-        .user-errors {
-            width: 100%;
-        }
-    </style>
+        fetch("{% url 'delete_chat_record_error' %}", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({ task_id: error_id })
+        })
+        .then(response => response.json())
+        .then(data => {
+            showNotification(data.message);
+            setTimeout(() => location.reload(), 2000);
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('删除失败，请重试', true);
+            button.disabled = false;
+            button.textContent = '删除';
+        });
+    }
+</script>
 {% endblock %}
