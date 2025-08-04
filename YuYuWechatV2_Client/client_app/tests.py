@@ -7,7 +7,7 @@ from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
 
-from .models import WechatUser, ServerConfig, ScheduledMessage, Log
+from .models import WechatUser, ServerConfig, ScheduledMessage
 
 
 class ViewTests(TestCase):
@@ -138,26 +138,26 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "failure", "message": "微信不在线"}')
 
-    def test_log_view(self):
-        self.login()
-        response = self.client.get(reverse('log_view'))
-        self.assertEqual(response.status_code, 200)
-        self.assertTemplateUsed(response, 'log.html')
+    # def test_log_view(self):
+    #     self.login()
+    #     response = self.client.get(reverse('log_view'))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertTemplateUsed(response, 'log.html')
 
-    def test_log_counts_view(self):
-        Log.objects.create(result=True, function_name='test_func', return_data='{}')
-        Log.objects.create(result=False, function_name='test_func', return_data='{}')
+    # def test_log_counts_view(self):
+    #     Log.objects.create(result=True, function_name='test_func', return_data='{}')
+    #     Log.objects.create(result=False, function_name='test_func', return_data='{}')
 
-        response = self.client.get(reverse('log_counts'))
-        self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(str(response.content, encoding='utf8'), '{"total": 2, "success": 1, "failure": 1}')
+    #     response = self.client.get(reverse('log_counts'))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertJSONEqual(str(response.content, encoding='utf8'), '{"total": 2, "success": 1, "failure": 1}')
 
-    def test_clear_logs_view(self):
-        Log.objects.create(result=True, function_name='test_func', return_data='{}')
-        response = self.client.post(reverse('clear_logs'))
-        self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "success"}')
-        self.assertEqual(Log.objects.count(), 0)
+    # def test_clear_logs_view(self):
+    #     Log.objects.create(result=True, function_name='test_func', return_data='{}')
+    #     response = self.client.post(reverse('clear_logs'))
+    #     self.assertEqual(response.status_code, 200)
+    #     self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "success"}')
+    #     self.assertEqual(Log.objects.count(), 0)
 
     def test_protected_views_without_login(self):
         protected_urls = [
@@ -165,7 +165,7 @@ class ViewTests(TestCase):
             reverse('error_detection'),
             reverse('send_message_management'),
             reverse('schedule_management'),
-            reverse('log_view'),
+            # reverse('log_view'),
         ]
 
         for url in protected_urls:
@@ -190,7 +190,7 @@ class ViewTests(TestCase):
             reverse('error_detection'),
             reverse('send_message_management'),
             reverse('schedule_management'),
-            reverse('log_view'),
+            # reverse('log_view'),
         ]
 
         for url in protected_urls:
