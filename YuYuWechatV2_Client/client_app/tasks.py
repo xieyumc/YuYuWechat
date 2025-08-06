@@ -372,7 +372,6 @@ def send_unsent_error_emails():
     # 获取未发送邮件的错误日志
     unsent_errors = ErrorLog.objects.filter(emailed=False)
     all_errors = ErrorLog.objects.all()
-    failed_logs = Log.objects.filter(result=False)
     email_settings = EmailSettings.objects.first()
 
     if not email_settings:
@@ -410,7 +409,6 @@ def send_unsent_error_emails():
             email_content = render_to_string('error_report_email.html', {
                 'unsent_errors': unsent_errors,
                 'all_errors': all_errors,
-                'failed_logs': failed_logs,
             })
 
             # 创建EmailMessage对象

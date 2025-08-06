@@ -76,22 +76,5 @@
         </tbody>
     </table>
 
-    <h3>失败日志：</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>函数名称</th>
-                <th>返回数据</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for log in failed_logs %}
-            <tr>
-                <td>{{ log.function_name }}</td>
-                <td>{{ log.return_data }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </body>
 </html>
