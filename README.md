@@ -2,7 +2,7 @@
 
 一个让微信定时循环发送消息（使用cron表达式任务可以精确到分钟），批量群发消息的小工具🚀，并且提供了一个简易直观的界面，可部署到任意平台
 
-![img_2.png](img/img_new_color/img_2.png)
+![img_2.png](img/img_new_color/img_1.png)
 <h6 align="center">首页管理界面，在这里，可以概览系统的所有功能
 
 ![img.png](img/img_new_color/img.png)
@@ -107,7 +107,7 @@
 
 ## YuYuWechatV2_Client客户端
 
-![img_2.png](img/img_new_color/img_2.png)
+![img_2.png](img/img_new_color/img_1.png)
 客户端是一个轻量的前端，可以在任意平台上运行，通过网络请求发送消息给服务端
 
 ### 客户端功能
