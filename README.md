@@ -2,26 +2,26 @@
 
 一个让微信定时循环发送消息（使用cron表达式任务可以精确到分钟），批量群发消息的小工具🚀，并且提供了一个简易直观的界面，可部署到任意平台
 
-![img_2.png](img/img_new/img_2.png)
+![img_2.png](img/img_new_color/img_2.png)
 <h6 align="center">首页管理界面，在这里，可以概览系统的所有功能
 
-![img.png](img/img_new/img.png)
+![img.png](img/img_new_color/img.png)
 <h6 align="center">登录保护，保证数据安全性
 
-![img_3.png](img/img_new/img_3.png)
+![img_3.png](img/img_new_color/img_3.png)
 <h6 align="center">批量发送消息
 
-![img_4.png](img/img_new/img_4.png)
+![img_4.png](img/img_new_color/img_4.png)
 <h6 align="center">定时发送消息
 
-![img_5.png](img/img_new/img_5.png)
+![img_5.png](img/img_new_color/img_5.png)
 <h6 align="center">定时发送文件
 
 ![img_.png](img/img_20.png)
 ![img_.png](img/img_21.png)
 <h6 align="center">定时检测聊天记录，并根据检测结果提醒
 
-![img_6.png](img/img_new/img_6.png)
+![img_6.png](img/img_new_color/img_6.png)
 <h6 align="center">错误检测
 
 ![img.png](img/img_18.png)
@@ -30,10 +30,10 @@
 ![img_3.png](img/img_3.png)
 <h6 align="center">后台管理界面，对消息数据进行增删改。
 
-![img.png](img/img_new/img_7.png)
+![img.png](img/img_new_color/img_7.png)
 <h6 align="center">执行自定义脚本
 
-![img_1.png](img/img_new/img_8.png)
+![img_1.png](img/img_new_color/img_8.png)
 <h6 align="center">定期自动备份数据库
 
 # 📋 目录
@@ -107,7 +107,7 @@
 
 ## YuYuWechatV2_Client客户端
 
-![img_2.png](img/img_new/img_2.png)
+![img_2.png](img/img_new_color/img_2.png)
 客户端是一个轻量的前端，可以在任意平台上运行，通过网络请求发送消息给服务端
 
 ### 客户端功能
@@ -215,8 +215,8 @@ gpedit.msc
 ## 打开客户端
 
 ### 在本地浏览器输入`127.0.0.1:7500`即可打开前端首页
-![img_2.png](img/img_new/img_2.png)
-![img.png](img/img_new/img.png)
+![img_2.png](img/img_new_color/img_2.png)
+![img.png](img/img_new_color/img.png)
 首先是登录界面，需要自己手动创建一个超级用户，新开一个终端：  
 
 进入docker容器
