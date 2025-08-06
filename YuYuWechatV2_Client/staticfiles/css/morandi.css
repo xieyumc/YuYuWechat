@@ -1,0 +1,50 @@
+
+:root {
+    --morandi-bg: #f5f5f5;
+    --morandi-card-bg: #ffffff;
+    --morandi-text: #5a5a5a;
+    --morandi-primary: #b2c2bf;
+    --morandi-secondary: #dcd0c0;
+    --morandi-success: #c9d4be;
+    --morandi-info: #b9d4d3;
+    --morandi-warning: #e3d9c6;
+    --morandi-danger: #d9c0c0;
+    --morandi-light: #f2f2f2;
+    --morandi-dark: #a9a9a9;
+}
+
+body {
+    background-color: var(--morandi-bg);
+    color: var(--morandi-text);
+}
+
+.bg-body-tertiary {
+    background-color: var(--morandi-card-bg) !important;
+}
+
+.navbar-brand, .nav-link, .dropdown-item {
+    color: var(--morandi-text) !important;
+}
+
+.btn-primary {
+    background-color: var(--morandi-primary);
+    border-color: var(--morandi-primary);
+}
+
+.btn-outline-danger {
+    color: var(--morandi-danger);
+    border-color: var(--morandi-danger);
+}
+
+.btn-outline-danger:hover {
+    background-color: var(--morandi-danger);
+    color: white;
+}
+
+.border-bottom {
+    border-bottom-color: var(--morandi-light) !important;
+}
+
+.h2 {
+    color: var(--morandi-dark);
+}

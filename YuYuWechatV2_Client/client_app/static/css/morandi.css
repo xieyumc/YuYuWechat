@@ -1,0 +1,177 @@
+:root {
+    --morandi-bg: #f5f5f5;
+    --morandi-card-bg: #ffffff;
+    --morandi-text: #5a5a5a;
+    --morandi-primary: #b2c2bf;
+    --morandi-secondary: #dcd0c0;
+    --morandi-success: #c9d4be;
+    --morandi-info: #b9d4d3;
+    --morandi-warning: #e3d9c6;
+    --morandi-danger: #d9c0c0;
+    --morandi-light: #f2f2f2;
+    --morandi-dark: #a9a9a9;
+
+    /* Darker shades for hover effects */
+    --morandi-primary-darker: #a1b0ae;
+    --morandi-success-darker: #b8c3ad;
+    --morandi-danger-darker: #c8b0b0;
+    --morandi-warning-darker: #d2c8b5;
+    --morandi-info-darker: #a8c3c2;
+    --morandi-secondary-darker: #cbc0b0;
+
+    /* Even darker shades for status indicators and alerts */
+    --morandi-status-success: #8f9d8a;
+    --morandi-status-danger: #a38a8a;
+    --morandi-status-warning: #ada792;
+    --morandi-status-info: #95b0af;
+}
+
+body {
+    background-color: var(--morandi-bg);
+    color: var(--morandi-text);
+}
+
+.bg-body-tertiary {
+    background-color: var(--morandi-card-bg) !important;
+}
+
+.navbar-brand, .nav-link, .dropdown-item {
+    color: var(--morandi-text) !important;
+}
+
+/* Button Styles */
+.btn-primary {
+    background-color: var(--morandi-primary);
+    border-color: var(--morandi-primary);
+}
+.btn-primary:hover {
+    background-color: var(--morandi-primary-darker);
+    border-color: var(--morandi-primary-darker);
+}
+
+.btn-success {
+    background-color: var(--morandi-success);
+    border-color: var(--morandi-success);
+}
+.btn-success:hover {
+    background-color: var(--morandi-success-darker);
+    border-color: var(--morandi-success-darker);
+}
+
+.btn-danger {
+    background-color: var(--morandi-danger);
+    border-color: var(--morandi-danger);
+}
+.btn-danger:hover {
+    background-color: var(--morandi-danger-darker);
+    border-color: var(--morandi-danger-darker);
+}
+
+.btn-warning {
+    background-color: var(--morandi-warning);
+    border-color: var(--morandi-warning);
+    color: white;
+}
+.btn-warning:hover {
+    background-color: var(--morandi-warning-darker);
+    border-color: var(--morandi-warning-darker);
+    color: white;
+}
+
+.btn-info {
+    background-color: var(--morandi-info);
+    border-color: var(--morandi-info);
+}
+.btn-info:hover {
+    background-color: var(--morandi-info-darker);
+    border-color: var(--morandi-info-darker);
+}
+
+.btn-secondary {
+    background-color: var(--morandi-secondary);
+    border-color: var(--morandi-secondary);
+}
+.btn-secondary:hover {
+    background-color: var(--morandi-secondary-darker);
+    border-color: var(--morandi-secondary-darker);
+}
+
+.btn-outline-primary {
+    color: var(--morandi-primary);
+    border-color: var(--morandi-primary);
+}
+.btn-outline-primary:hover {
+    background-color: var(--morandi-primary);
+    color: white;
+}
+
+.btn-outline-danger {
+    color: var(--morandi-danger);
+    border-color: var(--morandi-danger);
+}
+.btn-outline-danger:hover {
+    background-color: var(--morandi-danger);
+    color: white;
+}
+
+.btn-outline-secondary {
+    color: var(--morandi-secondary);
+    border-color: var(--morandi-secondary);
+}
+.btn-outline-secondary:hover {
+    background-color: var(--morandi-secondary);
+    color: white;
+}
+
+/* General UI Elements */
+.border-bottom {
+    border-bottom-color: var(--morandi-light) !important;
+}
+
+.h2 {
+    color: var(--morandi-dark);
+}
+
+.accordion-button {
+    background-color: var(--morandi-light);
+    color: var(--morandi-text);
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: var(--morandi-primary);
+    color: white;
+}
+
+/* Status Indicators, Badges, and Alerts */
+.bg-success, .alert-success {
+    background-color: var(--morandi-status-success) !important;
+}
+
+.bg-danger, .alert-danger, .bg-danger-subtle {
+    background-color: var(--morandi-status-danger) !important;
+}
+
+.bg-warning, .alert-warning {
+    background-color: var(--morandi-status-warning) !important;
+}
+
+.bg-info, .alert-info {
+    background-color: var(--morandi-status-info) !important;
+}
+
+.bg-secondary {
+    background-color: var(--morandi-secondary) !important;
+}
+
+.badge.bg-warning {
+    color: white !important;
+}
+
+.alert {
+    color: white;
+    border: none;
+}
+
+.text-danger-emphasis {
+    color: white !important;
+}
