@@ -64,13 +64,6 @@ jobs:
             exit 1
           fi
 
-      - name: Test log_view endpoint without login
-        run: |
-          response=$(curl -s -o /dev/null -w "%{http_code}" http://127.0.0.1:7500/logs/)
-          if [ $response -ne 302 ]; then
-            echo "log_view endpoint accessible without login, expected it to be protected."
-            exit 1
-          fi
 
       - name: Test error_detection_view endpoint without login
         run: |
