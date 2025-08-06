@@ -118,6 +118,30 @@
             </div>
         </div>
     </div>
+
+    <!-- Recent Tasks Card -->
+    <div class="col-md-12 col-lg-8 mb-4">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">最近执行的任务</h5>
+                <div id="taskLogContainer" class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                    <table class="table table-striped table-hover">
+                        <thead>
+                            <tr>
+                                <th>任务名称</th>
+                                <th>时间</th>
+                                <th>状态</th>
+                                <th>详情</th>
+                            </tr>
+                        </thead>
+                        <tbody id="taskLogBody">
+                            <!-- Task logs will be inserted here -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <script>
@@ -366,6 +390,28 @@
         }
 
         initDashboard();
+
+        function fetchTaskLogs() {
+            fetch('{% url "get_task_logs" %}')
+                .then(response => response.json())
+                .then(data => {
+                    const taskLogBody = document.getElementById('taskLogBody');
+                    taskLogBody.innerHTML = ''; // Clear existing logs
+                    data.forEach(log => {
+                        const row = `<tr>
+                            <td>${log.task_name}</td>
+                            <td>${log.timestamp}</td>
+                            <td><span class="badge bg-${log.status === 'success' ? 'success' : 'danger'}">${log.status}</span></td>
+                            <td>${log.details}</td>
+                        </tr>`;
+                        taskLogBody.innerHTML += row;
+                    });
+                })
+                .catch(error => console.error('Error fetching task logs:', error));
+        }
+
+        fetchTaskLogs();
+        setInterval(fetchTaskLogs, 5000); // Refresh every 5 seconds
     });
 </script>
 {% endblock %}

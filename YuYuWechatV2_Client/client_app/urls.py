@@ -1,12 +1,7 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
 
-from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database, \
-    import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip, \
-    check_wechat_status, error_detection_view, \
-    handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view, \
-    delete_chat_record_error, file_schedule_management, scripts_view, run_script_view, backup_list, download_backup, \
-    manual_backup
+from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database,     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip,     check_wechat_status, error_detection_view,     handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view,     delete_chat_record_error, file_schedule_management, scripts_view, run_script_view, backup_list, download_backup,     manual_backup, get_task_logs
 
 urlpatterns = [
     path('login/', login_view, name='login'),
@@ -39,5 +34,6 @@ urlpatterns = [
     path('backups/', backup_list, name='backup_list'),
     path('backups/download/<str:filename>/', download_backup, name='download_backup'),
     path('manual_backup/', manual_backup, name='manual_backup'),
+    path('get_task_logs/', get_task_logs, name='get_task_logs'),
 
 ]

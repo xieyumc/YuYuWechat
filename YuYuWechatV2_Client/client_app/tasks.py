@@ -17,10 +17,27 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.timezone import now
 
-from .models import ScheduledMessage, ServerConfig, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage
+from .models import ScheduledMessage, ServerConfig, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage, TaskLog
+
+
+def log_task(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        task_name = func.__name__
+        TaskLog.objects.create(task_name=task_name, status='running', details='Task started.')
+        try:
+            result = func(*args, **kwargs)
+            TaskLog.objects.create(task_name=task_name, status='success', details=f'Task completed successfully. Result: {result}')
+            return result
+        except Exception as e:
+            TaskLog.objects.create(task_name=task_name, status='failure', details=f'Task failed: {e}')
+            raise
+    return wrapper
 
 
 @shared_task
+@log_task
+@log_task
 def check_and_send_messages():
     # 获取当前时间并转换到默认时区
     now = timezone.localtime(timezone.now())
@@ -76,6 +93,7 @@ def check_and_send_messages():
 
 
 @shared_task
+@log_task
 def check_and_send_files():
     # 获取当前时间并转换到默认时区
     now = timezone.localtime(timezone.now())
@@ -131,6 +149,7 @@ def check_and_send_files():
 
 
 @shared_task
+@log_task
 def message_check():
     """
     定时获取聊天记录并根据MessageCheck规则进行检测，必要时记录错误日志
@@ -265,6 +284,7 @@ def send_message(data, server_ip):
 
 
 @shared_task
+@log_task
 def ping_server():
     error_type = "无法连接到服务器"
 
@@ -303,6 +323,7 @@ def ping_server():
 
 
 @shared_task
+@log_task
 def check_wechat_status():
     error_type = "微信状态检查失败"
 
@@ -346,6 +367,7 @@ def check_wechat_status():
 
 
 @shared_task
+@log_task
 def send_unsent_error_emails():
     # 获取未发送邮件的错误日志
     unsent_errors = ErrorLog.objects.filter(emailed=False)
@@ -411,6 +433,7 @@ def send_unsent_error_emails():
 
 
 @shared_task
+@log_task
 def check_and_log_scheduled_message_errors():
     now = timezone.localtime(timezone.now())
     tasks = ScheduledMessage.objects.all()
@@ -440,6 +463,7 @@ def check_and_log_scheduled_message_errors():
 
 
 @shared_task
+@log_task
 def daily_backup_database():
     """
     使用dumpdata来备份client_app应用数据，排除Log模型。

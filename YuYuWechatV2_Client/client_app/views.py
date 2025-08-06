@@ -25,7 +25,18 @@ from django.utils.timezone import now
 from .models import CustomScript
 from .models import EmailSettings
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, ErrorLog, MessageCheck, \
-    ScheduledFileMessage
+    ScheduledFileMessage, TaskLog
+
+
+def get_task_logs(request):
+    logs = TaskLog.objects.all()[:10]  # 获取最新的10条日志
+    data = [{
+        'task_name': log.task_name,
+        'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+        'status': log.status,
+        'details': log.details
+    } for log in logs]
+    return JsonResponse(data, safe=False)
 
 
 def login_view(request):

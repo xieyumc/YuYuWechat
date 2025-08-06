@@ -134,3 +134,23 @@ class CustomScript(models.Model):
 
     def __str__(self):
         return f"脚本槽位 {self.slot}"
+
+
+class TaskLog(models.Model):
+    task_name = models.CharField(max_length=255, help_text="任务的名称")
+    timestamp = models.DateTimeField(auto_now_add=True, help_text="任务执行的时间")
+    status = models.CharField(max_length=50, help_text="任务执行的状态 (e.g., 'success', 'failure')")
+    details = models.TextField(blank=True, null=True, help_text="任务执行的详细信息或输出")
+
+    class Meta:
+        ordering = ['-timestamp']
+
+    def __str__(self):
+        return f"{self.task_name} - {self.status} at {self.timestamp}"
+
+    def save(self, *args, **kwargs):
+        super().save(*args, **kwargs)
+        # 保持最多1000条日志
+        if TaskLog.objects.count() > 1000:
+            oldest_log = TaskLog.objects.earliest('timestamp')
+            oldest_log.delete()
