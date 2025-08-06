@@ -23,7 +23,4 @@ class Migration(migrations.Migration):
                 'ordering': ['-timestamp'],
             },
         ),
-        migrations.DeleteModel(
-            name='Log',
-        ),
     ]
