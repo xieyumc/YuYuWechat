@@ -32,7 +32,7 @@ def get_task_logs(request):
     logs = TaskLog.objects.all()[:10]  # 获取最新的10条日志
     data = [{
         'task_name': log.task_name,
-        'timestamp': log.timestamp.strftime('%Y-%m-%d %H:%M:%S'),
+        'timestamp': timezone.localtime(log.timestamp).strftime('%Y-%m-%d %H:%M:%S'),
         'status': log.status,
         'details': log.details
     } for log in logs]
