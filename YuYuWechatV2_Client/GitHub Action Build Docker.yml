@@ -14,7 +14,8 @@ services:
     environment:
       POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
     volumes:
-      - ./postgres_data:/var/lib/postgresql/data
+      # Use a named volume in CI to avoid bind-mount issues on runners
+      - postgres_data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
     networks:
@@ -51,3 +52,6 @@ services:
 networks:
   yuyuwechatv2_network:
     driver: bridge
+volumes:
+  postgres_data:
+    driver: local
