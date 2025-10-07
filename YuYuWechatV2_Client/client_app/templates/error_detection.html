@@ -91,6 +91,59 @@
         toast.show();
     }
 
+    // Helpers: DOM updates without full page reload
+    function getGroupItemFromRow(row) {
+        return row.closest('.accordion-item');
+    }
+
+    function renumberGroupRows(groupItem) {
+        if (!groupItem) return;
+        const rows = groupItem.querySelectorAll('tbody tr');
+        rows.forEach((tr, idx) => {
+            const numCell = tr.querySelector('td:first-child');
+            if (numCell) numCell.textContent = idx + 1;
+        });
+    }
+
+    function maybeShowEmptyAlert() {
+        const accordion = document.getElementById('errorAccordion');
+        if (!accordion) return;
+        const items = accordion.querySelectorAll('.accordion-item');
+        if (items.length === 0 && !accordion.querySelector('.alert')) {
+            const alert = document.createElement('div');
+            alert.className = 'alert alert-success';
+            alert.setAttribute('role', 'alert');
+            alert.textContent = '没有检测到错误。';
+            accordion.appendChild(alert);
+        }
+    }
+
+    function updateGroupBadgeCount(groupItem, delta) {
+        if (!groupItem) return;
+        const badge = groupItem.querySelector('.accordion-button .badge');
+        if (!badge) return;
+        const match = (badge.textContent || '').match(/(\d+)/);
+        const current = match ? parseInt(match[1], 10) : 0;
+        const next = Math.max(0, current + delta);
+        badge.textContent = `${next}个错误`;
+
+        if (next === 0) {
+            // Remove the whole group section when empty
+            groupItem.remove();
+            maybeShowEmptyAlert();
+        }
+    }
+
+    function removeRowAndUpdate(row) {
+        const groupItem = getGroupItemFromRow(row);
+        row.remove();
+        // If group still exists, renumber and decrement count
+        if (document.body.contains(groupItem)) {
+            renumberGroupRows(groupItem);
+            updateGroupBadgeCount(groupItem, -1);
+        }
+    }
+
     function handleAction(error_id, action, button) {
         button.disabled = true;
         button.innerHTML = `<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Loading...`;
@@ -105,8 +158,15 @@
         })
         .then(response => response.json())
         .then(data => {
-            showNotification(data.message);
-            setTimeout(() => location.reload(), 2000);
+            if (data.status === 'success') {
+                showNotification(data.message);
+                const row = button.closest('tr');
+                if (row) removeRowAndUpdate(row);
+            } else {
+                showNotification(data.message || '操作失败，请重试', true);
+                button.disabled = false;
+                button.textContent = action === 'ignore' ? '忽略' : '补发';
+            }
         })
         .catch(error => {
             console.error('Error:', error);
@@ -130,8 +190,15 @@
         })
         .then(response => response.json())
         .then(data => {
-            showNotification(data.message);
-            setTimeout(() => location.reload(), 2000);
+            if (data.status === 'success') {
+                showNotification(data.message);
+                const row = button.closest('tr');
+                if (row) removeRowAndUpdate(row);
+            } else {
+                showNotification(data.message || '删除失败，请重试', true);
+                button.disabled = false;
+                button.textContent = '删除';
+            }
         })
         .catch(error => {
             console.error('Error:', error);
