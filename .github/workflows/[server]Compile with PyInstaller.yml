@@ -23,23 +23,47 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Run Django migrations (prepare sqlite)
+        run: |
+          python manage.py migrate --noinput
+
+      - name: Ensure default WeChatConfig exists
+        run: |
+          python -c 'import os, django; os.environ.setdefault("DJANGO_SETTINGS_MODULE","YuYuWechatV2.settings"); django.setup(); from wechat_app.models import WeChatConfig; WeChatConfig.objects.get_or_create(defaults={"path": r"C:\\Program Files\\Tencent\\WeChat\\WeChat.exe", "locale": "zh-CN"})'
+
       - name: Compile with PyInstaller
         run: |
           pip install --upgrade pyinstaller
           pyinstaller YuYuWechatV2_Server.spec
 
-      - name: Run bat file and test
+      - name: Copy sqlite DB into dist
+        run: |
+          if (Test-Path .\db.sqlite3) {
+            New-Item -ItemType Directory -Force -Path .\dist\YuYuWechatV2 | Out-Null
+            Copy-Item -Force .\db.sqlite3 .\dist\YuYuWechatV2\db.sqlite3
+          }
+
+      - name: Run server (bat) and wait for readiness
         id: run_test
         run: |
-          Start-Process -FilePath ".\dist\YuYuWechatV2_Server_run.bat" -NoNewWindow
-          Start-Sleep -Seconds 10  # 等待服务器启动
-          $response = Invoke-RestMethod -Uri http://127.0.0.1:8000/wechat/ping/ -UseBasicParsing
-          Write-Output "Response: $response"
-          if ($response.status -eq "pong") {
+          $proc = Start-Process -FilePath ".\dist\YuYuWechatV2_Server_run.bat" -NoNewWindow -PassThru
+          $maxRetries = 30
+          $success = $false
+          for ($i = 0; $i -lt $maxRetries; $i++) {
+            try {
+              $response = Invoke-RestMethod -Uri http://127.0.0.1:8000/wechat/ping/ -UseBasicParsing -TimeoutSec 3
+              Write-Output "Attempt $($i+1): $($response | ConvertTo-Json -Compress)"
+              if ($response.status -eq "pong") { $success = $true; break }
+            } catch {
+              Write-Output "Attempt $($i+1): server not ready yet ($_)."
+            }
+            Start-Sleep -Seconds 2
+          }
+          if ($success) {
             Write-Output "Test passed"
             echo "test_passed=true" >> $env:GITHUB_ENV
           } else {
-            Write-Output "Test failed"
+            Write-Output "Server did not become ready in time"
             exit 1
           }
 
