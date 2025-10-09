@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% block title %}服务端日志{% endblock %}
+{% block header %}服务端日志{% endblock %}
+
+{% block content %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form class="row g-3" method="get">
+      <div class="col-auto">
+        <label for="limit" class="col-form-label">条数</label>
+      </div>
+      <div class="col-auto">
+        <input type="number" class="form-control" id="limit" name="limit" value="{{ limit }}" min="1" max="1000">
+      </div>
+      <div class="col-auto">
+        <button type="submit" class="btn btn-primary">刷新</button>
+      </div>
+    </form>
+  </div>
+  {% if error %}
+    <div class="alert alert-danger m-3" role="alert">{{ error }}</div>
+  {% endif %}
+</div>
+
+<div class="table-responsive">
+  <table class="table table-striped table-hover align-middle">
+    <thead>
+      <tr>
+        <th scope="col">时间</th>
+        <th scope="col">动作</th>
+        <th scope="col">状态</th>
+        <th scope="col">接口</th>
+        <th scope="col">耗时(ms)</th>
+        <th scope="col">IP</th>
+        <th scope="col">错误</th>
+      </tr>
+    </thead>
+    <tbody>
+    {% for item in logs %}
+      <tr>
+        <td><small>{{ item.created_at }}</small></td>
+        <td>{{ item.action }}</td>
+        <td>
+          {% if item.status == 'success' %}
+            <span class="badge text-bg-success">{{ item.status }}</span>
+          {% elif item.status == 'failed' %}
+            <span class="badge text-bg-danger">{{ item.status }}</span>
+          {% elif item.status == 'running' %}
+            <span class="badge text-bg-warning">{{ item.status }}</span>
+          {% else %}
+            <span class="badge text-bg-secondary">{{ item.status }}</span>
+          {% endif %}
+        </td>
+        <td><small>{{ item.endpoint }}</small></td>
+        <td>{{ item.duration_ms|default_if_none:"-" }}</td>
+        <td><small>{{ item.client_ip }}</small></td>
+        <td>
+          {% if item.error %}
+            <span class="text-danger" title="{{ item.error }}">查看</span>
+          {% else %}
+            -
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="7" class="text-center">暂无日志</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}
+

@@ -7,7 +7,7 @@ import comtypes
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from drf_spectacular.utils import extend_schema, OpenApiResponse
+from drf_spectacular.utils import extend_schema, OpenApiResponse, OpenApiParameter, OpenApiTypes
 from rest_framework import serializers
 from rest_framework.decorators import api_view
 
@@ -58,6 +58,29 @@ class DialogsDataResponseSerializer(serializers.Serializer):
 class GetDialogsByTimeBlocksSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="要获取聊天记录的联系人或群聊名称")
     n_time_blocks = serializers.IntegerField(help_text="要获取的时间分块数量")
+
+
+# 为 request_logs_view 定义响应体的序列化器
+class RequestLogItemSerializer(serializers.Serializer):
+    id = serializers.IntegerField()
+    action = serializers.CharField()
+    endpoint = serializers.CharField()
+    status = serializers.CharField()
+    request_data = serializers.JSONField(required=False)
+    result_data = serializers.JSONField(required=False)
+    response_data = serializers.JSONField(required=False)
+    error = serializers.CharField(required=False, allow_null=True, allow_blank=True)
+    created_at = serializers.DateTimeField()
+    started_at = serializers.DateTimeField(required=False, allow_null=True)
+    finished_at = serializers.DateTimeField(required=False, allow_null=True)
+    duration_ms = serializers.IntegerField(required=False, allow_null=True)
+    client_ip = serializers.CharField(required=False)
+
+
+class RequestLogListResponseSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    count = serializers.IntegerField()
+    logs = RequestLogItemSerializer(many=True)
 
 
 def home(request):
@@ -437,6 +460,58 @@ def get_dialogs_by_time_blocks_view(request):
             "log_id": log.id,
         })
         return JsonResponse(result["response"], status=result["http_status"], json_dumps_params={'ensure_ascii': False})
+
+
+@extend_schema(
+    summary="获取服务端请求日志",
+    parameters=[
+        OpenApiParameter(name='limit', description='返回的最大条数', required=False, type=OpenApiTypes.INT),
+        OpenApiParameter(name='offset', description='偏移量(分页)', required=False, type=OpenApiTypes.INT),
+    ],
+    responses={
+        200: OpenApiResponse(response=RequestLogListResponseSerializer, description='日志列表')
+    },
+    tags=['WeChat Logs']
+)
+@api_view(['GET'])
+@csrf_exempt
+def request_logs_view(request):
+    try:
+        # 解析查询参数
+        limit = request.GET.get('limit')
+        offset = request.GET.get('offset')
+        try:
+            limit = int(limit) if limit is not None else 100
+            offset = int(offset) if offset is not None else 0
+            if limit <= 0:
+                limit = 100
+            if offset < 0:
+                offset = 0
+        except ValueError:
+            limit, offset = 100, 0
+
+        qs = RequestLog.objects.order_by('-created_at')
+        items = []
+        for log in qs[offset:offset + limit]:
+            items.append({
+                'id': log.id,
+                'action': log.action,
+                'endpoint': log.endpoint,
+                'status': log.status,
+                'request_data': log.request_data,
+                'result_data': log.result_data,
+                'response_data': log.response_data,
+                'error': log.error,
+                'created_at': timezone.localtime(log.created_at).isoformat() if log.created_at else None,
+                'started_at': timezone.localtime(log.started_at).isoformat() if log.started_at else None,
+                'finished_at': timezone.localtime(log.finished_at).isoformat() if log.finished_at else None,
+                'duration_ms': log.duration_ms,
+                'client_ip': log.client_ip,
+            })
+
+        return JsonResponse({'status': 'success', 'count': len(items), 'logs': items}, status=200, json_dumps_params={'ensure_ascii': False})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)}, status=500)

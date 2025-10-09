@@ -39,6 +39,40 @@ def get_task_logs(request):
     return JsonResponse(data, safe=False)
 
 
+@login_required
+def server_logs(request):
+    """读取服务端的请求日志并展示在前端页面"""
+    # 读取查询参数
+    limit = request.GET.get('limit', '100')
+    error = None
+    logs = []
+
+    try:
+        server_ip = ServerConfig.objects.latest('id').server_ip if ServerConfig.objects.exists() else None
+        if not server_ip:
+            error = "未配置服务端IP。请在系统中设置服务器IP。"
+        else:
+            url = f'http://{server_ip}/wechat/request_logs/?limit={limit}'
+            try:
+                resp = requests.get(url, timeout=8)
+                if resp.status_code == 200:
+                    payload = resp.json()
+                    logs = payload.get('logs', [])
+                else:
+                    error = f"服务端返回错误状态码: {resp.status_code}"
+            except requests.RequestException as e:
+                error = f"无法连接服务端或请求失败: {e}"
+    except Exception as e:
+        error = str(e)
+
+    # 分页可后续扩展，这里直接展示最新若干条
+    return render(request, 'server_logs.html', {
+        'logs': logs,
+        'error': error,
+        'limit': limit,
+    })
+
+
 def login_view(request):
     if request.method == 'POST':
         username = request.POST['username']

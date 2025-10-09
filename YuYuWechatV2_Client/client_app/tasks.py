@@ -37,7 +37,6 @@ def log_task(func):
 
 @shared_task
 @log_task
-@log_task
 def check_and_send_messages():
     # 获取当前时间并转换到默认时区
     now = timezone.localtime(timezone.now())
