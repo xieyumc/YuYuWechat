@@ -38,7 +38,9 @@
           <tr data-error-id="{{ item.error_id }}">
             <td><input type="checkbox" class="form-check-input missed-select"></td>
             <td><small>{{ item.timestamp|date:"Y-m-d H:i:s" }}</small></td>
-            <td>{{ item.user }}</td>
+            <td>
+              <span class="copy-username" data-copy="{{ item.user }}" title="点击复制用户名">{{ item.user }}</span>
+            </td>
             <td>
               <div class="text-truncate" style="max-width: 360px;" title="{{ item.text }}">{{ item.text }}</div>
             </td>
@@ -325,5 +327,80 @@
         progress.innerText = '';
         btn.disabled = false;
     }
+
+    // 文本复制到剪贴板
+    async function copyTextToClipboard(text) {
+        try {
+            if (navigator.clipboard && window.isSecureContext) {
+                await navigator.clipboard.writeText(text);
+            } else {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.focus();
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+            }
+            showNotification(`已复制: ${text}`);
+        } catch (e) {
+            showNotification('复制失败', true);
+        }
+    }
+
+    // 在展开的详细错误里，点击特定的高亮片段复制用户名
+    function neighborText(el, dir) {
+        let n = el;
+        while (n) {
+            n = (dir < 0) ? n.previousSibling : n.nextSibling;
+            if (!n) break;
+            if (n.nodeType === 3 && n.textContent.trim() !== '') return n.textContent;
+            if (n.nodeType === 1 && n.textContent.trim() !== '') return n.textContent;
+        }
+        return '';
+    }
+
+    function markCopyableUsernames() {
+        const highlights = document.querySelectorAll('td .highlight');
+        highlights.forEach(span => {
+            const prev = neighborText(span, -1);
+            const next = neighborText(span, +1);
+            const isUsername = (prev.includes('给') && next.includes('发送')) || (prev.includes('在') && next.includes('的聊天记录中'));
+            if (isUsername) {
+                span.classList.add('copy-username');
+                if (!span.getAttribute('data-copy')) {
+                    span.setAttribute('data-copy', (span.textContent || '').trim());
+                }
+                if (!span.getAttribute('title')) {
+                    span.setAttribute('title', '点击复制用户名');
+                }
+            }
+        });
+    }
+
+    // 初始化标记可复制用户名
+    document.addEventListener('DOMContentLoaded', markCopyableUsernames);
+
+    // 统一点击复制处理：先匹配 copy-username，再兜底匹配高亮用户名
+    document.addEventListener('click', function (ev) {
+        const copyEl = ev.target.closest('.copy-username');
+        if (copyEl) {
+            ev.preventDefault();
+            const txt = copyEl.getAttribute('data-copy') || (copyEl.textContent || '').trim();
+            copyTextToClipboard(txt);
+            return;
+        }
+        const span = ev.target.closest('td .highlight');
+        if (!span) return;
+        const prev = neighborText(span, -1);
+        const next = neighborText(span, +1);
+        const isUsername = (prev.includes('给') && next.includes('发送')) || (prev.includes('在') && next.includes('的聊天记录中'));
+        if (isUsername) {
+            ev.preventDefault();
+            copyTextToClipboard((span.textContent || '').trim());
+        }
+    }, true);
 </script>
 {% endblock %}

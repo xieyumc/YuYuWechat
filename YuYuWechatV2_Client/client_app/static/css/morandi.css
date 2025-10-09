@@ -190,6 +190,14 @@ body {
     border-color: var(--morandi-primary);
 }
 
+.copy-username {
+    cursor: pointer;
+    text-decoration: none;
+}
+.copy-username:hover {
+    text-decoration: underline;
+}
+
 /* Custom Morandi button for bulk ignore */
 .btn-morandi-ignore {
     /* 使用 Bootstrap 按钮变量，确保覆盖生效 */
