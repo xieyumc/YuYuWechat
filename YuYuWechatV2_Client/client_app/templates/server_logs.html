@@ -20,6 +20,11 @@
   {% if error %}
     <div class="alert alert-danger m-3" role="alert">{{ error }}</div>
   {% endif %}
+  {% if not error and error_count and error_count > 0 %}
+    <div class="alert alert-warning m-3" role="alert">
+      已将 {{ error_count }} 条失败日志置顶显示
+    </div>
+  {% endif %}
 </div>
 
 <div class="table-responsive">
@@ -42,13 +47,13 @@
         <td>{{ item.action }}</td>
         <td>
           {% if item.status == 'success' %}
-            <span class="badge text-bg-success">{{ item.status }}</span>
+            <span class="badge bg-success">{{ item.status }}</span>
           {% elif item.status == 'failed' %}
-            <span class="badge text-bg-danger">{{ item.status }}</span>
+            <span class="badge bg-danger">{{ item.status }}</span>
           {% elif item.status == 'running' %}
-            <span class="badge text-bg-warning">{{ item.status }}</span>
+            <span class="badge bg-warning">{{ item.status }}</span>
           {% else %}
-            <span class="badge text-bg-secondary">{{ item.status }}</span>
+            <span class="badge bg-secondary">{{ item.status }}</span>
           {% endif %}
         </td>
         <td><small>{{ item.endpoint }}</small></td>
@@ -68,4 +73,3 @@
     </tbody>
   </table>
 {% endblock %}
-

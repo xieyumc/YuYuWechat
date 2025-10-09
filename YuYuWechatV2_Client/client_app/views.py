@@ -58,6 +58,11 @@ def server_logs(request):
                 if resp.status_code == 200:
                     payload = resp.json()
                     logs = payload.get('logs', [])
+                    # 将失败的任务置顶显示
+                    failed_statuses = {"failed", "error"}
+                    failed_logs = [x for x in logs if str(x.get('status')).lower() in failed_statuses]
+                    other_logs = [x for x in logs if str(x.get('status')).lower() not in failed_statuses]
+                    logs = failed_logs + other_logs
                 else:
                     error = f"服务端返回错误状态码: {resp.status_code}"
             except requests.RequestException as e:
@@ -70,6 +75,7 @@ def server_logs(request):
         'logs': logs,
         'error': error,
         'limit': limit,
+        'error_count': len([x for x in logs if str(x.get('status')).lower() in {"failed", "error"}]),
     })
 
 
