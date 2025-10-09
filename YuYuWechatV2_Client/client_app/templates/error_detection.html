@@ -5,6 +5,60 @@
 {% block header %}错误检测{% endblock %}
 
 {% block content %}
+{% if missed_tasks and missed_tasks|length > 0 %}
+<div class="card mb-3" id="missedTasksCard">
+  <div class="card-header d-flex justify-content-between align-items-center" style="background-color: var(--morandi-warning); color: #fff;">
+    <span>定时任务遗漏</span>
+    <div class="d-flex align-items-center gap-2">
+      <div class="form-check me-2">
+        <input class="form-check-input" type="checkbox" value="" id="missedSelectAll" onclick="toggleSelectAllMissed(this)">
+        <label class="form-check-label" for="missedSelectAll">全选</label>
+      </div>
+      <button class="btn btn-sm btn-success" onclick="bulkActMissed('resend', this)">批量补发</button>
+      <button class="btn btn-sm btn-morandi-ignore" onclick="bulkActMissed('ignore', this)">批量忽略</button>
+      <span id="bulkResendProgress" class="small ms-2"></span>
+    </div>
+  </div>
+  <div class="card-body">
+    <div class="table-responsive">
+      <table class="table table-sm align-middle" id="missedTasksTable">
+        <thead>
+          <tr>
+            <th></th>
+            <th>时间</th>
+            <th>用户</th>
+            <th>内容</th>
+            <th>表达式</th>
+            <th>上次执行</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in missed_tasks %}
+          <tr data-error-id="{{ item.error_id }}">
+            <td><input type="checkbox" class="form-check-input missed-select"></td>
+            <td><small>{{ item.timestamp|date:"Y-m-d H:i:s" }}</small></td>
+            <td>{{ item.user }}</td>
+            <td>
+              <div class="text-truncate" style="max-width: 360px;" title="{{ item.text }}">{{ item.text }}</div>
+            </td>
+            <td><code>{{ item.cron_expression }}</code></td>
+            <td><small>{% if item.last_executed %}{{ item.last_executed|date:"Y-m-d H:i:s" }}{% else %}-{% endif %}</small></td>
+            <td>
+              <button class="btn btn-sm btn-warning" onclick="handleAction({{ item.error_id }}, 'ignore', this)">忽略</button>
+              <button class="btn btn-sm btn-success" onclick="handleAction({{ item.error_id }}, 'resend', this)">补发</button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card-footer text-body-secondary">
+    共 {{ missed_tasks|length }} 条定时任务遗漏错误
+  </div>
+  </div>
+{% endif %}
 <div class="accordion" id="errorAccordion">
     {% if error_groups %}
         {% for group in error_groups %}
@@ -206,6 +260,70 @@
             button.disabled = false;
             button.textContent = '删除';
         });
+    }
+
+    function toggleSelectAllMissed(master) {
+        const table = document.getElementById('missedTasksTable');
+        if (!table) return;
+        const checks = table.querySelectorAll('.missed-select');
+        checks.forEach(c => c.checked = master.checked);
+        const header = document.getElementById('missedHeaderCheckbox');
+        if (header && header !== master) header.checked = master.checked;
+        const topMaster = document.getElementById('missedSelectAll');
+        if (topMaster && topMaster !== master) topMaster.checked = master.checked;
+    }
+
+    function getSelectedMissedRows() {
+        const table = document.getElementById('missedTasksTable');
+        if (!table) return [];
+        return Array.from(table.querySelectorAll('tbody tr')).filter(tr => tr.querySelector('.missed-select')?.checked);
+    }
+
+    async function bulkActMissed(action, btn) {
+        const rows = getSelectedMissedRows();
+        if (rows.length === 0) {
+            showNotification('请先勾选需要处理的任务');
+            return;
+        }
+        btn.disabled = true;
+        const progress = document.getElementById('bulkResendProgress');
+        let ok = 0, fail = 0, total = rows.length;
+        progress.innerText = `处理中 0/${total} ...`;
+
+        for (const row of rows) {
+            const id = row.getAttribute('data-error-id');
+            try {
+                const resp = await fetch("{% url 'handle_error_cron' %}", {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ action: action, task_id: id })
+                });
+                const data = await resp.json();
+                if (data.status === 'success') {
+                    ok += 1;
+                    row.remove();
+                } else {
+                    fail += 1;
+                }
+            } catch (e) {
+                fail += 1;
+            }
+            progress.innerText = `处理中 ${ok + fail}/${total} ...`;
+        }
+
+        // 若表为空，移除卡片
+        const table = document.getElementById('missedTasksTable');
+        if (table && table.querySelectorAll('tbody tr').length === 0) {
+            const card = document.getElementById('missedTasksCard');
+            if (card) card.remove();
+        }
+
+        showNotification(`批量处理完成（${action === 'resend' ? '补发' : '忽略'}）：成功 ${ok} 条，失败 ${fail} 条`, fail > 0);
+        progress.innerText = '';
+        btn.disabled = false;
     }
 </script>
 {% endblock %}

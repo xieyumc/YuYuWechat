@@ -175,3 +175,44 @@ body {
 .text-danger-emphasis {
     color: white !important;
 }
+
+/* Form controls - checkboxes/radios using Morandi palette */
+.form-check-input {
+    accent-color: var(--morandi-primary);
+    border-color: var(--morandi-primary);
+}
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.25rem rgba(178, 194, 191, 0.25); /* morandi-primary */
+    border-color: var(--morandi-primary);
+}
+.form-check-input:checked {
+    background-color: var(--morandi-primary);
+    border-color: var(--morandi-primary);
+}
+
+/* Custom Morandi button for bulk ignore */
+.btn-morandi-ignore {
+    /* 使用 Bootstrap 按钮变量，确保覆盖生效 */
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--morandi-status-info);
+    --bs-btn-border-color: var(--morandi-status-info);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--morandi-info-darker);
+    --bs-btn-hover-border-color: var(--morandi-info-darker);
+    --bs-btn-focus-shadow-rgb: 149, 176, 175; /* 与 morandi-status-info 协调 */
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--morandi-info-darker);
+    --bs-btn-active-border-color: var(--morandi-info-darker);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: var(--morandi-status-info);
+    --bs-btn-disabled-border-color: var(--morandi-status-info);
+    background-color: var(--morandi-status-info) !important; /* 强制覆盖 */
+    color: #fff !important;
+}
+.btn-morandi-ignore:hover {
+    background-color: var(--morandi-info-darker) !important;
+    color: #fff !important;
+}
+.btn-morandi-ignore:focus {
+    box-shadow: 0 0 0 0.25rem rgba(149, 176, 175, 0.35); /* 基于 morandi-status-info 的聚焦环 */
+}

@@ -454,6 +454,47 @@ def ping_server(request):
 @login_required
 def error_detection_view(request):
     errors = ErrorLog.objects.all().order_by('-timestamp')
+
+    # 置顶：定时任务遗漏类错误（更宽松匹配“遗漏”）
+    missed_tasks = []
+    try:
+        missed_logs = ErrorLog.objects.filter(error_type__icontains='遗漏').order_by('-timestamp')
+        import re
+        for log in missed_logs:
+            task_obj = None
+            # 通过 task_id 反查任务
+            if log.task_id:
+                try:
+                    task_obj = ScheduledMessage.objects.get(id=int(log.task_id))
+                except (ScheduledMessage.DoesNotExist, ValueError, TypeError):
+                    task_obj = None
+
+            # 兜底从 error_detail 提取用户名与内容
+            detail = log.error_detail or ''
+            user_fallback = None
+            text_fallback = None
+            try:
+                m_user = re.search(r"给\s*<span[^>]*>(.*?)</span>\s*发送", detail)
+                if m_user:
+                    user_fallback = m_user.group(1)
+                m_text = re.search(r"发送\s*<span[^>]*>(.*?)</span>", detail)
+                if m_text:
+                    text_fallback = m_text.group(1)
+            except Exception:
+                pass
+
+            missed_tasks.append({
+                'error_id': log.id,
+                'task_id': log.task_id,
+                'timestamp': log.timestamp,
+                'error_detail': log.error_detail,
+                'user': getattr(getattr(task_obj, 'user', None), 'username', None) or user_fallback or '未知用户',
+                'text': getattr(task_obj, 'text', None) or text_fallback or '(任务不存在)',
+                'cron_expression': getattr(task_obj, 'cron_expression', ''),
+                'last_executed': getattr(task_obj, 'last_executed', None),
+            })
+    except Exception:
+        missed_tasks = []
     
     # 按用户名分组错误
     grouped_errors = {}
@@ -512,7 +553,7 @@ def error_detection_view(request):
     # 按用户名字母顺序排序
     error_groups.sort(key=lambda x: x['username'])
         
-    return render(request, 'error_detection.html', {'error_groups': error_groups})
+    return render(request, 'error_detection.html', {'error_groups': error_groups, 'missed_tasks': missed_tasks})
 
 
 def check_errors(request):
