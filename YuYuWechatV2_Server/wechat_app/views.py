@@ -1,17 +1,20 @@
 import json
 import os
 import threading
-from queue import Queue, Empty
+from queue import Queue
 
 import comtypes
 from django.http import JsonResponse
 from django.shortcuts import render
 from django.views.decorators.csrf import csrf_exempt
-from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiTypes, OpenApiResponse, inline_serializer
-from rest_framework import serializers # 导入 serializers
-from rest_framework.decorators import api_view # 导入 api_view
+from drf_spectacular.utils import extend_schema, OpenApiResponse
+from rest_framework import serializers
+from rest_framework.decorators import api_view
 
-from .models import WeChatConfig
+from django.utils import timezone
+from django.db import close_old_connections
+
+from .models import WeChatConfig, RequestLog
 from .ui_auto_wechat import WeChat
 
 
@@ -60,61 +63,138 @@ class GetDialogsByTimeBlocksSerializer(serializers.Serializer):
 def home(request):
     return render(request, 'home.html')
 
-# 初始化 WeChat 类实例
-# wechat = WeChat(path="C:/Program Files/Tencent/WeChat/WeChat.exe", locale="zh-CN")
+"""
+单全局队列 + 单worker，所有操作统一串行。
+"""
 
-# 获取微信配置，如果数据库中没有记录，则使用默认值
+# 获取微信配置（若无记录使用默认值）
 config = WeChatConfig.objects.first()
-wechat = WeChat(path=config.path, locale=config.locale)
+if config is None:
+    wechat = WeChat(path="C:/Program Files/Tencent/WeChat/WeChat.exe", locale="zh-CN")
+else:
+    wechat = WeChat(path=config.path, locale=config.locale)
 
-# 创建队列
-message_queue = Queue()
-file_queue = Queue()
-# 创建一个锁
+# 全局任务队列与锁（锁为冗余保险）
+task_queue: Queue = Queue()
 lock = threading.Lock()
 
 
-# 处理消息队列中的消息
-def process_queue():
+def _get_client_ip(request):
+    xff = request.META.get("HTTP_X_FORWARDED_FOR")
+    if xff:
+        return xff.split(",")[0].strip()
+    return request.META.get("REMOTE_ADDR", "")
+
+
+def _enqueue_and_wait(task: dict):
+    """
+    工具方法：将任务放入全局队列并等待结果返回。
+    任务结构：{"type": str, "args": dict, "log_id": int, "resp": Queue}
+    返回：{"http_status": int, "response": dict}
+    """
+    resp_q: Queue = Queue()
+    task["resp"] = resp_q
+    task_queue.put(task)
+    result = resp_q.get()
+    return result
+
+
+def _task_worker():
+    """
+    单worker线程：顺序消费任务，确保全局串行。
+    在该线程中一次性初始化 COM。
+    同时在需要时更新数据库日志状态。
+    """
+    close_old_connections()
+    try:
+        comtypes.CoInitialize()
+    except Exception:
+        # 失败也继续，后续调用可能自身处理
+        pass
+
     while True:
+        task = task_queue.get()
         try:
-            name, text, response_queue = message_queue.get()
+            close_old_connections()
+            log = RequestLog.objects.filter(id=task.get("log_id")).first()
+            if log:
+                log.mark_running()
+
+            t0 = timezone.now()
+            action = task.get("type")
+            args = task.get("args", {})
+            http_status = 200
+            response = {}
+            success = True
+            error_msg = None
+
             try:
-                comtypes.CoInitialize()
-                with lock:  # 确保微信操作的线程安全
-                    success = wechat.send_msg(name, text)
-                if success:
-                    response_queue.put({'status': 'Message sent', 'name': name})
-                else:
-                    response_queue.put({'status': 'Failed to send message', 'name': name})
+                with lock:
+                    if action == "send_message":
+                        name = args["name"]
+                        text = args["text"]
+                        ok = wechat.send_msg(name, text)
+                        if ok:
+                            response = {"status": "Message sent", "name": name}
+                            http_status = 200
+                        else:
+                            response = {"status": "Failed to send message", "name": name}
+                            http_status = 500
+
+                    elif action == "send_file":
+                        name = args["name"]
+                        file_path = args["file_path"]
+                        wechat.send_file(name, file_path)
+                        response = {"status": "File sent", "name": name}
+                        http_status = 200
+
+                    elif action == "check_status":
+                        wechat.prevent_offline()
+                        response = {"status": "WeChat checked and prevent offline executed"}
+                        http_status = 200
+
+                    elif action == "get_dialogs":
+                        name = args["name"]
+                        n_msg = int(args["n_msg"])
+                        dialogs = wechat.get_dialogs(name, n_msg)
+                        response = {"status": "success", "dialogs": dialogs}
+                        http_status = 200
+
+                    elif action == "get_dialogs_by_time_blocks":
+                        name = args["name"]
+                        n_time_blocks = int(args["n_time_blocks"])
+                        groups = wechat.get_dialogs_by_time_blocks(name, n_time_blocks)
+                        response = {"status": "success", "dialogs": groups}
+                        http_status = 200
+
+                    elif action == "ping":
+                        response = {"status": "pong"}
+                        http_status = 200
+
+                    else:
+                        success = False
+                        http_status = 400
+                        response = {"status": "error", "error": f"unknown action: {action}"}
+
             except Exception as e:
-                response_queue.put({'status': 'Error sending message', 'name': name, 'error': str(e)})
-            message_queue.task_done()
-        except Empty:
-            pass
+                success = False
+                http_status = 500
+                error_msg = str(e)
+                response = {"status": "error", "error": error_msg}
+
+            finally:
+                # 日志更新
+                if log:
+                    log.mark_finished(success=success, result_data=response, response_data=response, error=error_msg)
+
+            task_result = {"http_status": http_status, "response": response}
+            task.get("resp").put(task_result)
+        finally:
+            task_queue.task_done()
 
 
-# 处理文件队列中的发送文件任务
-def process_file_queue():
-    while True:
-        try:
-            name, file_path, response_queue = file_queue.get()
-            try:
-                comtypes.CoInitialize()
-                with lock:  # 确保微信操作的线程安全
-                    wechat.send_file(name, file_path)
-                response_queue.put({'status': 'File sent', 'name': name})
-            except Exception as e:
-                response_queue.put({'status': 'Error sending file', 'name': name, 'error': str(e)})
-            file_queue.task_done()
-        except Empty:
-            pass
-
-
-# 启动一个线程来处理文件队列
-threading.Thread(target=process_file_queue, daemon=True).start()
-# 启动一个线程来处理消息队列
-threading.Thread(target=process_queue, daemon=True).start()
+# 启动单worker线程
+threading.Thread(target=_task_worker, daemon=True).start()
 
 
 @extend_schema(
@@ -127,27 +207,29 @@ threading.Thread(target=process_queue, daemon=True).start()
     },
     tags=['WeChat Actions']
 )
-@api_view(['POST']) # 添加 @api_view 装饰器
+@api_view(['POST'])
 @csrf_exempt
 def send_message(request):
     try:
-        data = json.loads(request.body) # request.body 仍然可用，或使用 request.data
+        data = json.loads(request.body)
         name = data['name']
         text = data['text']
 
-        # 用于存储处理结果的队列
-        response_queue = Queue()
+        # 记录请求日志（received -> queued）
+        log = RequestLog.objects.create(
+            action="send_message",
+            endpoint=request.path,
+            status="queued",
+            request_data={"name": name, "text": text},
+            client_ip=_get_client_ip(request),
+        )
 
-        # 将消息加入队列
-        message_queue.put((name, text, response_queue))
-
-        # 等待处理结果
-        result = response_queue.get()
-
-        if result['status'] == 'Message sent':
-            return JsonResponse(result, status=200)
-        else:
-            return JsonResponse(result, status=500)
+        result = _enqueue_and_wait({
+            "type": "send_message",
+            "args": {"name": name, "text": text},
+            "log_id": log.id,
+        })
+        return JsonResponse(result["response"], status=result["http_status"])
     except (KeyError, json.JSONDecodeError):
         return JsonResponse({'error': 'Invalid request, missing name or text'}, status=400)
 
@@ -176,19 +258,20 @@ def send_file_view(request):
         if not file_path or not os.path.exists(file_path):
             return JsonResponse({'error': 'Invalid or missing file_path'}, status=400)
 
-        # 用于存储处理结果的队列
-        response_queue = Queue()
+        log = RequestLog.objects.create(
+            action="send_file",
+            endpoint=request.path,
+            status="queued",
+            request_data={"name": name, "file_path": file_path},
+            client_ip=_get_client_ip(request),
+        )
 
-        # 将文件发送任务加入文件队列
-        file_queue.put((name, file_path, response_queue))
-
-        # 等待处理结果
-        result = response_queue.get()
-
-        if result['status'] == 'File sent':
-            return JsonResponse(result, status=200)
-        else:
-            return JsonResponse(result, status=500)
+        result = _enqueue_and_wait({
+            "type": "send_file",
+            "args": {"name": name, "file_path": file_path},
+            "log_id": log.id,
+        })
+        return JsonResponse(result["response"], status=result["http_status"])
     except (KeyError, json.JSONDecodeError):
         return JsonResponse({'error': 'Invalid request, missing name or file_path'}, status=400)
 
@@ -200,10 +283,23 @@ def send_file_view(request):
     },
     tags=['Health Check']
 )
-@api_view(['GET']) # 添加 @api_view 装饰器
+@api_view(['GET'])
 @csrf_exempt
 def ping(request):
-    return JsonResponse({'status': 'pong'})
+    log = RequestLog.objects.create(
+        action="ping",
+        endpoint=request.path,
+        status="queued",
+        request_data=None,
+        client_ip=_get_client_ip(request),
+    )
+
+    result = _enqueue_and_wait({
+        "type": "ping",
+        "args": {},
+        "log_id": log.id,
+    })
+    return JsonResponse(result["response"], status=result["http_status"])
 
 
 @extend_schema(
@@ -218,13 +314,20 @@ def ping(request):
 @api_view(['POST'])
 @csrf_exempt
 def check_wechat_status(request):
-    try:
-        comtypes.CoInitialize()
-        with lock:  # 确保微信操作的线程安全
-            wechat.prevent_offline()
-        return JsonResponse({'status': 'WeChat checked and prevent offline executed'}, status=200)
-    except Exception as e:
-        return JsonResponse({'status': 'Error', 'error': str(e)}, status=500)
+    log = RequestLog.objects.create(
+        action="check_status",
+        endpoint=request.path,
+        status="queued",
+        request_data=None,
+        client_ip=_get_client_ip(request),
+    )
+
+    result = _enqueue_and_wait({
+        "type": "check_status",
+        "args": {},
+        "log_id": log.id,
+    })
+    return JsonResponse(result["response"], status=result["http_status"])
 
 
 @extend_schema(
@@ -264,13 +367,20 @@ def get_dialogs_view(request):
         except (ValueError, TypeError):
             return JsonResponse({'error': 'n_msg must be a positive integer'}, status=400)
 
-        # 使用全局锁来保证线程安全
-        with lock:
-            comtypes.CoInitialize()  # 初始化COM接口，防止线程冲突
-            dialogs = wechat.get_dialogs(name, n_msg)
+        log = RequestLog.objects.create(
+            action="get_dialogs",
+            endpoint=request.path,
+            status="queued",
+            request_data={"name": name, "n_msg": n_msg},
+            client_ip=_get_client_ip(request),
+        )
 
-        # 返回获取到的聊天记录，并禁用ensure_ascii
-        return JsonResponse({'status': 'success', 'dialogs': dialogs}, status=200, json_dumps_params={'ensure_ascii': False})
+        result = _enqueue_and_wait({
+            "type": "get_dialogs",
+            "args": {"name": name, "n_msg": n_msg},
+            "log_id": log.id,
+        })
+        return JsonResponse(result["response"], status=result["http_status"], json_dumps_params={'ensure_ascii': False})
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
@@ -313,14 +423,20 @@ def get_dialogs_by_time_blocks_view(request):
         except (ValueError, TypeError):
             return JsonResponse({'error': 'n_time_blocks must be a positive integer'}, status=400)
 
-        # 使用全局锁来保证线程安全
-        with lock:
-            comtypes.CoInitialize()  # 初始化COM接口，防止线程冲突
-            groups = wechat.get_dialogs_by_time_blocks(name, n_time_blocks)
+        log = RequestLog.objects.create(
+            action="get_dialogs_by_time_blocks",
+            endpoint=request.path,
+            status="queued",
+            request_data={"name": name, "n_time_blocks": n_time_blocks},
+            client_ip=_get_client_ip(request),
+        )
 
-        # 返回获取到的按时间分组的聊天记录，并禁用ensure_ascii
-        return JsonResponse({'status': 'success', 'dialogs': groups}, status=200,
-                            json_dumps_params={'ensure_ascii': False})
+        result = _enqueue_and_wait({
+            "type": "get_dialogs_by_time_blocks",
+            "args": {"name": name, "n_time_blocks": n_time_blocks},
+            "log_id": log.id,
+        })
+        return JsonResponse(result["response"], status=result["http_status"], json_dumps_params={'ensure_ascii': False})
 
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
