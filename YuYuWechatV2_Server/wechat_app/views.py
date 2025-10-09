@@ -460,6 +460,8 @@ def get_dialogs_by_time_blocks_view(request):
             "log_id": log.id,
         })
         return JsonResponse(result["response"], status=result["http_status"], json_dumps_params={'ensure_ascii': False})
+    except Exception as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
 
 
 @extend_schema(
@@ -510,8 +512,5 @@ def request_logs_view(request):
             })
 
         return JsonResponse({'status': 'success', 'count': len(items), 'logs': items}, status=200, json_dumps_params={'ensure_ascii': False})
-    except Exception as e:
-        return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
-
     except Exception as e:
         return JsonResponse({'status': 'error', 'error': str(e)}, status=500)
