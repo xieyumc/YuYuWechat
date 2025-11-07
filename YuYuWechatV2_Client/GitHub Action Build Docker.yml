@@ -9,7 +9,7 @@ services:
     restart: always
 
   postgres:
-    image: postgres:latest
+    image: postgres:16
     container_name: postgres
     environment:
       POSTGRES_PASSWORD: tykWyr-bepqu6-fafvym
