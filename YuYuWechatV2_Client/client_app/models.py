@@ -30,6 +30,14 @@ class ServerConfig(models.Model):
         return f"Server IP: {self.server_ip}"
 
 
+class BackupSettings(models.Model):
+    retention_days = models.PositiveIntegerField(default=30, help_text="备份文件保留天数")
+    updated_at = models.DateTimeField(auto_now=True, help_text="配置更新时间")
+
+    def __str__(self):
+        return f"Backup retention: {self.retention_days} days"
+
+
 class ScheduledMessage(models.Model):
     is_active = models.BooleanField(default=True, help_text="是否激活该定时消息")
     user = models.ForeignKey(WechatUser, on_delete=models.CASCADE, help_text="关联的微信用户")

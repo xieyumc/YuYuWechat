@@ -25,7 +25,7 @@ from django.utils.timezone import now
 from .models import CustomScript
 from .models import EmailSettings
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, ErrorLog, MessageCheck, \
-    ScheduledFileMessage, TaskLog
+    ScheduledFileMessage, TaskLog, BackupSettings
 
 
 def get_task_logs(request):
@@ -809,6 +809,27 @@ def backup_list(request):
     """
     显示 backups 文件夹下的所有 .json 备份文件，并渲染到前端页面。
     """
+    retention_update_message = None
+    retention_update_error = None
+
+    if request.method == 'POST':
+        raw_days = request.POST.get('retention_days', '').strip()
+        try:
+            days = int(raw_days)
+            if days < 1 or days > 365:
+                raise ValueError("out_of_range")
+            setting = BackupSettings.objects.first()
+            if setting is None:
+                setting = BackupSettings.objects.create(retention_days=days)
+            else:
+                setting.retention_days = days
+                setting.save()
+            retention_update_message = f"已更新自动清理保留天数为 {days} 天。"
+        except ValueError:
+            retention_update_error = "请输入 1-365 之间的整数天数。"
+        except Exception as e:
+            retention_update_error = f"更新失败: {e}"
+
     backup_dir = os.path.join(settings.BASE_DIR, 'backups')
     if not os.path.exists(backup_dir):
         backup_files = []
@@ -816,9 +837,21 @@ def backup_list(request):
         # 只列出 .json 文件，避免其它无关文件混进来
         backup_files = [f for f in os.listdir(backup_dir) if f.endswith('.json')]
 
+    # 读取当前配置的保留天数
+    retention_days = getattr(settings, 'BACKUP_RETENTION_DAYS', 30)
+    try:
+        setting = BackupSettings.objects.first()
+        if setting and setting.retention_days:
+            retention_days = setting.retention_days
+    except Exception:
+        pass
+
     # 将文件列表传递给模板
     return render(request, 'backup_list.html', {
-        'backup_files': backup_files
+        'backup_files': backup_files,
+        'retention_days': retention_days,
+        'retention_update_message': retention_update_message,
+        'retention_update_error': retention_update_error,
     })
 
 

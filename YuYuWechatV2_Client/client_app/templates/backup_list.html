@@ -9,6 +9,31 @@
         <h5 class="card-title">现有备份文件</h5>
         <p class="card-text">YuYuWechat的数据库每天会自动备份一次，可以在这里下载每天的备份文件。</p>
 
+        {% if retention_update_message %}
+            <div class="alert alert-success" role="alert">
+                {{ retention_update_message }}
+            </div>
+        {% endif %}
+        {% if retention_update_error %}
+            <div class="alert alert-danger" role="alert">
+                {{ retention_update_error }}
+            </div>
+        {% endif %}
+
+        <form method="post" action="{% url 'backup_list' %}" class="mb-3">
+            {% csrf_token %}
+            <div class="row g-2 align-items-end">
+                <div class="col-auto">
+                    <label class="form-label">自动清理保留天数</label>
+                    <input type="number" class="form-control" name="retention_days" min="1" max="365" value="{{ retention_days }}" required>
+                </div>
+                <div class="col-auto">
+                    <button type="submit" class="btn btn-outline-primary">保存</button>
+                </div>
+            </div>
+            <div class="form-text">默认 30 天，范围 1-365 天。</div>
+        </form>
+
         <form method="post" action="{% url 'manual_backup' %}" class="mb-3">
             {% csrf_token %}
             <button type="submit" class="btn btn-primary">手动备份数据库</button>

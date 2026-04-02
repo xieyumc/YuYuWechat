@@ -114,6 +114,9 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'  # 新增这行，用于存放 collectsta
 # https://docs.djangoproject.com/en/4.1/ref/settings/#default-auto-field
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Backup retention (days)
+BACKUP_RETENTION_DAYS = 30
+
 # Celery Configuration
 CELERY_BROKER_URL = f'redis://{os.environ.get("REDIS_HOST", "localhost")}:{os.environ.get("REDIS_PORT", 6379)}/0'
 CELERY_RESULT_BACKEND = f'redis://{os.environ.get("REDIS_HOST", "localhost")}:{os.environ.get("REDIS_PORT", 6379)}/0'

@@ -54,4 +54,8 @@ app.conf.beat_schedule = {
         'task': 'client_app.tasks.daily_backup_database',  # 任务所在位置
         'schedule': crontab(hour=0, minute=0),  # 每天 00:00 执行一次
     },
+    'cleanup-old-backups-daily': {
+        'task': 'client_app.tasks.cleanup_old_backups',
+        'schedule': crontab(hour=0, minute=30),  # 每天 00:30 清理过期备份
+    },
 }

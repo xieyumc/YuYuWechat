@@ -17,7 +17,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.timezone import now
 
-from .models import ScheduledMessage, ServerConfig, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage, TaskLog
+from .models import ScheduledMessage, ServerConfig, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage, TaskLog, BackupSettings
 
 
 def log_task(func):
@@ -483,3 +483,53 @@ def daily_backup_database():
         f.write(output.read())
 
     return f"Backup saved to {file_path}"
+
+
+@shared_task
+@log_task
+def cleanup_old_backups(retention_days=None):
+    """
+    清理超过保留天数的备份文件，默认保留近30天。
+    只清理由系统生成的备份文件（YuYuWechat_db_backup_*.json）。
+    """
+    if retention_days is None:
+        retention_days = None
+        try:
+            setting = BackupSettings.objects.first()
+            if setting and setting.retention_days is not None:
+                retention_days = setting.retention_days
+        except Exception as e:
+            print(f"Failed to read backup settings: {e}")
+
+        if retention_days is None:
+            retention_days = getattr(settings, 'BACKUP_RETENTION_DAYS', 30)
+
+    try:
+        retention_days = int(retention_days)
+    except (TypeError, ValueError):
+        retention_days = 30
+
+    if retention_days < 1:
+        retention_days = 1
+
+    backup_dir = os.path.join(settings.BASE_DIR, 'backups')
+    if not os.path.isdir(backup_dir):
+        return "Backup directory does not exist"
+
+    cutoff_ts = time.time() - (retention_days * 86400)
+    deleted = 0
+
+    for filename in os.listdir(backup_dir):
+        if not (filename.startswith('YuYuWechat_db_backup_') and filename.endswith('.json')):
+            continue
+        file_path = os.path.join(backup_dir, filename)
+        if not os.path.isfile(file_path):
+            continue
+        try:
+            if os.path.getmtime(file_path) < cutoff_ts:
+                os.remove(file_path)
+                deleted += 1
+        except Exception as e:
+            print(f"Failed to delete backup {file_path}: {e}")
+
+    return f"Deleted {deleted} old backup file(s)"
