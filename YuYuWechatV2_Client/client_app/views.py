@@ -23,6 +23,7 @@ from django.utils.encoding import smart_str
 from django.utils.timezone import now
 
 from .models import CustomScript
+from .celery_runtime import is_celery_running, start_celery_processes, stop_celery_processes
 from .models import EmailSettings
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, ErrorLog, MessageCheck, \
     ScheduledFileMessage, TaskLog, BackupSettings
@@ -133,12 +134,10 @@ def schedule_management(request):
     now = timezone.localtime(timezone.now())
 
     # 检查 Celery 是否运行
-    celery_running = False
     try:
-        result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
-        celery_running = bool(result.stdout)
-    except Exception as e:
-        pass
+        celery_running = is_celery_running()
+    except Exception:
+        celery_running = False
 
     if not celery_running:
         celery_status = "celery未运行"
@@ -177,12 +176,10 @@ def file_schedule_management(request):
     now = timezone.localtime(timezone.now())
 
     # 检查 Celery 是否运行
-    celery_running = False
     try:
-        result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
-        celery_running = bool(result.stdout)
-    except Exception as e:
-        pass
+        celery_running = is_celery_running()
+    except Exception:
+        celery_running = False
 
     if not celery_running:
         celery_status = "celery未运行"
@@ -363,8 +360,7 @@ def import_database(request):
 
 def start_celery(request):
     try:
-        subprocess.Popen(['celery', '-A', 'YuYuWechatV2_Client', 'worker', '--loglevel=info'])
-        subprocess.Popen(['celery', '-A', 'YuYuWechatV2_Client', 'beat', '--loglevel=info'])
+        start_celery_processes()
         return JsonResponse({'status': 'Celery started'}, status=200)
     except Exception as e:
         return JsonResponse({'status': 'Failed to start Celery', 'error': str(e)}, status=500)
@@ -372,7 +368,7 @@ def start_celery(request):
 
 def stop_celery(request):
     try:
-        subprocess.call(['pkill', '-f', 'celery'])
+        stop_celery_processes()
         return JsonResponse({'status': 'Celery stopped'}, status=200)
     except Exception as e:
         return JsonResponse({'status': 'Failed to stop Celery', 'error': str(e)}, status=500)
@@ -380,9 +376,7 @@ def stop_celery(request):
 
 def check_celery_running(request):
     try:
-        # 检查系统中运行的进程并搜索包含'celery'的进程
-        result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
-        if result.stdout:
+        if is_celery_running():
             return JsonResponse({'status': 'Celery is running'}, status=200)
         else:
             return JsonResponse({'status': 'Celery is not running'}, status=404)
@@ -692,8 +686,7 @@ def send_email(request):
 
 def check_email_settings(request):
     # 检查 Celery 是否运行
-    result = subprocess.run(['pgrep', '-f', 'celery'], stdout=subprocess.PIPE)
-    celery_running = bool(result.stdout)
+    celery_running = is_celery_running()
 
     # 检查邮箱配置是否存在
     email_settings = EmailSettings.objects.exists()

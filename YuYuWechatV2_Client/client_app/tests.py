@@ -1,14 +1,17 @@
 import json
+import os
 from datetime import datetime
 from io import BytesIO
 from unittest.mock import patch
 
 from django.contrib.auth.models import User
+from django.test import override_settings
 from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
+from .celery_runtime import should_schedule_celery_autostart
 from .models import ErrorLog, WechatUser, ServerConfig, ScheduledMessage
 from .tasks import check_and_log_scheduled_message_errors, check_cron
 
@@ -107,12 +110,13 @@ class ViewTests(TestCase):
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "Celery started"}')
         self.assertTrue(mock_popen.called)
 
-    @patch('subprocess.call')
-    def test_stop_celery_view(self, mock_call):
+    @patch('subprocess.run')
+    def test_stop_celery_view(self, mock_run):
+        mock_run.return_value.returncode = 0
         response = self.client.post(reverse('stop_celery'))
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "Celery stopped"}')
-        self.assertTrue(mock_call.called)
+        self.assertTrue(mock_run.called)
 
     @patch('subprocess.run')
     def test_check_celery_running_view(self, mock_run):
@@ -245,6 +249,20 @@ class TaskTests(TestCase):
         )
 
         self.assertFalse(check_cron(current_time, '5 * * * *', last_executed))
+
+    @override_settings(AUTO_START_CELERY_ON_WEB_START=True)
+    def test_should_schedule_celery_autostart_for_runserver_child(self):
+        argv = ['manage.py', 'runserver', '0.0.0.0:7500']
+        env = dict(os.environ, RUN_MAIN='true')
+
+        self.assertTrue(should_schedule_celery_autostart(argv=argv, env=env))
+
+    @override_settings(AUTO_START_CELERY_ON_WEB_START=True)
+    def test_should_not_schedule_celery_autostart_for_non_runserver(self):
+        argv = ['manage.py', 'test']
+        env = dict(os.environ)
+
+        self.assertFalse(should_schedule_celery_autostart(argv=argv, env=env))
 
     @patch('client_app.tasks.time.sleep')
     @patch('client_app.tasks.timezone.now')
