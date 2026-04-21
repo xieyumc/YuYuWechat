@@ -250,25 +250,43 @@ def message_check():
             print(f"Failed to send message to {check.user.username}: {e}")
 
 
-def check_cron(current_time, cron_expression, last_executed):
-    """使用croniter来检查当前时间是否符合cron表达式，同时确保每个时间点只执行一次"""
-    # 以当前时间为基准，但去掉秒数，确保精确比较到分钟
-    current_time = current_time.replace(second=0, microsecond=0)
+def check_cron(current_time, cron_expression, last_executed, grace_minutes=None):
+    """
+    检查最近一个计划执行时间是否落在允许的延迟窗口内，
+    并确保同一个计划时间点不会重复执行。
 
-    # 如果已执行且执行时间与当前时间在同一分钟内，避免重复执行
-    if last_executed and last_executed.replace(second=0, microsecond=0) == current_time:
+    这里允许轻微延迟，避免 beat/worker 稍晚运行时直接漏掉本次任务。
+    但它不是“补齐所有历史漏跑”的语义，只会判断最近一次计划时间是否应执行。
+    """
+    if grace_minutes is None:
+        grace_minutes = getattr(settings, 'SCHEDULED_TASK_GRACE_MINUTES', 1)
+
+    try:
+        grace_minutes = max(int(grace_minutes), 0)
+    except (TypeError, ValueError):
+        grace_minutes = 1
+
+    current_time = timezone.localtime(current_time).replace(second=0, microsecond=0)
+    grace_window = timedelta(minutes=grace_minutes)
+
+    if last_executed:
+        last_executed = timezone.localtime(last_executed).replace(second=0, microsecond=0)
+
+    # 使用“当前分钟 + 1 分钟”为基准，拿到“不晚于当前分钟”的最近一次计划时间。
+    iter = croniter(cron_expression, current_time + timedelta(minutes=1))
+    scheduled_time = iter.get_prev(datetime)
+
+    if current_time - scheduled_time > grace_window:
         return False
 
-    # 初始化croniter
-    base = current_time - timedelta(minutes=1)
-    iter = croniter(cron_expression, base)
-    next_time = iter.get_next(datetime)
+    if last_executed and last_executed >= scheduled_time:
+        return False
 
-    # 输出调试信息
-    print(f"Base time: {base}, Next scheduled time: {next_time}, Current time: {current_time}")
-
-    # 检查下一个执行时间是否正好等于当前时间
-    return next_time == current_time
+    print(
+        f"Scheduled time: {scheduled_time}, Current time: {current_time}, "
+        f"Last executed: {last_executed}, Grace minutes: {grace_minutes}"
+    )
+    return True
 
 
 def send_message(data, server_ip):
@@ -432,31 +450,31 @@ def send_unsent_error_emails():
 @shared_task
 @log_task
 def check_and_log_scheduled_message_errors():
-    now = timezone.localtime(timezone.now())
-    tasks = ScheduledMessage.objects.all()
+    # 向下取整到分钟，始终只检查“上一分钟及更早”应该完成的任务，
+    # 避免 beat/worker 在当前分钟稍有延迟时把本分钟任务误判为遗漏。
+    check_time = timezone.localtime(timezone.now()).replace(second=0, microsecond=0)
+    tasks = ScheduledMessage.objects.filter(is_active=True, execution_count__gt=0)
     error_type = "定时任务遗漏"
-    time.sleep(300)  # 300秒 = 5分钟，等待5分钟，确保所有任务都完成，这样的效果就是每分钟检查5分钟前的任务
 
     for task in tasks:
-        if task.is_active:
-            iter = croniter(task.cron_expression, now)
-            last_execution_time = iter.get_prev(datetime)
+        iter = croniter(task.cron_expression, check_time)
+        last_execution_time = iter.get_prev(datetime)
 
-            if task.last_executed is None or task.last_executed < last_execution_time:
-                error_detail = (
-                    f"应该在 <span class='highlight'>{last_execution_time.strftime('%Y-%m-%d %H:%M:%S')}</span> "
-                    f"给 <span class='highlight'>{task.user.username}</span> 发送 "
-                    f"<span class='highlight'>{task.text}</span> 未能发送"
+        if task.last_executed is None or task.last_executed < last_execution_time:
+            error_detail = (
+                f"应该在 <span class='highlight'>{last_execution_time.strftime('%Y-%m-%d %H:%M:%S')}</span> "
+                f"给 <span class='highlight'>{task.user.username}</span> 发送 "
+                f"<span class='highlight'>{task.text}</span> 未能发送"
+            )
+
+            # 检查是否存在相同的任务ID的错误日志
+            if not ErrorLog.objects.filter(error_type=error_type, task_id=str(task.id)).exists():
+                # 如果不存在，则写入数据库
+                ErrorLog.objects.create(
+                    error_type=error_type,
+                    error_detail=error_detail,
+                    task_id=str(task.id)
                 )
-
-                # 检查是否存在相同的任务ID的错误日志
-                if not ErrorLog.objects.filter(error_type=error_type, task_id=str(task.id)).exists():
-                    # 如果不存在，则写入数据库
-                    ErrorLog.objects.create(
-                        error_type=error_type,
-                        error_detail=error_detail,
-                        task_id=str(task.id)
-                    )
 
 
 @shared_task

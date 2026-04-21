@@ -1,4 +1,5 @@
 import json
+from datetime import datetime
 from io import BytesIO
 from unittest.mock import patch
 
@@ -6,8 +7,10 @@ from django.contrib.auth.models import User
 from django.test import Client
 from django.test import TestCase
 from django.urls import reverse
+from django.utils import timezone
 
-from .models import WechatUser, ServerConfig, ScheduledMessage
+from .models import ErrorLog, WechatUser, ServerConfig, ScheduledMessage
+from .tasks import check_and_log_scheduled_message_errors, check_cron
 
 
 class ViewTests(TestCase):
@@ -201,3 +204,99 @@ class ViewTests(TestCase):
                 print(f"Error accessing {url} with login: {e}")
                 print(f"Response status code: {response.status_code}")
                 print(f"Response content: {response.content}")
+
+
+class TaskTests(TestCase):
+    def setUp(self):
+        self.user = WechatUser.objects.create(username='task_user')
+
+    def test_check_cron_allows_short_delay(self):
+        current_time = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 6, 20),
+            timezone.get_current_timezone()
+        )
+        last_executed = timezone.make_aware(
+            datetime(2026, 4, 21, 9, 5, 0),
+            timezone.get_current_timezone()
+        )
+
+        self.assertTrue(check_cron(current_time, '5 * * * *', last_executed))
+
+    def test_check_cron_rejects_delay_outside_grace_window(self):
+        current_time = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 7, 20),
+            timezone.get_current_timezone()
+        )
+        last_executed = timezone.make_aware(
+            datetime(2026, 4, 21, 9, 5, 0),
+            timezone.get_current_timezone()
+        )
+
+        self.assertFalse(check_cron(current_time, '5 * * * *', last_executed))
+
+    def test_check_cron_rejects_already_executed_schedule(self):
+        current_time = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 6, 20),
+            timezone.get_current_timezone()
+        )
+        last_executed = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 5, 0),
+            timezone.get_current_timezone()
+        )
+
+        self.assertFalse(check_cron(current_time, '5 * * * *', last_executed))
+
+    @patch('client_app.tasks.time.sleep')
+    @patch('client_app.tasks.timezone.now')
+    def test_check_and_log_scheduled_message_errors_checks_previous_minute(self, mock_now, mock_sleep):
+        current_time = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 5, 30),
+            timezone.get_current_timezone()
+        )
+        mock_now.return_value = current_time
+
+        ScheduledMessage.objects.create(
+            user=self.user,
+            text='Scheduled Message',
+            cron_expression='* * * * *',
+            execution_count=1,
+            is_active=True,
+            last_executed=timezone.make_aware(
+                datetime(2026, 4, 21, 10, 4, 0),
+                timezone.get_current_timezone()
+            )
+        )
+
+        check_and_log_scheduled_message_errors()
+
+        self.assertFalse(mock_sleep.called)
+        self.assertFalse(ErrorLog.objects.filter(error_type='定时任务遗漏').exists())
+
+    @patch('client_app.tasks.timezone.now')
+    def test_check_and_log_scheduled_message_errors_logs_missed_previous_minute(self, mock_now):
+        current_time = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 5, 30),
+            timezone.get_current_timezone()
+        )
+        mock_now.return_value = current_time
+
+        task = ScheduledMessage.objects.create(
+            user=self.user,
+            text='Scheduled Message',
+            cron_expression='* * * * *',
+            execution_count=1,
+            is_active=True,
+            last_executed=timezone.make_aware(
+                datetime(2026, 4, 21, 10, 3, 0),
+                timezone.get_current_timezone()
+            )
+        )
+
+        check_and_log_scheduled_message_errors()
+
+        self.assertTrue(
+            ErrorLog.objects.filter(
+                error_type='定时任务遗漏',
+                task_id=str(task.id)
+            ).exists()
+        )
