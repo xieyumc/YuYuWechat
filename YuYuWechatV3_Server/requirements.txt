@@ -1,0 +1,12 @@
+Django>=4.1,<6
+djangorestframework>=3.14
+django-cors-headers>=4.3
+drf-spectacular>=0.27
+psutil>=5.9.5; platform_system == "Windows"
+pyautogui>=0.9.54; platform_system == "Windows"
+pycaw>=20240210; platform_system == "Windows"
+pywin32>=308; platform_system == "Windows"
+pywin32-ctypes>=0.2.2; platform_system == "Windows"
+pywinauto>=0.6.8; platform_system == "Windows"
+Pillow>=10.4.0; platform_system == "Windows"
+emoji>=2.14.1; platform_system == "Windows"

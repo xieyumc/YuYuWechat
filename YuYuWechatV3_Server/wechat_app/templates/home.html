@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>YuYuWechat V3 Server</title>
+</head>
+<br>
+<h1>YuYuWechat V3 服务端已启动</h1>
+<h2>该版本通过 pyweixin 旁路适配微信 4.1.6+</h2>
+<p>客户端接口保持兼容，可继续使用现有 YuYuWechatV2_Client。</p>
+<br>
+<h1>接口测试</h1>
+<p>健康检查：</p>
+<pre>curl http://127.0.0.1:8000/wechat/ping</pre>
+<p>发送一条文本消息：</p>
+<pre>
+$jsonData = '{"name": "文件传输助手", "text": "hi"}'
+Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -Headers @{"Content-Type"="application/json"} -Body $jsonData -ContentType "application/json; charset=utf-8"
+</pre>
+<p>Swagger 文档：<a href="/api/schema/swagger-ui/">/api/schema/swagger-ui/</a></p>
+</body>
+</html>
