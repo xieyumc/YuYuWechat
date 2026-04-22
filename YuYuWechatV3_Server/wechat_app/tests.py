@@ -6,7 +6,7 @@ from unittest import mock
 
 from django.test import SimpleTestCase, TransactionTestCase
 
-from wechat_bridge import BridgeOperationError, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
+from wechat_bridge import BridgeOperationError, WeChatBridge, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
 
 from .models import RequestLog, WeChatConfig
 from . import views
@@ -57,6 +57,12 @@ class DialogCompatTests(SimpleTestCase):
         self.assertEqual(mapped.http_status, 500)
         self.assertEqual(mapped.response, {"status": "error", "error": "查无此人"})
 
+    def test_runtime_exception_mapping_preserves_bridge_errors(self):
+        original = BridgeOperationError("搜索框未打开", http_status=400)
+        mapped = map_runtime_exception(original)
+
+        self.assertIs(mapped, original)
+
 
 class QueueWorkerTests(SimpleTestCase):
     def test_queue_executes_tasks_serially(self):
@@ -94,6 +100,88 @@ class QueueWorkerTests(SimpleTestCase):
         self.assertEqual(max_active, 1)
         self.assertEqual(len(results), 2)
         self.assertTrue(all(item["http_status"] == 200 for item in results))
+
+
+class BridgeSendStrategyTests(SimpleTestCase):
+    def test_send_message_uses_top_search_and_does_not_require_home_reset(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        bundle.Messages.pull_messages.return_value = ["hi"]
+
+        with mock.patch.object(
+            bridge,
+            "_prepare_bundle",
+            return_value=(bundle, mock.sentinel.config),
+        ), mock.patch.object(bridge, "_open_dialog_via_ctrl_f") as open_dialog:
+            result = bridge.send_message("文件传输助手", "hi")
+
+        self.assertEqual(result, {"status": "Message sent", "name": "文件传输助手"})
+        open_dialog.assert_called_once_with(bundle, mock.sentinel.config, "文件传输助手")
+        bundle.Messages.send_messages_to_friend.assert_called_once_with(
+            friend="文件传输助手",
+            messages=["hi"],
+            search_pages=0,
+            close_weixin=False,
+        )
+        bundle.Messages.pull_messages.assert_called_once_with(
+            friend="文件传输助手",
+            number=3,
+            chat_only=False,
+            search_pages=0,
+            close_weixin=False,
+        )
+
+    def test_send_file_uses_top_search_and_restores_config(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        bundle.GlobalConfig.search_pages = 5
+
+        with mock.patch.object(
+            bridge,
+            "_prepare_bundle",
+            return_value=(bundle, mock.sentinel.config),
+        ), mock.patch.object(bridge, "_open_dialog_via_ctrl_f") as open_dialog:
+            result = bridge.send_file("文件传输助手", "C:/tmp/test.txt")
+
+        self.assertEqual(result, {"status": "File sent", "name": "文件传输助手"})
+        open_dialog.assert_called_once_with(bundle, mock.sentinel.config, "文件传输助手")
+        bundle.Files.send_files_to_friend.assert_called_once_with(
+            friend="文件传输助手",
+            files=["C:/tmp/test.txt"],
+            close_weixin=False,
+        )
+        self.assertEqual(bundle.GlobalConfig.search_pages, 5)
+
+    def test_open_dialog_via_ctrl_f_uses_keyboard_fallback_when_search_edit_is_not_detected(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        main_window = mock.Mock()
+        bundle.Navigator.open_weixin.return_value = main_window
+        search_results = mock.Mock()
+        search_results.children.return_value = []
+        search_result = mock.Mock()
+        bundle.ListItems.MobileSearchListItem = {"title": "网络查找手机/QQ号：", "control_type": "ListItem"}
+        bundle.Tools.get_search_result.return_value = search_result
+        config = mock.Mock(is_maximize=False, window_size="800,600")
+
+        with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
+            bridge,
+            "_is_current_chat",
+            return_value=False,
+        ), mock.patch.object(bridge, "_wait_for_search_edit", return_value=None), mock.patch.object(
+            bridge,
+            "_wait_for_search_results",
+            return_value=search_results,
+        ), mock.patch.object(bridge, "_focus_current_chat_input"):
+            result = bridge._open_dialog_via_ctrl_f(bundle, config, "Mona")
+
+        self.assertIs(result, main_window)
+        bundle.SystemSettings.copy_text_to_clipboard.assert_called_once_with("Mona")
+        bundle.pyautogui.hotkey.assert_any_call("ctrl", "f", _pause=False)
+        bundle.pyautogui.hotkey.assert_any_call("ctrl", "a", _pause=False)
+        bundle.pyautogui.hotkey.assert_any_call("ctrl", "v", _pause=False)
+        bundle.pyautogui.press.assert_called_once_with("backspace")
+        search_result.click_input.assert_called_once_with()
 
 
 class ApiContractTests(TransactionTestCase):

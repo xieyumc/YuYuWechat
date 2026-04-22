@@ -41,11 +41,21 @@ class BridgeOperationError(Exception):
 
 @dataclass(slots=True)
 class PyWeixinBundle:
+    Buttons: Any
+    Edits: Any
     Files: Any
     GlobalConfig: Any
+    Lists: Any
+    ListItems: Any
     Messages: Any
     Navigator: Any
+    SideBar: Any
+    SystemSettings: Any
+    Texts: Any
     Tools: Any
+    Windows: Any
+    desktop: Any
+    pyautogui: Any
 
 
 def normalize_dialog_rows(messages: Iterable[Any], timestamps: Iterable[Any]) -> list[DialogRow]:
@@ -89,6 +99,8 @@ def group_dialog_rows(rows: Iterable[DialogRow]) -> list[list[DialogRow]]:
 
 
 def map_runtime_exception(exc: Exception) -> BridgeOperationError:
+    if isinstance(exc, BridgeOperationError):
+        return exc
     if exc.__class__.__name__ in KNOWN_RUNTIME_ERROR_NAMES:
         return BridgeOperationError(str(exc), http_status=500)
     if isinstance(exc, ValidationError):
@@ -117,15 +129,26 @@ class WeChatBridge:
             config_module = importlib.import_module("pyweixin.Config")
             auto_module = importlib.import_module("pyweixin.WeChatAuto")
             tools_module = importlib.import_module("pyweixin.WeChatTools")
+            settings_module = importlib.import_module("pyweixin.WinSettings")
         except Exception as exc:
             raise BridgeOperationError(f"Failed to import pyweixin: {exc}") from exc
 
         return PyWeixinBundle(
+            Buttons=tools_module.Buttons,
+            Edits=tools_module.Edits,
             Files=auto_module.Files,
             GlobalConfig=config_module.GlobalConfig,
+            Lists=tools_module.Lists,
+            ListItems=tools_module.ListItems,
             Messages=auto_module.Messages,
             Navigator=tools_module.Navigator,
+            SideBar=tools_module.SideBar,
+            SystemSettings=settings_module.SystemSettings,
+            Texts=tools_module.Texts,
             Tools=tools_module.Tools,
+            Windows=tools_module.Windows,
+            desktop=tools_module.desktop,
+            pyautogui=tools_module.pyautogui,
         )
 
     def _parse_window_size(self, raw_value: Any) -> tuple[int, int]:
@@ -203,9 +226,188 @@ class WeChatBridge:
         self._start_wechat_if_needed(bundle, config)
         return bundle, config
 
-    def _dump_chat_rows(self, friend: str, number: int) -> tuple[list[DialogRow], int]:
-        bundle, _ = self._prepare_bundle()
+    def _click_weixin_tab(self, main_window: Any, bundle: PyWeixinBundle) -> None:
+        candidates = (
+            bundle.Buttons.WeixinButton,
+            bundle.SideBar.Weixin,
+        )
+        for locator in candidates:
+            try:
+                button = main_window.child_window(**locator)
+                if button.exists(timeout=0.2):
+                    button.click_input()
+                    return
+            except Exception:
+                continue
+
+    def _focus_current_chat_input(self, main_window: Any, bundle: PyWeixinBundle) -> bool:
         try:
+            edit_area = main_window.child_window(**bundle.Edits.CurrentChatEdit)
+            if edit_area.exists(timeout=0.2) and edit_area.is_visible():
+                edit_area.click_input()
+                return True
+        except Exception:
+            return False
+        return False
+
+    def _is_current_chat(self, main_window: Any, bundle: PyWeixinBundle, friend: str) -> bool:
+        current_chat_locator = dict(bundle.Texts.CurrentChatText)
+        current_chat_locator["title"] = friend
+        try:
+            current_chat = main_window.child_window(**current_chat_locator)
+            return current_chat.exists(timeout=0.2)
+        except Exception:
+            return False
+
+    def _press_ctrl_f(self, main_window: Any, bundle: PyWeixinBundle) -> None:
+        try:
+            if hasattr(main_window, "set_focus"):
+                main_window.set_focus()
+        except Exception:
+            pass
+
+        try:
+            bundle.pyautogui.hotkey("ctrl", "f", _pause=False)
+            return
+        except TypeError:
+            bundle.pyautogui.hotkey("ctrl", "f")
+            return
+        except Exception:
+            pass
+
+        try:
+            if hasattr(main_window, "type_keys"):
+                main_window.type_keys("^f")
+                return
+        except Exception as exc:
+            raise BridgeOperationError(f"Failed to send Ctrl+F to WeChat: {exc}") from exc
+
+        raise BridgeOperationError("Failed to send Ctrl+F to WeChat.")
+
+    def _wait_for_search_edit(self, main_window: Any, bundle: PyWeixinBundle, timeout: float = 2.0) -> Any | None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                search_edits = main_window.descendants(**bundle.Edits.SearchEdit)
+            except Exception:
+                search_edits = []
+            if search_edits:
+                return search_edits[0]
+            try:
+                focused_edits = [
+                    edit
+                    for edit in main_window.descendants(control_type="Edit")
+                    if getattr(edit, "has_keyboard_focus", lambda: False)()
+                ]
+            except Exception:
+                focused_edits = []
+            if focused_edits:
+                return focused_edits[0]
+            time.sleep(0.1)
+        return None
+
+    def _hotkey(self, bundle: PyWeixinBundle, *keys: str) -> None:
+        try:
+            bundle.pyautogui.hotkey(*keys, _pause=False)
+        except TypeError:
+            bundle.pyautogui.hotkey(*keys)
+
+    def _fill_search_query(self, main_window: Any, bundle: PyWeixinBundle, friend: str, search: Any | None) -> None:
+        if search is not None:
+            try:
+                search.click_input()
+            except Exception:
+                pass
+
+        try:
+            if hasattr(main_window, "set_focus"):
+                main_window.set_focus()
+        except Exception:
+            pass
+
+        try:
+            bundle.SystemSettings.copy_text_to_clipboard(friend)
+            self._hotkey(bundle, "ctrl", "a")
+            bundle.pyautogui.press("backspace")
+            self._hotkey(bundle, "ctrl", "v")
+            return
+        except Exception:
+            pass
+
+        if search is not None:
+            try:
+                search.set_text("")
+                search.set_text(friend)
+                return
+            except Exception as exc:
+                raise BridgeOperationError(f"Failed to search for {friend}: {exc}") from exc
+
+        raise BridgeOperationError(f"Failed to search for {friend}: search box input fallback failed.")
+
+    def _wait_for_search_results(self, main_window: Any, bundle: PyWeixinBundle, timeout: float = 3.0) -> Any | None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            try:
+                search_results = main_window.child_window(**bundle.Lists.SearchResult)
+                if search_results.exists(timeout=0.1):
+                    return search_results
+            except Exception:
+                pass
+            time.sleep(0.1)
+        return None
+
+    def _open_dialog_via_ctrl_f(self, bundle: PyWeixinBundle, config: WeChatConfig, friend: str) -> Any:
+        window_size = self._parse_window_size(config.window_size)
+        try:
+            main_window = bundle.Navigator.open_weixin(
+                is_maximize=config.is_maximize,
+                window_size=window_size,
+            )
+        except Exception as exc:
+            raise map_runtime_exception(exc) from exc
+
+        self._click_weixin_tab(main_window, bundle)
+        if self._is_current_chat(main_window, bundle, friend):
+            self._focus_current_chat_input(main_window, bundle)
+            return main_window
+
+        self._press_ctrl_f(main_window, bundle)
+        search = self._wait_for_search_edit(main_window, bundle)
+        self._fill_search_query(main_window, bundle, friend, search)
+
+        search_results = self._wait_for_search_results(main_window, bundle)
+        if search_results is None:
+            raise BridgeOperationError(f"No search results were loaded for {friend}.")
+
+        try:
+            search_result = bundle.Tools.get_search_result(friend=friend, search_result=search_results)
+            search_mobile = search_results.children(**bundle.ListItems.MobileSearchListItem)
+        except Exception:
+            search_result = None
+            search_mobile = None
+
+        if search_result and not search_mobile:
+            search_result.click_input()
+            self._focus_current_chat_input(main_window, bundle)
+            return main_window
+
+        if not search_result and search_mobile:
+            search_mobile[0].click_input()
+            add_friend_window = bundle.desktop.window(**bundle.Windows.AddfriendWindow)
+            send_msg_button = add_friend_window.child_window(**bundle.Buttons.SendMessageButton)
+            if send_msg_button.exists(timeout=2):
+                send_msg_button.click_input()
+                add_friend_window.close()
+                self._focus_current_chat_input(main_window, bundle)
+                return main_window
+            add_friend_window.close()
+
+        raise BridgeOperationError("好友或群聊备注有误！查无此人！")
+
+    def _dump_chat_rows(self, friend: str, number: int) -> tuple[list[DialogRow], int]:
+        bundle, config = self._prepare_bundle()
+        try:
+            self._open_dialog_via_ctrl_f(bundle, config, friend)
             messages, timestamps = bundle.Messages.dump_chat_history(
                 friend=friend,
                 number=number,
@@ -218,39 +420,48 @@ class WeChatBridge:
         return rows, len(messages)
 
     def send_message(self, name: str, text: str) -> dict[str, Any]:
-        bundle, _ = self._prepare_bundle()
         try:
+            bundle, config = self._prepare_bundle()
+            self._open_dialog_via_ctrl_f(bundle, config, name)
             bundle.Messages.send_messages_to_friend(
                 friend=name,
                 messages=[text],
+                search_pages=0,
                 close_weixin=False,
             )
-            verify_messages, _ = bundle.Messages.dump_chat_history(
+            verify_messages = bundle.Messages.pull_messages(
                 friend=name,
-                number=1,
+                number=3,
+                chat_only=False,
+                search_pages=0,
                 close_weixin=False,
             )
+
+            if text and len(text) <= 2000 and not any(text in str(message) for message in verify_messages):
+                raise BridgeOperationError(f"Message verification failed for {name}.")
+
+            return {"status": "Message sent", "name": name}
         except Exception as exc:
             raise map_runtime_exception(exc) from exc
 
-        latest_message = verify_messages[0] if verify_messages else ""
-        if text and len(text) <= 2000 and text not in str(latest_message):
-            raise BridgeOperationError(f"Message verification failed for {name}.")
-
-        return {"status": "Message sent", "name": name}
-
     def send_file(self, name: str, file_path: str) -> dict[str, Any]:
-        bundle, _ = self._prepare_bundle()
+        original_search_pages = None
         try:
+            bundle, config = self._prepare_bundle()
+            self._open_dialog_via_ctrl_f(bundle, config, name)
+            original_search_pages = bundle.GlobalConfig.search_pages
+            bundle.GlobalConfig.search_pages = 0
             bundle.Files.send_files_to_friend(
                 friend=name,
                 files=[file_path],
                 close_weixin=False,
             )
+            return {"status": "File sent", "name": name}
         except Exception as exc:
             raise map_runtime_exception(exc) from exc
-
-        return {"status": "File sent", "name": name}
+        finally:
+            if original_search_pages is not None:
+                bundle.GlobalConfig.search_pages = original_search_pages
 
     def check_wechat_status(self) -> dict[str, Any]:
         bundle, config = self._prepare_bundle()
