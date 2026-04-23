@@ -103,6 +103,41 @@ class QueueWorkerTests(SimpleTestCase):
 
 
 class BridgeSendStrategyTests(SimpleTestCase):
+    def test_dump_chat_rows_uses_top_search_and_returns_to_message_list(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        bundle.Messages.dump_chat_history.return_value = (["latest", "older"], ["10:01", "10:00"])
+
+        with mock.patch.object(
+            bridge,
+            "_prepare_bundle",
+            return_value=(bundle, mock.sentinel.config),
+        ), mock.patch.object(
+            bridge,
+            "_open_dialog_via_ctrl_f",
+            return_value=mock.sentinel.main_window,
+        ) as open_dialog, mock.patch.object(bridge, "_return_to_message_list") as return_to_list:
+            rows, raw_count = bridge._dump_chat_rows("文件传输助手", 2)
+
+        self.assertEqual(
+            rows,
+            [
+                ("时间信息", "", "10:00"),
+                ("用户发送", "", "older"),
+                ("时间信息", "", "10:01"),
+                ("用户发送", "", "latest"),
+            ],
+        )
+        self.assertEqual(raw_count, 2)
+        open_dialog.assert_called_once_with(bundle, mock.sentinel.config, "文件传输助手")
+        bundle.Messages.dump_chat_history.assert_called_once_with(
+            friend="文件传输助手",
+            number=2,
+            search_pages=0,
+            close_weixin=False,
+        )
+        return_to_list.assert_called_once_with(mock.sentinel.main_window, bundle)
+
     def test_send_message_uses_top_search_and_returns_to_message_list(self):
         bridge = WeChatBridge()
         bundle = mock.Mock()

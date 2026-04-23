@@ -420,16 +420,22 @@ class WeChatBridge:
         raise BridgeOperationError("好友或群聊备注有误！查无此人！")
 
     def _dump_chat_rows(self, friend: str, number: int) -> tuple[list[DialogRow], int]:
-        bundle, config = self._prepare_bundle()
+        bundle = None
+        main_window = None
         try:
-            self._open_dialog_via_ctrl_f(bundle, config, friend)
+            bundle, config = self._prepare_bundle()
+            main_window = self._open_dialog_via_ctrl_f(bundle, config, friend)
             messages, timestamps = bundle.Messages.dump_chat_history(
                 friend=friend,
                 number=number,
+                search_pages=0,
                 close_weixin=False,
             )
         except Exception as exc:
             raise map_runtime_exception(exc) from exc
+        finally:
+            if bundle is not None and main_window is not None:
+                self._return_to_message_list(main_window, bundle)
 
         rows = normalize_dialog_rows(messages, timestamps)
         return rows, len(messages)
