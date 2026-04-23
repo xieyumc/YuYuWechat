@@ -100,6 +100,7 @@ class AutoPaymentService:
         self._total_transfers = 0
         self._processed_payments: set[tuple[str, str, tuple[int, ...], str]] = set()
         self._runtime: PaymentRuntime | None = None
+        self._main_window: Any | None = None
 
     def _maybe_initialize_com(self) -> None:
         try:
@@ -165,6 +166,7 @@ class AutoPaymentService:
                 self._last_error = ""
                 self._started_at = timezone.now()
                 self._processed_payments.clear()
+                self._main_window = None
                 self._thread = threading.Thread(target=self._run, daemon=True, name="auto-payment-listener")
                 self._thread.start()
         if already_running:
@@ -209,11 +211,24 @@ class AutoPaymentService:
             with self._state_lock:
                 self._desired_running = False
                 self._thread = None
+                self._main_window = None
+
+    def _get_main_window(self, bundle: Any, config: Any) -> Any:
+        if self._main_window is not None:
+            try:
+                if self._main_window.exists(timeout=0.2):
+                    return self._main_window
+            except Exception:
+                pass
+        self._main_window = self.bridge._open_main_window(bundle, config)
+        return self._main_window
 
     def _scan_once(self) -> None:
         bundle, config = self.bridge._prepare_bundle()
         runtime = self._load_runtime()
+        main_window = self._get_main_window(bundle, config)
         unread_sessions = runtime.scan_for_new_messages(
+            main_window=main_window,
             is_maximize=config.is_maximize,
             close_weixin=False,
         )
@@ -227,6 +242,7 @@ class AutoPaymentService:
                 config=config,
                 friend=friend,
                 unread_count=int(unread_count),
+                main_window=main_window,
             )
             if red_packet_count or transfer_count:
                 with self._state_lock:
@@ -241,13 +257,15 @@ class AutoPaymentService:
         config: Any,
         friend: str,
         unread_count: int,
+        main_window: Any,
     ) -> tuple[int, int]:
         red_packet_count = 0
         transfer_count = 0
-        dialog_window = bundle.Navigator.open_dialog_window(
-            friend=friend,
-            is_maximize=config.is_maximize,
-            search_pages=int(config.search_pages),
+        dialog_window = self.bridge._open_dialog_in_main_window(
+            main_window,
+            bundle,
+            friend,
+            focus_input=False,
         )
         time.sleep(self.open_delay)
 
@@ -469,7 +487,7 @@ class AutoPaymentService:
         try:
             bundle, config = self.bridge._prepare_bundle()
             runtime = self._load_runtime()
-            main_window = bundle.Navigator.open_weixin(is_maximize=config.is_maximize)
+            main_window = self._get_main_window(bundle, config)
             weixin_button = main_window.child_window(**runtime.SideBar.Weixin)
             if weixin_button.exists(timeout=0.5):
                 weixin_button.double_click_input()

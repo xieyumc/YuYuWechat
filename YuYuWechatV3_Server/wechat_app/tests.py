@@ -228,8 +228,137 @@ class BridgeSendStrategyTests(SimpleTestCase):
         bundle.pyautogui.press.assert_called_once_with("backspace")
         search_result.click_input.assert_called_once_with()
 
+    def test_open_dialog_in_main_window_reuses_existing_window(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        main_window = mock.Mock()
+        search_results = mock.Mock()
+        search_results.children.return_value = []
+        search_result = mock.Mock()
+        bundle.ListItems.MobileSearchListItem = {"title": "网络查找手机/QQ号：", "control_type": "ListItem"}
+        bundle.Tools.get_search_result.return_value = search_result
+
+        with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
+            bridge,
+            "_is_current_chat",
+            return_value=False,
+        ), mock.patch.object(bridge, "_press_ctrl_f"), mock.patch.object(
+            bridge,
+            "_wait_for_search_edit",
+            return_value=mock.sentinel.search,
+        ), mock.patch.object(
+            bridge,
+            "_fill_search_query",
+        ) as fill_query, mock.patch.object(
+            bridge,
+            "_wait_for_search_results",
+            return_value=search_results,
+        ), mock.patch.object(
+            bridge,
+            "_focus_current_chat_input",
+        ) as focus_input:
+            result = bridge._open_dialog_in_main_window(main_window, bundle, "Mona")
+
+        self.assertIs(result, main_window)
+        fill_query.assert_called_once_with(main_window, bundle, "Mona", mock.sentinel.search)
+        focus_input.assert_called_once_with(main_window, bundle)
+        search_result.click_input.assert_called_once_with()
+
+    def test_open_dialog_in_main_window_can_skip_focusing_input(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        main_window = mock.Mock()
+        search_results = mock.Mock()
+        search_results.children.return_value = []
+        search_result = mock.Mock()
+        bundle.ListItems.MobileSearchListItem = {"title": "网络查找手机/QQ号：", "control_type": "ListItem"}
+        bundle.Tools.get_search_result.return_value = search_result
+
+        with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
+            bridge,
+            "_is_current_chat",
+            return_value=False,
+        ), mock.patch.object(bridge, "_press_ctrl_f"), mock.patch.object(
+            bridge,
+            "_wait_for_search_edit",
+            return_value=mock.sentinel.search,
+        ), mock.patch.object(
+            bridge,
+            "_fill_search_query",
+        ), mock.patch.object(
+            bridge,
+            "_wait_for_search_results",
+            return_value=search_results,
+        ), mock.patch.object(
+            bridge,
+            "_focus_current_chat_input",
+        ) as focus_input:
+            result = bridge._open_dialog_in_main_window(main_window, bundle, "Mona", focus_input=False)
+
+        self.assertIs(result, main_window)
+        focus_input.assert_not_called()
+        search_result.click_input.assert_called_once_with()
+
 
 class AutoPaymentServiceTests(SimpleTestCase):
+    def test_scan_once_reuses_single_main_window(self):
+        bridge = mock.Mock()
+        service = AutoPaymentService(bridge=bridge, operation_lock=threading.Lock())
+        bundle = mock.Mock()
+        config = mock.Mock(is_maximize=False)
+        runtime = mock.Mock()
+        main_window = mock.Mock()
+        main_window.exists.return_value = True
+        runtime.scan_for_new_messages.return_value = {}
+
+        with mock.patch.object(service, "_load_runtime", return_value=runtime):
+            bridge._prepare_bundle.return_value = (bundle, config)
+            bridge._open_main_window.return_value = main_window
+            service._scan_once()
+            service._scan_once()
+
+        bridge._open_main_window.assert_called_once_with(bundle, config)
+        self.assertEqual(runtime.scan_for_new_messages.call_count, 2)
+        runtime.scan_for_new_messages.assert_called_with(
+            main_window=main_window,
+            is_maximize=config.is_maximize,
+            close_weixin=False,
+        )
+
+    def test_claim_payments_opens_dialog_in_existing_window(self):
+        bridge = mock.Mock()
+        service = AutoPaymentService(bridge=bridge, operation_lock=threading.Lock())
+        bundle = mock.Mock()
+        runtime = mock.Mock()
+        config = mock.Mock()
+        dialog_window = mock.Mock()
+        chat_list = mock.Mock()
+        chat_list.exists.return_value = True
+        dialog_window.child_window.return_value = chat_list
+        bundle.Tools.is_group_chat.return_value = True
+        bridge._open_dialog_in_main_window.return_value = dialog_window
+
+        with mock.patch.object(service, "_cleanup_after_claim") as cleanup, mock.patch(
+            "wechat_bridge.payment_listener.time.sleep"
+        ):
+            red_count, transfer_count = service._claim_payments_in_session(
+                bundle=bundle,
+                runtime=runtime,
+                config=config,
+                friend="Mona",
+                unread_count=1,
+                main_window=mock.sentinel.main_window,
+            )
+
+        self.assertEqual((red_count, transfer_count), (0, 0))
+        bridge._open_dialog_in_main_window.assert_called_once_with(
+            mock.sentinel.main_window,
+            bundle,
+            "Mona",
+            focus_input=False,
+        )
+        cleanup.assert_called_once_with(dialog_window, bundle, runtime)
+
     def test_send_payment_thanks_message_uses_template(self):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
         bundle = mock.Mock()

@@ -226,6 +226,16 @@ class WeChatBridge:
         self._start_wechat_if_needed(bundle, config)
         return bundle, config
 
+    def _open_main_window(self, bundle: PyWeixinBundle, config: WeChatConfig) -> Any:
+        window_size = self._parse_window_size(config.window_size)
+        try:
+            return bundle.Navigator.open_weixin(
+                is_maximize=config.is_maximize,
+                window_size=window_size,
+            )
+        except Exception as exc:
+            raise map_runtime_exception(exc) from exc
+
     def _click_weixin_tab(self, main_window: Any, bundle: PyWeixinBundle) -> None:
         candidates = (
             bundle.Buttons.WeixinButton,
@@ -259,6 +269,11 @@ class WeChatBridge:
         try:
             edit_area = main_window.child_window(**bundle.Edits.CurrentChatEdit)
             if edit_area.exists(timeout=0.2) and edit_area.is_visible():
+                try:
+                    edit_area.set_focus()
+                    return True
+                except Exception:
+                    pass
                 edit_area.click_input()
                 return True
         except Exception:
@@ -371,19 +386,17 @@ class WeChatBridge:
             time.sleep(0.1)
         return None
 
-    def _open_dialog_via_ctrl_f(self, bundle: PyWeixinBundle, config: WeChatConfig, friend: str) -> Any:
-        window_size = self._parse_window_size(config.window_size)
-        try:
-            main_window = bundle.Navigator.open_weixin(
-                is_maximize=config.is_maximize,
-                window_size=window_size,
-            )
-        except Exception as exc:
-            raise map_runtime_exception(exc) from exc
-
+    def _open_dialog_in_main_window(
+        self,
+        main_window: Any,
+        bundle: PyWeixinBundle,
+        friend: str,
+        focus_input: bool = True,
+    ) -> Any:
         self._click_weixin_tab(main_window, bundle)
         if self._is_current_chat(main_window, bundle, friend):
-            self._focus_current_chat_input(main_window, bundle)
+            if focus_input:
+                self._focus_current_chat_input(main_window, bundle)
             return main_window
 
         self._press_ctrl_f(main_window, bundle)
@@ -403,7 +416,8 @@ class WeChatBridge:
 
         if search_result and not search_mobile:
             search_result.click_input()
-            self._focus_current_chat_input(main_window, bundle)
+            if focus_input:
+                self._focus_current_chat_input(main_window, bundle)
             return main_window
 
         if not search_result and search_mobile:
@@ -413,11 +427,16 @@ class WeChatBridge:
             if send_msg_button.exists(timeout=2):
                 send_msg_button.click_input()
                 add_friend_window.close()
-                self._focus_current_chat_input(main_window, bundle)
+                if focus_input:
+                    self._focus_current_chat_input(main_window, bundle)
                 return main_window
             add_friend_window.close()
 
         raise BridgeOperationError("好友或群聊备注有误！查无此人！")
+
+    def _open_dialog_via_ctrl_f(self, bundle: PyWeixinBundle, config: WeChatConfig, friend: str) -> Any:
+        main_window = self._open_main_window(bundle, config)
+        return self._open_dialog_in_main_window(main_window, bundle, friend)
 
     def _dump_chat_rows(self, friend: str, number: int) -> tuple[list[DialogRow], int]:
         bundle = None
