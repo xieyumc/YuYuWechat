@@ -3,20 +3,146 @@
 <head>
     <meta charset="UTF-8">
     <title>YuYuWechat V3 Server</title>
+    <style>
+        body {
+            font-family: "PingFang SC", "Microsoft YaHei", sans-serif;
+            margin: 32px;
+            line-height: 1.6;
+        }
+        .panel {
+            border: 1px solid #d9d9d9;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            max-width: 920px;
+        }
+        .status-row {
+            margin: 8px 0;
+        }
+        button {
+            border: 0;
+            border-radius: 8px;
+            padding: 10px 16px;
+            cursor: pointer;
+            background: #1677ff;
+            color: #fff;
+            font-size: 14px;
+        }
+        button[disabled] {
+            opacity: 0.7;
+            cursor: wait;
+        }
+        code, pre {
+            background: #f6f8fa;
+            border-radius: 6px;
+        }
+        pre {
+            padding: 12px;
+            overflow: auto;
+        }
+        .muted {
+            color: #666;
+        }
+        .danger {
+            color: #c1121f;
+            white-space: pre-wrap;
+        }
+    </style>
 </head>
-<br>
-<h1>YuYuWechat V3 服务端已启动</h1>
-<h2>该版本通过 pyweixin 旁路适配微信 4.1.6+</h2>
-<p>客户端接口保持兼容，可继续使用现有 YuYuWechatV2_Client。</p>
-<br>
-<h1>接口测试</h1>
-<p>健康检查：</p>
-<pre>curl http://127.0.0.1:8000/wechat/ping</pre>
-<p>发送一条文本消息：</p>
-<pre>
+<body>
+<div class="panel">
+    <h1>YuYuWechat V3 服务端已启动</h1>
+    <h2>该版本通过 pyweixin 旁路适配微信 4.1.6+</h2>
+    <p>客户端接口保持兼容，可继续使用现有 YuYuWechatV2_Client。</p>
+    <p>Swagger 文档：<a href="/api/schema/swagger-ui/">/api/schema/swagger-ui/</a></p>
+</div>
+
+<div class="panel">
+    <h2>自动领取红包 / 转账</h2>
+    <p class="muted">监听未读单聊，自动领取红包并收取转账。群聊红包会自动跳过。</p>
+    <div class="status-row">当前状态：<strong id="auto-payment-state">{{ auto_payment.state_label }}</strong></div>
+    <div class="status-row">累计领取红包：<span id="auto-payment-red">{{ auto_payment.total_red_packets }}</span></div>
+    <div class="status-row">累计收取转账：<span id="auto-payment-transfer">{{ auto_payment.total_transfers }}</span></div>
+    <div class="status-row">最近扫描时间：<span id="auto-payment-cycle">{{ auto_payment.last_cycle_at|default:"-" }}</span></div>
+    <div class="status-row">最近成功领取时间：<span id="auto-payment-claim">{{ auto_payment.last_claim_at|default:"-" }}</span></div>
+    <div class="status-row">最近错误：</div>
+    <div id="auto-payment-error" class="danger">{{ auto_payment.last_error|default:"-" }}</div>
+    <div class="status-row" style="margin-top: 16px;">
+        <button
+            id="auto-payment-toggle"
+            type="button"
+            data-running="{{ auto_payment.running|yesno:'true,false' }}"
+        >{{ auto_payment.button_label }}</button>
+    </div>
+    <div id="auto-payment-message" class="status-row muted"></div>
+</div>
+
+<div class="panel">
+    <h2>接口测试</h2>
+    <p>健康检查：</p>
+    <pre>curl http://127.0.0.1:8000/wechat/ping</pre>
+    <p>发送一条文本消息：</p>
+    <pre>
 $jsonData = '{"name": "文件传输助手", "text": "hi"}'
 Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -Headers @{"Content-Type"="application/json"} -Body $jsonData -ContentType "application/json; charset=utf-8"
-</pre>
-<p>Swagger 文档：<a href="/api/schema/swagger-ui/">/api/schema/swagger-ui/</a></p>
+    </pre>
+</div>
+
+<script>
+    const toggleButton = document.getElementById("auto-payment-toggle");
+    const stateEl = document.getElementById("auto-payment-state");
+    const redEl = document.getElementById("auto-payment-red");
+    const transferEl = document.getElementById("auto-payment-transfer");
+    const cycleEl = document.getElementById("auto-payment-cycle");
+    const claimEl = document.getElementById("auto-payment-claim");
+    const errorEl = document.getElementById("auto-payment-error");
+    const messageEl = document.getElementById("auto-payment-message");
+
+    function renderStatus(status) {
+        stateEl.textContent = status.state_label;
+        redEl.textContent = status.total_red_packets;
+        transferEl.textContent = status.total_transfers;
+        cycleEl.textContent = status.last_cycle_at || "-";
+        claimEl.textContent = status.last_claim_at || "-";
+        errorEl.textContent = status.last_error || "-";
+        toggleButton.textContent = status.button_label;
+        toggleButton.dataset.running = status.running ? "true" : "false";
+    }
+
+    async function refreshStatus() {
+        const response = await fetch("/wechat/auto_payment_status/");
+        const payload = await response.json();
+        if (payload.auto_payment) {
+            renderStatus(payload.auto_payment);
+        }
+    }
+
+    toggleButton.addEventListener("click", async () => {
+        const enabled = toggleButton.dataset.running !== "true";
+        toggleButton.disabled = true;
+        messageEl.textContent = "正在提交...";
+        try {
+            const response = await fetch("/wechat/toggle_auto_payment/", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({enabled}),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || "操作失败");
+            }
+            renderStatus(payload.auto_payment);
+            messageEl.textContent = payload.message || "操作成功";
+        } catch (error) {
+            messageEl.textContent = error.message || "操作失败";
+        } finally {
+            toggleButton.disabled = false;
+        }
+    });
+
+    setInterval(() => {
+        refreshStatus().catch(() => {});
+    }, 5000);
+</script>
 </body>
 </html>

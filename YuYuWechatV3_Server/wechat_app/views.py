@@ -13,7 +13,7 @@ from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, OpenApiType
 from rest_framework import serializers
 from rest_framework.decorators import api_view
 
-from wechat_bridge import BridgeOperationError, WeChatBridge
+from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge
 
 from .models import RequestLog
 
@@ -81,14 +81,39 @@ class RequestLogListResponseSerializer(serializers.Serializer):
     logs = RequestLogItemSerializer(many=True)
 
 
+class AutoPaymentStatusSerializer(serializers.Serializer):
+    running = serializers.BooleanField()
+    thread_alive = serializers.BooleanField()
+    state_label = serializers.CharField()
+    button_label = serializers.CharField()
+    total_red_packets = serializers.IntegerField()
+    total_transfers = serializers.IntegerField()
+    last_error = serializers.CharField(allow_blank=True)
+    last_cycle_at = serializers.CharField(allow_null=True)
+    last_claim_at = serializers.CharField(allow_null=True)
+    started_at = serializers.CharField(allow_null=True)
+
+
+class AutoPaymentEnvelopeSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    auto_payment = AutoPaymentStatusSerializer()
+    message = serializers.CharField(required=False)
+    error = serializers.CharField(required=False)
+
+
+class AutoPaymentToggleSerializer(serializers.Serializer):
+    enabled = serializers.BooleanField(required=False, help_text="true 为启用，false 为停止；不传则自动切换。")
+
+
 bridge = WeChatBridge()
 task_queue: Queue = Queue()
 lock = threading.Lock()
 worker_started = False
+auto_payment_service = AutoPaymentService(bridge=bridge, operation_lock=lock)
 
 
 def home(request):
-    return render(request, "home.html")
+    return render(request, "home.html", {"auto_payment": auto_payment_service.status()})
 
 
 def _maybe_initialize_com() -> None:
@@ -190,6 +215,16 @@ def _start_worker() -> None:
 
 
 _start_worker()
+
+
+def _auto_payment_response(message: str = "") -> dict[str, Any]:
+    payload = {
+        "status": "success",
+        "auto_payment": auto_payment_service.status(),
+    }
+    if message:
+        payload["message"] = message
+    return payload
 
 
 @extend_schema(
@@ -471,3 +506,45 @@ def request_logs_view(request):
         return _json_response({"status": "success", "count": len(logs), "logs": logs}, 200)
     except Exception as exc:
         return _json_response({"status": "error", "error": str(exc)}, 500)
+
+
+@extend_schema(
+    summary="获取自动领取红包/转账监听状态",
+    responses={200: OpenApiResponse(response=AutoPaymentEnvelopeSerializer, description="当前监听状态")},
+    tags=["Automation"],
+)
+@api_view(["GET"])
+@csrf_exempt
+def auto_payment_status_view(request):
+    return _json_response(_auto_payment_response(), 200)
+
+
+@extend_schema(
+    summary="启用或停止自动领取红包/转账监听",
+    request=AutoPaymentToggleSerializer,
+    responses={
+        200: OpenApiResponse(response=AutoPaymentEnvelopeSerializer, description="操作成功"),
+        400: OpenApiResponse(response=OperationResponseSerializer, description="请求参数无效"),
+    },
+    tags=["Automation"],
+)
+@api_view(["POST"])
+@csrf_exempt
+def toggle_auto_payment_view(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return _json_response({"status": "error", "error": "Invalid request payload"}, 400)
+
+    enabled = data.get("enabled")
+    if enabled is None:
+        enabled = not auto_payment_service.status()["running"]
+    elif not isinstance(enabled, bool):
+        return _json_response({"status": "error", "error": "enabled must be a boolean"}, 400)
+
+    if enabled:
+        auto_payment_service.start()
+        return _json_response(_auto_payment_response("自动领取红包/转账已启用"), 200)
+
+    auto_payment_service.stop()
+    return _json_response(_auto_payment_response("自动领取红包/转账已停止"), 200)

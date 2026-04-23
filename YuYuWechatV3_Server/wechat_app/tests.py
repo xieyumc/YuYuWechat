@@ -310,3 +310,139 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(payload["status"], "success")
         self.assertEqual(payload["count"], 1)
         self.assertEqual(payload["logs"][0]["action"], "send_message")
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 2,
+            "total_transfers": 1,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_home_renders_auto_payment_panel(self, mocked_status):
+        response = self.client.get("/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "自动领取红包 / 转账")
+        self.assertContains(response, "启用自动领取红包/转账")
+        mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": True,
+            "thread_alive": True,
+            "state_label": "运行中",
+            "button_label": "停止自动领取红包/转账",
+            "total_red_packets": 3,
+            "total_transfers": 2,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_auto_payment_status_contract(self, mocked_status):
+        response = self.client.get("/wechat/auto_payment_status/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "success")
+        self.assertEqual(response.json()["auto_payment"]["state_label"], "运行中")
+        mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "start",
+        return_value={
+            "running": True,
+            "thread_alive": True,
+            "state_label": "运行中",
+            "button_label": "停止自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": True,
+            "thread_alive": True,
+            "state_label": "运行中",
+            "button_label": "停止自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_toggle_auto_payment_starts_listener(self, mocked_status, mocked_start):
+        response = self.client.post(
+            "/wechat/toggle_auto_payment/",
+            data=json.dumps({"enabled": True}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["message"], "自动领取红包/转账已启用")
+        mocked_start.assert_called_once_with()
+        mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "stop",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 5,
+            "total_transfers": 4,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 5,
+            "total_transfers": 4,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_toggle_auto_payment_stops_listener(self, mocked_status, mocked_stop):
+        response = self.client.post(
+            "/wechat/toggle_auto_payment/",
+            data=json.dumps({"enabled": False}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["message"], "自动领取红包/转账已停止")
+        mocked_stop.assert_called_once_with()
+        mocked_status.assert_called_once_with()
