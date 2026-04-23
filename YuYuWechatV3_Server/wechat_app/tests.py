@@ -103,7 +103,7 @@ class QueueWorkerTests(SimpleTestCase):
 
 
 class BridgeSendStrategyTests(SimpleTestCase):
-    def test_send_message_uses_top_search_and_does_not_require_home_reset(self):
+    def test_send_message_uses_top_search_and_returns_to_message_list(self):
         bridge = WeChatBridge()
         bundle = mock.Mock()
         bundle.Messages.pull_messages.return_value = ["hi"]
@@ -112,11 +112,16 @@ class BridgeSendStrategyTests(SimpleTestCase):
             bridge,
             "_prepare_bundle",
             return_value=(bundle, mock.sentinel.config),
-        ), mock.patch.object(bridge, "_open_dialog_via_ctrl_f") as open_dialog:
+        ), mock.patch.object(
+            bridge,
+            "_open_dialog_via_ctrl_f",
+            return_value=mock.sentinel.main_window,
+        ) as open_dialog, mock.patch.object(bridge, "_return_to_message_list") as return_to_list:
             result = bridge.send_message("文件传输助手", "hi")
 
         self.assertEqual(result, {"status": "Message sent", "name": "文件传输助手"})
         open_dialog.assert_called_once_with(bundle, mock.sentinel.config, "文件传输助手")
+        return_to_list.assert_called_once_with(mock.sentinel.main_window, bundle)
         bundle.Messages.send_messages_to_friend.assert_called_once_with(
             friend="文件传输助手",
             messages=["hi"],
@@ -131,7 +136,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
             close_weixin=False,
         )
 
-    def test_send_file_uses_top_search_and_restores_config(self):
+    def test_send_file_uses_top_search_restores_config_and_returns_to_message_list(self):
         bridge = WeChatBridge()
         bundle = mock.Mock()
         bundle.GlobalConfig.search_pages = 5
@@ -140,11 +145,16 @@ class BridgeSendStrategyTests(SimpleTestCase):
             bridge,
             "_prepare_bundle",
             return_value=(bundle, mock.sentinel.config),
-        ), mock.patch.object(bridge, "_open_dialog_via_ctrl_f") as open_dialog:
+        ), mock.patch.object(
+            bridge,
+            "_open_dialog_via_ctrl_f",
+            return_value=mock.sentinel.main_window,
+        ) as open_dialog, mock.patch.object(bridge, "_return_to_message_list") as return_to_list:
             result = bridge.send_file("文件传输助手", "C:/tmp/test.txt")
 
         self.assertEqual(result, {"status": "File sent", "name": "文件传输助手"})
         open_dialog.assert_called_once_with(bundle, mock.sentinel.config, "文件传输助手")
+        return_to_list.assert_called_once_with(mock.sentinel.main_window, bundle)
         bundle.Files.send_files_to_friend.assert_called_once_with(
             friend="文件传输助手",
             files=["C:/tmp/test.txt"],

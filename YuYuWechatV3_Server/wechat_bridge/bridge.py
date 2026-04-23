@@ -240,6 +240,21 @@ class WeChatBridge:
             except Exception:
                 continue
 
+    def _return_to_message_list(self, main_window: Any, bundle: PyWeixinBundle) -> None:
+        candidates = (
+            bundle.Buttons.WeixinButton,
+            bundle.SideBar.Weixin,
+        )
+        for locator in candidates:
+            try:
+                button = main_window.child_window(**locator)
+                if button.exists(timeout=0.5):
+                    button.double_click_input()
+                    time.sleep(0.2)
+                    return
+            except Exception:
+                continue
+
     def _focus_current_chat_input(self, main_window: Any, bundle: PyWeixinBundle) -> bool:
         try:
             edit_area = main_window.child_window(**bundle.Edits.CurrentChatEdit)
@@ -420,9 +435,11 @@ class WeChatBridge:
         return rows, len(messages)
 
     def send_message(self, name: str, text: str) -> dict[str, Any]:
+        bundle = None
+        main_window = None
         try:
             bundle, config = self._prepare_bundle()
-            self._open_dialog_via_ctrl_f(bundle, config, name)
+            main_window = self._open_dialog_via_ctrl_f(bundle, config, name)
             bundle.Messages.send_messages_to_friend(
                 friend=name,
                 messages=[text],
@@ -443,12 +460,17 @@ class WeChatBridge:
             return {"status": "Message sent", "name": name}
         except Exception as exc:
             raise map_runtime_exception(exc) from exc
+        finally:
+            if bundle is not None and main_window is not None:
+                self._return_to_message_list(main_window, bundle)
 
     def send_file(self, name: str, file_path: str) -> dict[str, Any]:
+        bundle = None
+        main_window = None
         original_search_pages = None
         try:
             bundle, config = self._prepare_bundle()
-            self._open_dialog_via_ctrl_f(bundle, config, name)
+            main_window = self._open_dialog_via_ctrl_f(bundle, config, name)
             original_search_pages = bundle.GlobalConfig.search_pages
             bundle.GlobalConfig.search_pages = 0
             bundle.Files.send_files_to_friend(
@@ -462,6 +484,8 @@ class WeChatBridge:
         finally:
             if original_search_pages is not None:
                 bundle.GlobalConfig.search_pages = original_search_pages
+            if bundle is not None and main_window is not None:
+                self._return_to_message_list(main_window, bundle)
 
     def check_wechat_status(self) -> dict[str, Any]:
         bundle, config = self._prepare_bundle()
