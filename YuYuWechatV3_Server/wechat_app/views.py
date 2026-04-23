@@ -15,7 +15,7 @@ from rest_framework.decorators import api_view
 
 from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge
 
-from .models import RequestLog
+from .models import RequestLog, WeChatConfig
 
 
 class SendMessageSerializer(serializers.Serializer):
@@ -94,9 +94,15 @@ class AutoPaymentStatusSerializer(serializers.Serializer):
     started_at = serializers.CharField(allow_null=True)
 
 
+class AutoPaymentConfigSerializer(serializers.Serializer):
+    auto_thank_after_red_packet = serializers.BooleanField()
+    red_packet_thanks_message = serializers.CharField(allow_blank=True)
+
+
 class AutoPaymentEnvelopeSerializer(serializers.Serializer):
     status = serializers.CharField()
     auto_payment = AutoPaymentStatusSerializer()
+    auto_payment_config = AutoPaymentConfigSerializer()
     message = serializers.CharField(required=False)
     error = serializers.CharField(required=False)
 
@@ -113,7 +119,14 @@ auto_payment_service = AutoPaymentService(bridge=bridge, operation_lock=lock)
 
 
 def home(request):
-    return render(request, "home.html", {"auto_payment": auto_payment_service.status()})
+    return render(
+        request,
+        "home.html",
+        {
+            "auto_payment": auto_payment_service.status(),
+            "auto_payment_config": _get_auto_payment_config_payload(),
+        },
+    )
 
 
 def _maybe_initialize_com() -> None:
@@ -221,10 +234,19 @@ def _auto_payment_response(message: str = "") -> dict[str, Any]:
     payload = {
         "status": "success",
         "auto_payment": auto_payment_service.status(),
+        "auto_payment_config": _get_auto_payment_config_payload(),
     }
     if message:
         payload["message"] = message
     return payload
+
+
+def _get_auto_payment_config_payload() -> dict[str, Any]:
+    config = WeChatConfig.get_solo()
+    return {
+        "auto_thank_after_red_packet": config.auto_thank_after_red_packet,
+        "red_packet_thanks_message": config.red_packet_thanks_message,
+    }
 
 
 @extend_schema(
@@ -548,3 +570,40 @@ def toggle_auto_payment_view(request):
 
     auto_payment_service.stop()
     return _json_response(_auto_payment_response("自动领取红包/转账已停止"), 200)
+
+
+@extend_schema(
+    summary="更新自动领取红包/转账后的感谢消息配置",
+    request=AutoPaymentConfigSerializer,
+    responses={
+        200: OpenApiResponse(response=AutoPaymentEnvelopeSerializer, description="保存成功"),
+        400: OpenApiResponse(response=OperationResponseSerializer, description="请求参数无效"),
+    },
+    tags=["Automation"],
+)
+@api_view(["POST"])
+@csrf_exempt
+def update_auto_payment_config_view(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return _json_response({"status": "error", "error": "Invalid request payload"}, 400)
+
+    auto_thank_after_red_packet = data.get("auto_thank_after_red_packet")
+    red_packet_thanks_message = data.get("red_packet_thanks_message", "")
+
+    if not isinstance(auto_thank_after_red_packet, bool):
+        return _json_response({"status": "error", "error": "auto_thank_after_red_packet must be a boolean"}, 400)
+    if not isinstance(red_packet_thanks_message, str):
+        return _json_response({"status": "error", "error": "red_packet_thanks_message must be a string"}, 400)
+
+    config = WeChatConfig.get_solo()
+    config.auto_thank_after_red_packet = auto_thank_after_red_packet
+    config.red_packet_thanks_message = red_packet_thanks_message
+    try:
+        config.save()
+    except Exception as exc:
+        return _json_response({"status": "error", "error": str(exc)}, 400)
+
+    message = "自动感谢消息配置已保存"
+    return _json_response(_auto_payment_response(message), 200)

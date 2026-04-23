@@ -3,7 +3,7 @@
 from django.urls import path
 
 from .views import send_message, ping, check_wechat_status, get_dialogs_view, get_dialogs_by_time_blocks_view, \
-    send_file_view, request_logs_view, auto_payment_status_view, toggle_auto_payment_view
+    send_file_view, request_logs_view, auto_payment_status_view, toggle_auto_payment_view, update_auto_payment_config_view
 
 urlpatterns = [
     path('ping/', ping, name='ping'),
@@ -15,4 +15,5 @@ urlpatterns = [
     path('request_logs/', request_logs_view, name='request_logs'),
     path('auto_payment_status/', auto_payment_status_view, name='auto_payment_status'),
     path('toggle_auto_payment/', toggle_auto_payment_view, name='toggle_auto_payment'),
+    path('auto_payment_config/', update_auto_payment_config_view, name='auto_payment_config'),
 ]

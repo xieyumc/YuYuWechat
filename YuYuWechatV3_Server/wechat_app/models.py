@@ -22,10 +22,21 @@ class WeChatConfig(models.Model):
         default=True,
         help_text="若微信未启动，服务端是否尝试自动拉起 Weixin.exe。",
     )
+    auto_thank_after_red_packet = models.BooleanField(
+        default=False,
+        help_text="领取红包成功后，是否自动发送感谢消息。",
+    )
+    red_packet_thanks_message = models.TextField(
+        default="",
+        blank=True,
+        help_text='成功领取红包后发送给客户的感谢消息模板。支持 {friend} 或 {name} 占位符。',
+    )
 
     def clean(self):
         if self.locale != "zh-CN":
             raise ValidationError({"locale": 'YuYuWechat V3 当前仅支持 "zh-CN"。'})
+        if self.auto_thank_after_red_packet and not self.red_packet_thanks_message.strip():
+            raise ValidationError({"red_packet_thanks_message": "启用自动感谢消息时，内容不能为空。"})
 
     def save(self, *args, **kwargs):
         self.full_clean()

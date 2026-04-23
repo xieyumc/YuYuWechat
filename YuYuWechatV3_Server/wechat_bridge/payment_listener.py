@@ -286,6 +286,8 @@ class AutoPaymentService:
                     runtime=runtime,
                     red_packet=item,
                     bundle=bundle,
+                    config=config,
+                    friend=friend,
                     chat_list=chat_list,
                 ):
                     self._processed_payments.add(payment_key)
@@ -298,6 +300,8 @@ class AutoPaymentService:
                     runtime=runtime,
                     transfer_item=item,
                     bundle=bundle,
+                    config=config,
+                    friend=friend,
                     chat_list=chat_list,
                 ):
                     self._processed_payments.add(payment_key)
@@ -317,6 +321,8 @@ class AutoPaymentService:
         runtime: PaymentRuntime,
         red_packet: Any,
         bundle: Any,
+        config: Any,
+        friend: str,
         chat_list: Any = None,
     ) -> bool:
         red_envelop_view = dialog_window.child_window(
@@ -348,7 +354,66 @@ class AutoPaymentService:
                 red_envelop_detail.close()
             except Exception:
                 pass
+        try:
+            self._send_payment_thanks_message(
+                dialog_window=dialog_window,
+                bundle=bundle,
+                config=config,
+                friend=friend,
+                payment_type="红包",
+            )
+        except Exception:
+            pass
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
+        return True
+
+    def _render_payment_thanks_message(self, config: Any, friend: str, payment_type: str) -> str:
+        if not getattr(config, "auto_thank_after_red_packet", False):
+            return ""
+        template = (getattr(config, "red_packet_thanks_message", "") or "").strip()
+        if not template:
+            return ""
+        try:
+            return template.format(friend=friend, name=friend, payment_type=payment_type)
+        except Exception:
+            return template
+
+    def _hotkey(self, bundle: Any, *keys: str) -> None:
+        try:
+            bundle.pyautogui.hotkey(*keys, _pause=False)
+        except TypeError:
+            bundle.pyautogui.hotkey(*keys)
+
+    def _send_payment_thanks_message(
+        self,
+        dialog_window: Any,
+        bundle: Any,
+        config: Any,
+        friend: str,
+        payment_type: str,
+    ) -> bool:
+        thanks_message = self._render_payment_thanks_message(config, friend, payment_type)
+        if not thanks_message:
+            return False
+
+        edit_area = dialog_window.child_window(**bundle.Edits.CurrentChatEdit)
+        if not edit_area.exists(timeout=0.5) or not edit_area.is_visible():
+            return False
+
+        edit_area.click_input()
+        edit_area.set_text("")
+
+        if len(thanks_message) < 2000:
+            bundle.SystemSettings.copy_text_to_clipboard(thanks_message)
+            self._hotkey(bundle, "ctrl", "v")
+            time.sleep(float(getattr(config, "send_delay", 0.2)))
+            self._hotkey(bundle, "alt", "s")
+            return True
+
+        bundle.SystemSettings.convert_long_text_to_txt(thanks_message)
+        self._hotkey(bundle, "ctrl", "v")
+        time.sleep(float(getattr(config, "send_delay", 0.2)))
+        self._hotkey(bundle, "alt", "s")
         return True
 
     def _try_collect_transfer(
@@ -357,6 +422,8 @@ class AutoPaymentService:
         runtime: PaymentRuntime,
         transfer_item: Any,
         bundle: Any,
+        config: Any,
+        friend: str,
         chat_list: Any = None,
     ) -> bool:
         transfer_item.click_input()
@@ -369,6 +436,16 @@ class AutoPaymentService:
 
         receive_button.click_input()
         time.sleep(0.6)
+        try:
+            self._send_payment_thanks_message(
+                dialog_window=dialog_window,
+                bundle=bundle,
+                config=config,
+                friend=friend,
+                payment_type="转账",
+            )
+        except Exception:
+            pass
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
         return True
 
@@ -395,7 +472,7 @@ class AutoPaymentService:
             main_window = bundle.Navigator.open_weixin(is_maximize=config.is_maximize)
             weixin_button = main_window.child_window(**runtime.SideBar.Weixin)
             if weixin_button.exists(timeout=0.5):
-                weixin_button.click_input()
+                weixin_button.double_click_input()
                 time.sleep(0.2)
         except Exception:
             pass
@@ -492,11 +569,6 @@ class AutoPaymentService:
             candidate = None
             best_score = -1
             windows = [search_root]
-            try:
-                if search_root.handle == main_window.handle:
-                    windows.extend(window for window in runtime.desktop.windows() if window.is_visible())
-            except Exception:
-                pass
 
             for window in windows:
                 try:
@@ -520,8 +592,15 @@ class AutoPaymentService:
         return None
 
     def _close_popup(self, runtime: PaymentRuntime, dialog_window: Any) -> bool:
-        time.sleep(3)
-        focus_control = self._find_payment_focus_control(runtime, dialog_window, timeout=1.5)
+        time.sleep(0.3)
+        search_root = self._get_active_window(runtime, dialog_window)
+        try:
+            if search_root.handle == dialog_window.handle:
+                return False
+        except Exception:
+            pass
+
+        focus_control = self._find_payment_focus_control(runtime, search_root, timeout=0.8)
         if focus_control is not None:
             try:
                 focus_control.click_input()
@@ -533,10 +612,14 @@ class AutoPaymentService:
                 except Exception:
                     pass
 
-        search_root = self._get_active_window(runtime, dialog_window)
         close_button = self._find_close_button(runtime, search_root, dialog_window, timeout=1.2)
         if close_button is None:
-            return False
+            try:
+                search_root.close()
+                time.sleep(0.3)
+                return True
+            except Exception:
+                return False
         try:
             close_button.click_input()
             time.sleep(0.3)

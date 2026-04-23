@@ -6,7 +6,7 @@ from unittest import mock
 
 from django.test import SimpleTestCase, TransactionTestCase
 
-from wechat_bridge import BridgeOperationError, WeChatBridge, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
+from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
 
 from .models import RequestLog, WeChatConfig
 from . import views
@@ -229,6 +229,84 @@ class BridgeSendStrategyTests(SimpleTestCase):
         search_result.click_input.assert_called_once_with()
 
 
+class AutoPaymentServiceTests(SimpleTestCase):
+    def test_send_payment_thanks_message_uses_template(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        bundle = mock.Mock()
+        bundle.Edits.CurrentChatEdit = {"control_type": "Edit"}
+        dialog_window = mock.Mock()
+        edit_area = mock.Mock()
+        edit_area.exists.return_value = True
+        edit_area.is_visible.return_value = True
+        dialog_window.child_window.return_value = edit_area
+        config = mock.Mock(
+            auto_thank_after_red_packet=True,
+            red_packet_thanks_message="谢谢{friend}的{payment_type}",
+            send_delay=0.2,
+        )
+
+        with mock.patch("wechat_bridge.payment_listener.time.sleep"):
+            result = service._send_payment_thanks_message(dialog_window, bundle, config, "Mona", "转账")
+
+        self.assertTrue(result)
+        bundle.SystemSettings.copy_text_to_clipboard.assert_called_once_with("谢谢Mona的转账")
+        bundle.pyautogui.hotkey.assert_any_call("ctrl", "v", _pause=False)
+        bundle.pyautogui.hotkey.assert_any_call("alt", "s", _pause=False)
+
+    def test_try_collect_transfer_sends_thanks_message(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        dialog_window = mock.Mock()
+        transfer_item = mock.Mock()
+        bundle = mock.Mock()
+        runtime = mock.Mock()
+        config = mock.Mock()
+        receive_button = mock.Mock()
+
+        with mock.patch.object(service, "_find_visible_button", return_value=receive_button), mock.patch.object(
+            service,
+            "_send_payment_thanks_message",
+            return_value=True,
+        ) as send_thanks, mock.patch.object(service, "_cleanup_after_claim") as cleanup, mock.patch(
+            "wechat_bridge.payment_listener.time.sleep"
+        ):
+            result = service._try_collect_transfer(
+                dialog_window=dialog_window,
+                runtime=runtime,
+                transfer_item=transfer_item,
+                bundle=bundle,
+                config=config,
+                friend="Mona",
+                chat_list=mock.sentinel.chat_list,
+            )
+
+        self.assertTrue(result)
+        send_thanks.assert_called_once_with(
+            dialog_window=dialog_window,
+            bundle=bundle,
+            config=config,
+            friend="Mona",
+            payment_type="转账",
+        )
+        cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
+
+    def test_close_popup_skips_main_window(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        runtime = mock.Mock()
+        dialog_window = mock.Mock()
+        dialog_window.handle = 100
+        runtime.win32gui.GetForegroundWindow.return_value = 100
+        runtime.desktop.window.return_value = dialog_window
+
+        with mock.patch.object(service, "_find_payment_focus_control", return_value=None), mock.patch.object(
+            service,
+            "_find_close_button",
+        ) as find_close, mock.patch("wechat_bridge.payment_listener.time.sleep"):
+            result = service._close_popup(runtime, dialog_window)
+
+        self.assertFalse(result)
+        find_close.assert_not_called()
+
+
 class ApiContractTests(TransactionTestCase):
     reset_sequences = True
 
@@ -378,6 +456,7 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "自动领取红包 / 转账")
         self.assertContains(response, "启用自动领取红包/转账")
+        self.assertContains(response, "成功领取红包/收取转账后自动发送感谢消息")
         mocked_status.assert_called_once_with()
 
     @mock.patch.object(
@@ -491,3 +570,73 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(response.json()["message"], "自动领取红包/转账已停止")
         mocked_stop.assert_called_once_with()
         mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_update_auto_payment_config_contract(self, mocked_status):
+        response = self.client.post(
+            "/wechat/auto_payment_config/",
+            data=json.dumps(
+                {
+                    "auto_thank_after_red_packet": True,
+                    "red_packet_thanks_message": "谢谢{friend}的红包",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["message"], "自动感谢消息配置已保存")
+        self.assertTrue(payload["auto_payment_config"]["auto_thank_after_red_packet"])
+        self.assertEqual(payload["auto_payment_config"]["red_packet_thanks_message"], "谢谢{friend}的红包")
+        config = WeChatConfig.get_solo()
+        self.assertTrue(config.auto_thank_after_red_packet)
+        self.assertEqual(config.red_packet_thanks_message, "谢谢{friend}的红包")
+        mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_update_auto_payment_config_rejects_empty_message_when_enabled(self, mocked_status):
+        response = self.client.post(
+            "/wechat/auto_payment_config/",
+            data=json.dumps(
+                {
+                    "auto_thank_after_red_packet": True,
+                    "red_packet_thanks_message": "",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("不能为空", response.json()["error"])
+        mocked_status.assert_not_called()

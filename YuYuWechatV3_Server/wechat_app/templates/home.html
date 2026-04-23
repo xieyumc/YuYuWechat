@@ -32,6 +32,22 @@
             opacity: 0.7;
             cursor: wait;
         }
+        textarea {
+            width: 100%;
+            max-width: 720px;
+            min-height: 90px;
+            border: 1px solid #d9d9d9;
+            border-radius: 8px;
+            padding: 10px 12px;
+            font-size: 14px;
+            font-family: inherit;
+            box-sizing: border-box;
+        }
+        label.inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
         code, pre {
             background: #f6f8fa;
             border-radius: 6px;
@@ -75,6 +91,28 @@
         >{{ auto_payment.button_label }}</button>
     </div>
     <div id="auto-payment-message" class="status-row muted"></div>
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+    <div class="status-row">
+        <label class="inline" for="thank-after-red-packet">
+            <input
+                id="thank-after-red-packet"
+                type="checkbox"
+                {% if auto_payment_config.auto_thank_after_red_packet %}checked{% endif %}
+            >
+            成功领取红包/收取转账后自动发送感谢消息
+        </label>
+    </div>
+    <div class="status-row muted">支持占位符：<code>{friend}</code>、<code>{name}</code>、<code>{payment_type}</code></div>
+    <div class="status-row">
+        <textarea
+            id="red-packet-thanks-message"
+            placeholder="例如：谢谢{friend}的{payment_type}，已收到～"
+        >{{ auto_payment_config.red_packet_thanks_message }}</textarea>
+    </div>
+    <div class="status-row">
+        <button id="save-auto-payment-config" type="button">保存感谢消息配置</button>
+    </div>
+    <div id="auto-payment-config-message" class="status-row muted"></div>
 </div>
 
 <div class="panel">
@@ -97,6 +135,10 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
     const claimEl = document.getElementById("auto-payment-claim");
     const errorEl = document.getElementById("auto-payment-error");
     const messageEl = document.getElementById("auto-payment-message");
+    const thankEnabledEl = document.getElementById("thank-after-red-packet");
+    const thankMessageEl = document.getElementById("red-packet-thanks-message");
+    const saveConfigButton = document.getElementById("save-auto-payment-config");
+    const configMessageEl = document.getElementById("auto-payment-config-message");
 
     function renderStatus(status) {
         stateEl.textContent = status.state_label;
@@ -137,6 +179,30 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
             messageEl.textContent = error.message || "操作失败";
         } finally {
             toggleButton.disabled = false;
+        }
+    });
+
+    saveConfigButton.addEventListener("click", async () => {
+        saveConfigButton.disabled = true;
+        configMessageEl.textContent = "正在保存...";
+        try {
+            const response = await fetch("/wechat/auto_payment_config/", {
+                method: "POST",
+                headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({
+                    auto_thank_after_red_packet: thankEnabledEl.checked,
+                    red_packet_thanks_message: thankMessageEl.value,
+                }),
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || "保存失败");
+            }
+            configMessageEl.textContent = payload.message || "保存成功";
+        } catch (error) {
+            configMessageEl.textContent = error.message || "保存失败";
+        } finally {
+            saveConfigButton.disabled = false;
         }
     });
 
