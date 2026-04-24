@@ -441,6 +441,7 @@ class AutoPaymentService:
                     red_envelop_detail.close()
                 except Exception:
                     pass
+            self._close_payment_popup(runtime, dialog_window)
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
             return False
 
@@ -451,6 +452,7 @@ class AutoPaymentService:
                 red_envelop_detail.close()
             except Exception:
                 pass
+        self._close_payment_popup(runtime, dialog_window)
         try:
             self._send_payment_thanks_message(
                 dialog_window=dialog_window,
@@ -552,11 +554,13 @@ class AutoPaymentService:
 
         receive_button = self._find_visible_button(runtime, dialog_window, title="收款", timeout=2)
         if receive_button is None:
+            self._close_payment_popup(runtime, dialog_window)
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
             return False
 
         receive_button.click_input()
         time.sleep(0.6)
+        self._close_payment_popup(runtime, dialog_window)
         try:
             self._send_payment_thanks_message(
                 dialog_window=dialog_window,
@@ -572,8 +576,10 @@ class AutoPaymentService:
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
         return True
 
-    def _cleanup_after_claim(self, dialog_window: Any, bundle: Any, runtime: PaymentRuntime, chat_list: Any = None) -> None:
+    def _close_payment_popup(self, runtime: PaymentRuntime, dialog_window: Any) -> None:
         self._close_popup(runtime, dialog_window)
+
+    def _cleanup_after_claim(self, dialog_window: Any, bundle: Any, runtime: PaymentRuntime, chat_list: Any = None) -> None:
         try:
             weixin_button = dialog_window.child_window(**runtime.SideBar.Weixin)
             if weixin_button.exists(timeout=0.5):

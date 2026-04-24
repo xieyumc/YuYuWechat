@@ -541,6 +541,9 @@ class AutoPaymentServiceTests(SimpleTestCase):
 
         with mock.patch.object(service, "_find_visible_button", return_value=receive_button), mock.patch.object(
             service,
+            "_close_payment_popup",
+        ), mock.patch.object(
+            service,
             "_send_payment_thanks_message",
             return_value=True,
         ) as send_thanks, mock.patch.object(service, "_cleanup_after_claim") as cleanup, mock.patch(
@@ -567,6 +570,49 @@ class AutoPaymentServiceTests(SimpleTestCase):
             use_reply_override=False,
         )
         cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
+
+    def test_try_collect_transfer_closes_popup_before_reply_and_returns_after_reply(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        dialog_window = mock.Mock()
+        transfer_item = mock.Mock()
+        bundle = mock.Mock()
+        runtime = mock.Mock()
+        config = mock.Mock()
+        receive_button = mock.Mock()
+        call_order = []
+
+        def mark(name):
+            def _inner(*args, **kwargs):
+                call_order.append(name)
+                return True
+
+            return _inner
+
+        with mock.patch.object(service, "_find_visible_button", return_value=receive_button), mock.patch.object(
+            service,
+            "_close_payment_popup",
+            side_effect=mark("close_popup"),
+        ), mock.patch.object(
+            service,
+            "_send_payment_thanks_message",
+            side_effect=mark("send_reply"),
+        ), mock.patch.object(
+            service,
+            "_cleanup_after_claim",
+            side_effect=mark("cleanup"),
+        ), mock.patch("wechat_bridge.payment_listener.time.sleep"):
+            result = service._try_collect_transfer(
+                dialog_window=dialog_window,
+                runtime=runtime,
+                transfer_item=transfer_item,
+                bundle=bundle,
+                config=config,
+                friend="Mona",
+                chat_list=mock.sentinel.chat_list,
+            )
+
+        self.assertTrue(result)
+        self.assertEqual(call_order, ["close_popup", "send_reply", "cleanup"])
 
     def test_close_popup_skips_main_window(self):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
