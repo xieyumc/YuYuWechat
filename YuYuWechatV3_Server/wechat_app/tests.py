@@ -640,6 +640,58 @@ class AutoPaymentServiceTests(SimpleTestCase):
             close_weixin=False,
         )
 
+    def test_auto_payment_run_waits_configured_interval_after_releasing_lock(self):
+        lock = threading.Lock()
+        bridge = mock.Mock()
+        bridge._get_config.return_value = mock.Mock(auto_payment_check_interval_minutes=0.05)
+        service = AutoPaymentService(bridge=bridge, operation_lock=lock)
+        waits = []
+
+        def stop_after_wait(timeout):
+            waits.append(timeout)
+            service._stop_event.set()
+            return True
+
+        with mock.patch.object(service, "_maybe_initialize_com"), mock.patch.object(
+            service,
+            "_scan_once",
+        ) as scan_once, mock.patch.object(
+            service._stop_event,
+            "wait",
+            side_effect=stop_after_wait,
+        ):
+            service._run()
+
+        scan_once.assert_called_once_with()
+        self.assertEqual(waits, [3.0])
+        self.assertTrue(lock.acquire(blocking=False))
+        lock.release()
+
+    def test_auto_payment_run_does_not_scan_when_lock_is_busy(self):
+        lock = threading.Lock()
+        lock.acquire()
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=lock)
+        waits = []
+
+        def stop_after_wait(timeout):
+            waits.append(timeout)
+            service._stop_event.set()
+            return True
+
+        with mock.patch.object(service, "_maybe_initialize_com"), mock.patch.object(
+            service,
+            "_scan_once",
+        ) as scan_once, mock.patch.object(
+            service._stop_event,
+            "wait",
+            side_effect=stop_after_wait,
+        ):
+            service._run()
+
+        scan_once.assert_not_called()
+        self.assertEqual(waits, [0.5])
+        lock.release()
+
     def test_claim_payments_opens_dialog_in_existing_window(self):
         bridge = mock.Mock()
         service = AutoPaymentService(bridge=bridge, operation_lock=threading.Lock())
@@ -1010,6 +1062,7 @@ class ApiContractTests(TransactionTestCase):
         self.assertContains(response, "启用自动领取红包/转账")
         self.assertContains(response, "成功领取红包/收取转账后自动发送感谢消息")
         self.assertContains(response, "自动感谢回复延迟（秒）")
+        self.assertContains(response, "自动检查间隔（分钟）")
         mocked_status.assert_called_once_with()
 
     @mock.patch.object(
@@ -1147,6 +1200,7 @@ class ApiContractTests(TransactionTestCase):
                 {
                     "auto_thank_after_red_packet": True,
                     "payment_reply_delay": 2.5,
+                    "auto_payment_check_interval_minutes": 3,
                     "red_packet_thanks_message": "谢谢{friend}的红包",
                 }
             ),
@@ -1158,10 +1212,12 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(payload["message"], "自动感谢消息配置已保存")
         self.assertTrue(payload["auto_payment_config"]["auto_thank_after_red_packet"])
         self.assertEqual(payload["auto_payment_config"]["payment_reply_delay"], 2.5)
+        self.assertEqual(payload["auto_payment_config"]["auto_payment_check_interval_minutes"], 3.0)
         self.assertEqual(payload["auto_payment_config"]["red_packet_thanks_message"], "谢谢{friend}的红包")
         config = WeChatConfig.get_solo()
         self.assertTrue(config.auto_thank_after_red_packet)
         self.assertEqual(config.payment_reply_delay, 2.5)
+        self.assertEqual(config.auto_payment_check_interval_minutes, 3.0)
         self.assertEqual(config.red_packet_thanks_message, "谢谢{friend}的红包")
         mocked_status.assert_called_once_with()
 
@@ -1188,6 +1244,7 @@ class ApiContractTests(TransactionTestCase):
                 {
                     "auto_thank_after_red_packet": True,
                     "payment_reply_delay": 2.0,
+                    "auto_payment_check_interval_minutes": 2,
                     "red_packet_thanks_message": "",
                 }
             ),
@@ -1231,5 +1288,43 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(
             response.json(),
             {"status": "error", "error": "payment_reply_delay must be a non-negative number"},
+        )
+        mocked_status.assert_not_called()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+            "check_interval_seconds": 120.0,
+        },
+    )
+    def test_update_auto_payment_config_rejects_invalid_check_interval(self, mocked_status):
+        response = self.client.post(
+            "/wechat/auto_payment_config/",
+            data=json.dumps(
+                {
+                    "auto_thank_after_red_packet": False,
+                    "payment_reply_delay": 2.0,
+                    "auto_payment_check_interval_minutes": 0,
+                    "red_packet_thanks_message": "",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"status": "error", "error": "auto_payment_check_interval_minutes must be a positive number"},
         )
         mocked_status.assert_not_called()

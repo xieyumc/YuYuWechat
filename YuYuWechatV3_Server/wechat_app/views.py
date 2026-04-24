@@ -114,11 +114,13 @@ class AutoPaymentStatusSerializer(serializers.Serializer):
     last_cycle_at = serializers.CharField(allow_null=True)
     last_claim_at = serializers.CharField(allow_null=True)
     started_at = serializers.CharField(allow_null=True)
+    check_interval_seconds = serializers.FloatField()
 
 
 class AutoPaymentConfigSerializer(serializers.Serializer):
     auto_thank_after_red_packet = serializers.BooleanField()
     payment_reply_delay = serializers.FloatField(min_value=0.0)
+    auto_payment_check_interval_minutes = serializers.FloatField(min_value=0.01)
     red_packet_thanks_message = serializers.CharField(allow_blank=True)
 
 
@@ -278,6 +280,7 @@ def _get_auto_payment_config_payload() -> dict[str, Any]:
     return {
         "auto_thank_after_red_packet": config.auto_thank_after_red_packet,
         "payment_reply_delay": config.payment_reply_delay,
+        "auto_payment_check_interval_minutes": config.auto_payment_check_interval_minutes,
         "red_packet_thanks_message": config.red_packet_thanks_message,
     }
 
@@ -715,8 +718,13 @@ def update_auto_payment_config_view(request):
         return _json_response({"status": "error", "error": "Invalid request payload"}, 400)
 
     auto_thank_after_red_packet = data.get("auto_thank_after_red_packet")
-    payment_reply_delay = data.get("payment_reply_delay", 2.0)
-    red_packet_thanks_message = data.get("red_packet_thanks_message", "")
+    config = WeChatConfig.get_solo()
+    payment_reply_delay = data.get("payment_reply_delay", config.payment_reply_delay)
+    auto_payment_check_interval_minutes = data.get(
+        "auto_payment_check_interval_minutes",
+        config.auto_payment_check_interval_minutes,
+    )
+    red_packet_thanks_message = data.get("red_packet_thanks_message", config.red_packet_thanks_message)
 
     if not isinstance(auto_thank_after_red_packet, bool):
         return _json_response({"status": "error", "error": "auto_thank_after_red_packet must be a boolean"}, 400)
@@ -726,12 +734,21 @@ def update_auto_payment_config_view(request):
             raise ValueError
     except (TypeError, ValueError):
         return _json_response({"status": "error", "error": "payment_reply_delay must be a non-negative number"}, 400)
+    try:
+        auto_payment_check_interval_minutes = float(auto_payment_check_interval_minutes)
+        if auto_payment_check_interval_minutes <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return _json_response(
+            {"status": "error", "error": "auto_payment_check_interval_minutes must be a positive number"},
+            400,
+        )
     if not isinstance(red_packet_thanks_message, str):
         return _json_response({"status": "error", "error": "red_packet_thanks_message must be a string"}, 400)
 
-    config = WeChatConfig.get_solo()
     config.auto_thank_after_red_packet = auto_thank_after_red_packet
     config.payment_reply_delay = payment_reply_delay
+    config.auto_payment_check_interval_minutes = auto_payment_check_interval_minutes
     config.red_packet_thanks_message = red_packet_thanks_message
     try:
         config.save()

@@ -115,6 +115,19 @@
             >
         </label>
     </div>
+    <div class="status-row">
+        <label class="inline" for="auto-payment-check-interval">
+            自动检查间隔（分钟）
+            <input
+                id="auto-payment-check-interval"
+                type="number"
+                min="0.01"
+                step="0.1"
+                value="{{ auto_payment_config.auto_payment_check_interval_minutes }}"
+                style="width: 120px; margin-left: 8px;"
+            >
+        </label>
+    </div>
     <div class="status-row muted">支持占位符：<code>{friend}</code>、<code>{name}</code>、<code>{payment_type}</code></div>
     <div class="status-row">
         <textarea
@@ -123,7 +136,7 @@
         >{{ auto_payment_config.red_packet_thanks_message }}</textarea>
     </div>
     <div class="status-row">
-        <button id="save-auto-payment-config" type="button">保存感谢消息配置</button>
+        <button id="save-auto-payment-config" type="button">保存自动领取配置</button>
     </div>
     <div id="auto-payment-config-message" class="status-row muted"></div>
 </div>
@@ -150,6 +163,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
     const messageEl = document.getElementById("auto-payment-message");
     const thankEnabledEl = document.getElementById("thank-after-red-packet");
     const paymentReplyDelayEl = document.getElementById("payment-reply-delay");
+    const autoPaymentCheckIntervalEl = document.getElementById("auto-payment-check-interval");
     const thankMessageEl = document.getElementById("red-packet-thanks-message");
     const saveConfigButton = document.getElementById("save-auto-payment-config");
     const configMessageEl = document.getElementById("auto-payment-config-message");
@@ -206,6 +220,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
                 body: JSON.stringify({
                     auto_thank_after_red_packet: thankEnabledEl.checked,
                     payment_reply_delay: Number(paymentReplyDelayEl.value),
+                    auto_payment_check_interval_minutes: Number(autoPaymentCheckIntervalEl.value),
                     red_packet_thanks_message: thankMessageEl.value,
                 }),
             });

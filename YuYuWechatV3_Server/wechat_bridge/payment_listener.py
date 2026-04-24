@@ -122,13 +122,13 @@ class AutoPaymentService:
         self,
         bridge: WeChatBridge,
         operation_lock: threading.Lock,
-        interval: float = 1.5,
+        interval: float = 120.0,
         open_delay: float = 0.4,
         scan_limit: int = 12,
     ):
         self.bridge = bridge
         self.operation_lock = operation_lock
-        self.interval = interval
+        self.default_check_interval_seconds = float(interval)
         self.open_delay = open_delay
         self.scan_limit = scan_limit
 
@@ -221,6 +221,7 @@ class AutoPaymentService:
                 "last_cycle_at": self._serialize_datetime(self._last_cycle_at),
                 "last_claim_at": self._serialize_datetime(self._last_claim_at),
                 "started_at": self._serialize_datetime(self._started_at),
+                "check_interval_seconds": self._get_check_interval_seconds(),
             }
 
     def start(self) -> dict[str, Any]:
@@ -258,7 +259,7 @@ class AutoPaymentService:
         try:
             while not self._stop_event.is_set():
                 if not self.operation_lock.acquire(timeout=0.1):
-                    self._stop_event.wait(min(self.interval, 0.5))
+                    self._stop_event.wait(0.5)
                     continue
 
                 try:
@@ -275,12 +276,22 @@ class AutoPaymentService:
                     self.operation_lock.release()
 
                 self._trim_processed_payments()
-                self._stop_event.wait(self.interval)
+                self._stop_event.wait(self._get_check_interval_seconds())
         finally:
             with self._state_lock:
                 self._desired_running = False
                 self._thread = None
                 self._main_window = None
+
+    def _get_check_interval_seconds(self) -> float:
+        try:
+            config = self.bridge._get_config()
+            interval_minutes = float(getattr(config, "auto_payment_check_interval_minutes", 2.0))
+            if interval_minutes <= 0:
+                raise ValueError
+            return interval_minutes * 60
+        except Exception:
+            return self.default_check_interval_seconds
 
     def _get_main_window(self, bundle: Any, config: Any) -> Any:
         if self._main_window is not None:
