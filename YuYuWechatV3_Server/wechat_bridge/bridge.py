@@ -31,6 +31,9 @@ VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"}
 MEDIA_CACHE_ROOT = Path(tempfile.gettempdir()) / "yuyuwechat_v3_media_cache"
 MEDIA_CACHE_URL_PREFIX = "/wechat/media_cache"
 MEDIA_CACHE_TTL_SECONDS = 6 * 60 * 60
+SEARCH_RESULTS_STABILIZE_SECONDS = 1.0
+LOCAL_SEARCH_SECTION_LABELS = {"最近使用", "联系人", "群聊", "服务号", "公众号", "最常使用", "功能"}
+NETWORK_SEARCH_LABELS = {"搜索网络结果", "网络查找手机/QQ号：", "网络查找手机/QQ号:"}
 KNOWN_RUNTIME_ERROR_NAMES = {
     "NotStartError",
     "NotLoginError",
@@ -420,6 +423,68 @@ class WeChatBridge:
             time.sleep(0.1)
         return None
 
+    def _list_item_text(self, list_item: Any) -> str:
+        try:
+            text = list_item.window_text()
+        except Exception:
+            text = ""
+        return str(text or "").strip()
+
+    def _list_item_texts(self, list_item: Any) -> list[str]:
+        texts = [self._list_item_text(list_item)]
+        try:
+            descendants = list_item.descendants(control_type="Text")
+        except Exception:
+            descendants = []
+        for descendant in descendants:
+            text = self._list_item_text(descendant)
+            if text:
+                texts.append(text)
+        return texts
+
+    def _normalized_search_text(self, text: str) -> str:
+        return re.sub(r"\s+", "", text or "")
+
+    def _is_network_search_label(self, text: str) -> bool:
+        normalized = self._normalized_search_text(text)
+        return any(self._normalized_search_text(label) in normalized for label in NETWORK_SEARCH_LABELS)
+
+    def _is_network_search_item(self, list_item: Any) -> bool:
+        return any(self._is_network_search_label(text) for text in self._list_item_texts(list_item))
+
+    def _is_local_search_section_label(self, text: str) -> bool:
+        return text.strip() in LOCAL_SEARCH_SECTION_LABELS
+
+    def _search_result_matches_friend(self, list_item: Any, friend: str) -> bool:
+        expected = self._normalized_search_text(friend)
+        return any(self._normalized_search_text(text) == expected for text in self._list_item_texts(list_item))
+
+    def _get_local_search_result(self, friend: str, search_results: Any) -> Any | None:
+        try:
+            list_items = search_results.children(control_type="ListItem")
+        except Exception:
+            return None
+
+        current_section = "unknown"
+        fallback_matches: list[Any] = []
+        for list_item in list_items:
+            text = self._list_item_text(list_item)
+            if self._is_network_search_item(list_item):
+                current_section = "network"
+                continue
+            if self._is_local_search_section_label(text):
+                current_section = "local"
+                continue
+            if not self._search_result_matches_friend(list_item, friend):
+                continue
+            if current_section == "local":
+                return list_item
+            if current_section == "unknown":
+                fallback_matches.append(list_item)
+
+        # If WeChat omits section labels, still allow exact non-network matches.
+        return fallback_matches[0] if len(fallback_matches) == 1 else None
+
     def _open_dialog_in_main_window(
         self,
         main_window: Any,
@@ -436,35 +501,18 @@ class WeChatBridge:
         self._press_ctrl_f(main_window, bundle)
         search = self._wait_for_search_edit(main_window, bundle)
         self._fill_search_query(main_window, bundle, friend, search)
+        time.sleep(SEARCH_RESULTS_STABILIZE_SECONDS)
 
         search_results = self._wait_for_search_results(main_window, bundle)
         if search_results is None:
             raise BridgeOperationError(f"No search results were loaded for {friend}.")
 
-        try:
-            search_result = bundle.Tools.get_search_result(friend=friend, search_result=search_results)
-            search_mobile = search_results.children(**bundle.ListItems.MobileSearchListItem)
-        except Exception:
-            search_result = None
-            search_mobile = None
-
-        if search_result and not search_mobile:
+        search_result = self._get_local_search_result(friend, search_results)
+        if search_result:
             search_result.click_input()
             if focus_input:
                 self._focus_current_chat_input(main_window, bundle)
             return main_window
-
-        if not search_result and search_mobile:
-            search_mobile[0].click_input()
-            add_friend_window = bundle.desktop.window(**bundle.Windows.AddfriendWindow)
-            send_msg_button = add_friend_window.child_window(**bundle.Buttons.SendMessageButton)
-            if send_msg_button.exists(timeout=2):
-                send_msg_button.click_input()
-                add_friend_window.close()
-                if focus_input:
-                    self._focus_current_chat_input(main_window, bundle)
-                return main_window
-            add_friend_window.close()
 
         raise BridgeOperationError("好友或群聊备注有误！查无此人！")
 

@@ -16,6 +16,19 @@ from .models import RequestLog, WeChatConfig
 from . import views
 
 
+class SearchListItem:
+    def __init__(self, text, descendant_texts=None):
+        self._text = text
+        self._descendant_texts = descendant_texts or []
+        self.click_input = mock.Mock()
+
+    def window_text(self):
+        return self._text
+
+    def descendants(self, **kwargs):
+        return [SearchListItem(text) for text in self._descendant_texts]
+
+
 class DialogCompatTests(SimpleTestCase):
     def test_normalize_dialog_rows_inserts_time_boundaries(self):
         rows = normalize_dialog_rows(
@@ -286,10 +299,8 @@ class BridgeSendStrategyTests(SimpleTestCase):
         main_window = mock.Mock()
         bundle.Navigator.open_weixin.return_value = main_window
         search_results = mock.Mock()
-        search_results.children.return_value = []
-        search_result = mock.Mock()
-        bundle.ListItems.MobileSearchListItem = {"title": "网络查找手机/QQ号：", "control_type": "ListItem"}
-        bundle.Tools.get_search_result.return_value = search_result
+        search_result = SearchListItem("Mona")
+        search_results.children.return_value = [SearchListItem("群聊"), search_result]
         config = mock.Mock(is_maximize=False, window_size="800,600")
 
         with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
@@ -300,7 +311,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
             bridge,
             "_wait_for_search_results",
             return_value=search_results,
-        ), mock.patch.object(bridge, "_focus_current_chat_input"):
+        ), mock.patch.object(bridge, "_focus_current_chat_input"), mock.patch.object(bridge_module.time, "sleep"):
             result = bridge._open_dialog_via_ctrl_f(bundle, config, "Mona")
 
         self.assertIs(result, main_window)
@@ -316,10 +327,8 @@ class BridgeSendStrategyTests(SimpleTestCase):
         bundle = mock.Mock()
         main_window = mock.Mock()
         search_results = mock.Mock()
-        search_results.children.return_value = []
-        search_result = mock.Mock()
-        bundle.ListItems.MobileSearchListItem = {"title": "网络查找手机/QQ号：", "control_type": "ListItem"}
-        bundle.Tools.get_search_result.return_value = search_result
+        search_result = SearchListItem("Mona")
+        search_results.children.return_value = [SearchListItem("联系人"), search_result]
 
         with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
             bridge,
@@ -339,7 +348,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
         ), mock.patch.object(
             bridge,
             "_focus_current_chat_input",
-        ) as focus_input:
+        ) as focus_input, mock.patch.object(bridge_module.time, "sleep"):
             result = bridge._open_dialog_in_main_window(main_window, bundle, "Mona")
 
         self.assertIs(result, main_window)
@@ -352,10 +361,8 @@ class BridgeSendStrategyTests(SimpleTestCase):
         bundle = mock.Mock()
         main_window = mock.Mock()
         search_results = mock.Mock()
-        search_results.children.return_value = []
-        search_result = mock.Mock()
-        bundle.ListItems.MobileSearchListItem = {"title": "网络查找手机/QQ号：", "control_type": "ListItem"}
-        bundle.Tools.get_search_result.return_value = search_result
+        search_result = SearchListItem("Mona")
+        search_results.children.return_value = [SearchListItem("联系人"), search_result]
 
         with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
             bridge,
@@ -375,12 +382,81 @@ class BridgeSendStrategyTests(SimpleTestCase):
         ), mock.patch.object(
             bridge,
             "_focus_current_chat_input",
-        ) as focus_input:
+        ) as focus_input, mock.patch.object(bridge_module.time, "sleep"):
             result = bridge._open_dialog_in_main_window(main_window, bundle, "Mona", focus_input=False)
 
         self.assertIs(result, main_window)
         focus_input.assert_not_called()
         search_result.click_input.assert_called_once_with()
+
+    def test_open_dialog_in_main_window_skips_network_search_result(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        main_window = mock.Mock()
+        network_result = SearchListItem("Mona")
+        local_result = SearchListItem("Mona")
+        search_results = mock.Mock()
+        search_results.children.return_value = [
+            SearchListItem("搜索网络结果"),
+            network_result,
+            SearchListItem("群聊"),
+            local_result,
+        ]
+
+        with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
+            bridge,
+            "_is_current_chat",
+            return_value=False,
+        ), mock.patch.object(bridge, "_press_ctrl_f"), mock.patch.object(
+            bridge,
+            "_wait_for_search_edit",
+            return_value=mock.sentinel.search,
+        ), mock.patch.object(
+            bridge,
+            "_fill_search_query",
+        ), mock.patch.object(
+            bridge,
+            "_wait_for_search_results",
+            return_value=search_results,
+        ), mock.patch.object(
+            bridge,
+            "_focus_current_chat_input",
+        ), mock.patch.object(bridge_module.time, "sleep") as sleep:
+            result = bridge._open_dialog_in_main_window(main_window, bundle, "Mona")
+
+        self.assertIs(result, main_window)
+        sleep.assert_called_once_with(bridge_module.SEARCH_RESULTS_STABILIZE_SECONDS)
+        network_result.click_input.assert_not_called()
+        local_result.click_input.assert_called_once_with()
+
+    def test_open_dialog_in_main_window_does_not_click_network_only_result(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        main_window = mock.Mock()
+        network_result = SearchListItem("Mona")
+        search_results = mock.Mock()
+        search_results.children.return_value = [SearchListItem("搜索网络结果"), network_result]
+
+        with mock.patch.object(bridge, "_click_weixin_tab"), mock.patch.object(
+            bridge,
+            "_is_current_chat",
+            return_value=False,
+        ), mock.patch.object(bridge, "_press_ctrl_f"), mock.patch.object(
+            bridge,
+            "_wait_for_search_edit",
+            return_value=mock.sentinel.search,
+        ), mock.patch.object(
+            bridge,
+            "_fill_search_query",
+        ), mock.patch.object(
+            bridge,
+            "_wait_for_search_results",
+            return_value=search_results,
+        ), mock.patch.object(bridge_module.time, "sleep"):
+            with self.assertRaises(BridgeOperationError):
+                bridge._open_dialog_in_main_window(main_window, bundle, "Mona")
+
+        network_result.click_input.assert_not_called()
 
 
 class AutoPaymentServiceTests(SimpleTestCase):
