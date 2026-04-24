@@ -47,6 +47,22 @@ class DialogCompatTests(SimpleTestCase):
             ],
         )
 
+    def test_normalize_dialog_rows_maps_payment_timestamp_to_system_message(self):
+        rows = normalize_dialog_rows(
+            messages=["￥0.01 已收款 微信转账", "thank"],
+            timestamps=["系统消息或为红包与转账(无法获取时间戳)", "2026年4月24日 14:37"],
+        )
+
+        self.assertEqual(
+            rows,
+            [
+                ("时间信息", "", "2026年4月24日 14:37"),
+                ("用户发送", "", "thank"),
+                ("系统消息", "", "系统消息或为红包与转账(无法获取时间戳)"),
+                ("用户发送", "", "￥0.01 已收款 微信转账"),
+            ],
+        )
+
     def test_group_dialog_rows_uses_time_rows_as_boundaries(self):
         groups = group_dialog_rows(
             [
@@ -155,7 +171,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
         )
         return_to_list.assert_called_once_with(mock.sentinel.main_window, bundle)
 
-    def test_attach_media_rows_appends_cached_media_links_after_placeholders(self):
+    def test_attach_media_rows_replaces_placeholders_with_cached_media_links(self):
         bridge = WeChatBridge()
         bundle = mock.Mock()
         config = mock.Mock(is_maximize=False)
@@ -185,12 +201,9 @@ class BridgeSendStrategyTests(SimpleTestCase):
             enriched,
             [
                 ("时间信息", "", "10:00"),
-                ("用户发送", "", "图片"),
-                ("图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片3.png')}"),
-                ("用户发送", "", "视频"),
-                ("视频", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天视频2.mp4')}"),
-                ("用户发送", "", "图片"),
-                ("图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片1.png')}"),
+                ("用户发送图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片3.png')}"),
+                ("用户发送视频", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天视频2.mp4')}"),
+                ("用户发送图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片1.png')}"),
             ],
         )
         bundle.Messages.save_media.assert_called_once_with(
@@ -229,8 +242,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
             [
                 ("用户发送", "", "图片"),
                 ("用户发送", "", "视频"),
-                ("用户发送", "", "图片"),
-                ("图片", "", f"/wechat/media_cache/{'b' * 32}/{quote('与Mona的聊天图片1.png')}"),
+                ("用户发送图片", "", f"/wechat/media_cache/{'b' * 32}/{quote('与Mona的聊天图片1.png')}"),
             ],
         )
 

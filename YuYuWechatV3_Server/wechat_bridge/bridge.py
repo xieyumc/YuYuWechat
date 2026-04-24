@@ -23,9 +23,11 @@ from wechat_app.models import WeChatConfig
 DialogRow = tuple[str, str, str]
 TIME_INFO_TYPE = "时间信息"
 USER_MESSAGE_TYPE = "用户发送"
-IMAGE_MESSAGE_TYPE = "图片"
-VIDEO_MESSAGE_TYPE = "视频"
+SYSTEM_MESSAGE_TYPE = "系统消息"
+IMAGE_MESSAGE_TYPE = "用户发送图片"
+VIDEO_MESSAGE_TYPE = "用户发送视频"
 IMAGE_PLACEHOLDERS = {"图片", "[图片]"}
+SYSTEM_PAYMENT_TIMESTAMP = "系统消息或为红包与转账(无法获取时间戳)"
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
 VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"}
 MEDIA_CACHE_ROOT = Path(tempfile.gettempdir()) / "yuyuwechat_v3_media_cache"
@@ -84,7 +86,8 @@ def normalize_dialog_rows(messages: Iterable[Any], timestamps: Iterable[Any]) ->
         current_timestamp = "" if timestamp is None else str(timestamp)
         current_message = "" if message is None else str(message)
         if current_timestamp != previous_timestamp:
-            rows.append((TIME_INFO_TYPE, "", current_timestamp))
+            row_type = SYSTEM_MESSAGE_TYPE if current_timestamp == SYSTEM_PAYMENT_TIMESTAMP else TIME_INFO_TYPE
+            rows.append((row_type, "", current_timestamp))
             previous_timestamp = current_timestamp
         rows.append((USER_MESSAGE_TYPE, "", current_message))
 
@@ -636,9 +639,10 @@ class WeChatBridge:
 
         enriched_rows: list[DialogRow] = []
         for index, row in enumerate(rows):
-            enriched_rows.append(row)
             if index in media_row_by_index:
                 enriched_rows.append(media_row_by_index[index])
+            else:
+                enriched_rows.append(row)
         return enriched_rows
 
     def _dump_chat_rows(self, friend: str, number: int) -> tuple[list[DialogRow], int]:
