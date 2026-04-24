@@ -2,11 +2,14 @@ import json
 import tempfile
 import threading
 import time
+from pathlib import Path
 from unittest import mock
+from urllib.parse import quote
 
 from django.test import SimpleTestCase, TransactionTestCase
 
 from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
+import wechat_bridge.bridge as bridge_module
 from wechat_bridge.payment_listener import is_claimable_red_packet_item, is_claimable_transfer_item, iter_recent_items
 
 from .models import RequestLog, WeChatConfig
@@ -138,6 +141,85 @@ class BridgeSendStrategyTests(SimpleTestCase):
             close_weixin=False,
         )
         return_to_list.assert_called_once_with(mock.sentinel.main_window, bundle)
+
+    def test_attach_media_rows_appends_cached_media_links_after_placeholders(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        config = mock.Mock(is_maximize=False)
+        rows = [
+            ("时间信息", "", "10:00"),
+            ("用户发送", "", "图片"),
+            ("用户发送", "", "视频"),
+            ("用户发送", "", "图片"),
+        ]
+
+        def save_media(*, target_folder, **kwargs):
+            folder = Path(target_folder)
+            (folder / "与Mona的聊天图片1.png").write_bytes(b"new")
+            (folder / "与Mona的聊天视频2.mp4").write_bytes(b"video")
+            (folder / "与Mona的聊天图片3.png").write_bytes(b"old")
+
+        bundle.Messages.save_media.side_effect = save_media
+
+        with tempfile.TemporaryDirectory() as cache_root, mock.patch.object(
+            bridge_module,
+            "MEDIA_CACHE_ROOT",
+            Path(cache_root),
+        ), mock.patch("wechat_bridge.bridge.uuid.uuid4", return_value=mock.Mock(hex="a" * 32)):
+            enriched = bridge._attach_media_rows("Mona", rows, bundle, config)
+
+        self.assertEqual(
+            enriched,
+            [
+                ("时间信息", "", "10:00"),
+                ("用户发送", "", "图片"),
+                ("图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片3.png')}"),
+                ("用户发送", "", "视频"),
+                ("视频", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天视频2.mp4')}"),
+                ("用户发送", "", "图片"),
+                ("图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片1.png')}"),
+            ],
+        )
+        bundle.Messages.save_media.assert_called_once_with(
+            friend="Mona",
+            number=3,
+            target_folder=str(Path(cache_root) / ("a" * 32)),
+            search_pages=0,
+            is_maximize=False,
+            close_weixin=False,
+        )
+
+    def test_attach_media_rows_maps_partial_saved_media_to_latest_same_type_placeholder(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        config = mock.Mock(is_maximize=False)
+        rows = [
+            ("用户发送", "", "图片"),
+            ("用户发送", "", "视频"),
+            ("用户发送", "", "图片"),
+        ]
+
+        def save_media(*, target_folder, **kwargs):
+            Path(target_folder, "与Mona的聊天图片1.png").write_bytes(b"new")
+
+        bundle.Messages.save_media.side_effect = save_media
+
+        with tempfile.TemporaryDirectory() as cache_root, mock.patch.object(
+            bridge_module,
+            "MEDIA_CACHE_ROOT",
+            Path(cache_root),
+        ), mock.patch("wechat_bridge.bridge.uuid.uuid4", return_value=mock.Mock(hex="b" * 32)):
+            enriched = bridge._attach_media_rows("Mona", rows, bundle, config)
+
+        self.assertEqual(
+            enriched,
+            [
+                ("用户发送", "", "图片"),
+                ("用户发送", "", "视频"),
+                ("用户发送", "", "图片"),
+                ("图片", "", f"/wechat/media_cache/{'b' * 32}/{quote('与Mona的聊天图片1.png')}"),
+            ],
+        )
 
     def test_send_message_uses_top_search_and_returns_to_message_list(self):
         bridge = WeChatBridge()
@@ -754,6 +836,29 @@ class ApiContractTests(TransactionTestCase):
             {"status": "success", "dialogs": [[["时间信息", "", "10:00"], ["用户发送", "", "hello"]]]},
         )
         mocked_get_dialogs.assert_called_once_with("测试群", 1)
+
+    def test_media_cache_download_serves_cached_file(self):
+        token = "c" * 32
+        filename = "与Mona的聊天视频1.mp4"
+        with tempfile.TemporaryDirectory() as cache_root, mock.patch.object(
+            bridge_module,
+            "MEDIA_CACHE_ROOT",
+            Path(cache_root),
+        ), mock.patch.object(views, "MEDIA_CACHE_ROOT", Path(cache_root)):
+            media_dir = Path(cache_root) / token
+            media_dir.mkdir(parents=True)
+            (media_dir / filename).write_bytes(b"video")
+
+            response = self.client.get(f"/wechat/media_cache/{token}/{quote(filename)}")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(b"".join(response.streaming_content), b"video")
+        self.assertEqual(response["Content-Type"], "video/mp4")
+
+    def test_media_cache_download_rejects_invalid_token(self):
+        response = self.client.get("/wechat/media_cache/not-a-token/test.png")
+
+        self.assertEqual(response.status_code, 404)
 
     @mock.patch.object(views.bridge, "check_wechat_status", return_value={"status": "WeChat checked and prevent offline executed"})
     def test_check_wechat_status_contract(self, mocked_check):

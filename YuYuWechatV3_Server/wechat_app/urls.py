@@ -4,9 +4,10 @@ from django.urls import path
 
 from .views import send_message, ping, check_wechat_status, get_dialogs_view, get_dialogs_by_time_blocks_view, \
     send_file_view, request_logs_view, auto_payment_status_view, toggle_auto_payment_view, update_auto_payment_config_view, \
-    claim_payment_view
+    claim_payment_view, media_cache_view
 
 urlpatterns = [
+    path('media_cache/<str:token>/<path:filename>', media_cache_view, name='media_cache'),
     path('ping/', ping, name='ping'),
     path('send_message/', send_message, name='send_message'),
     path('claim_payment/', claim_payment_view, name='claim_payment'),

@@ -1,11 +1,14 @@
 import json
+import mimetypes
 import os
+import re
 import threading
+from pathlib import Path
 from queue import Queue
 from typing import Any
 
 from django.db import close_old_connections
-from django.http import JsonResponse
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import render
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -14,6 +17,7 @@ from rest_framework import serializers
 from rest_framework.decorators import api_view
 
 from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge
+from wechat_bridge.bridge import MEDIA_CACHE_ROOT, cleanup_media_cache
 
 from .models import RequestLog, WeChatConfig
 
@@ -276,6 +280,45 @@ def _get_auto_payment_config_payload() -> dict[str, Any]:
         "payment_reply_delay": config.payment_reply_delay,
         "red_packet_thanks_message": config.red_packet_thanks_message,
     }
+
+
+@extend_schema(
+    summary="下载聊天记录缓存媒体文件",
+    parameters=[
+        OpenApiParameter(name="token", description="缓存批次 token", required=True, type=OpenApiTypes.STR),
+        OpenApiParameter(name="filename", description="缓存媒体文件名", required=True, type=OpenApiTypes.STR),
+    ],
+    responses={200: OpenApiResponse(description="媒体文件")},
+    tags=["WeChat Data"],
+)
+@api_view(["GET"])
+@csrf_exempt
+def media_cache_view(request, token: str, filename: str):
+    if not re.fullmatch(r"[0-9a-f]{32}", token or ""):
+        raise Http404("Invalid media cache token")
+
+    cleanup_media_cache()
+    safe_filename = Path(filename).name
+    if safe_filename != filename:
+        raise Http404("Invalid media filename")
+
+    media_dir = (MEDIA_CACHE_ROOT / token).resolve()
+    media_path = (media_dir / safe_filename).resolve()
+    try:
+        media_path.relative_to(media_dir)
+    except ValueError as exc:
+        raise Http404("Invalid media path") from exc
+
+    if not media_path.is_file():
+        raise Http404("Media file not found")
+
+    content_type = mimetypes.guess_type(str(media_path))[0] or "application/octet-stream"
+    return FileResponse(
+        media_path.open("rb"),
+        as_attachment=True,
+        filename=safe_filename,
+        content_type=content_type,
+    )
 
 
 @extend_schema(

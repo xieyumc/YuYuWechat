@@ -3,13 +3,18 @@ from __future__ import annotations
 import ast
 import importlib
 import os
+import re
+import shutil
 import subprocess
 import sys
+import tempfile
 import time
+import uuid
 from dataclasses import dataclass
 from itertools import zip_longest
 from pathlib import Path
 from typing import Any, Iterable
+from urllib.parse import quote
 
 from django.core.exceptions import ValidationError
 
@@ -18,6 +23,14 @@ from wechat_app.models import WeChatConfig
 DialogRow = tuple[str, str, str]
 TIME_INFO_TYPE = "时间信息"
 USER_MESSAGE_TYPE = "用户发送"
+IMAGE_MESSAGE_TYPE = "图片"
+VIDEO_MESSAGE_TYPE = "视频"
+IMAGE_PLACEHOLDERS = {"图片", "[图片]"}
+IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp", ".gif", ".webp"}
+VIDEO_SUFFIXES = {".mp4", ".mov", ".avi", ".mkv", ".wmv", ".m4v"}
+MEDIA_CACHE_ROOT = Path(tempfile.gettempdir()) / "yuyuwechat_v3_media_cache"
+MEDIA_CACHE_URL_PREFIX = "/wechat/media_cache"
+MEDIA_CACHE_TTL_SECONDS = 6 * 60 * 60
 KNOWN_RUNTIME_ERROR_NAMES = {
     "NotStartError",
     "NotLoginError",
@@ -73,6 +86,27 @@ def normalize_dialog_rows(messages: Iterable[Any], timestamps: Iterable[Any]) ->
         rows.append((USER_MESSAGE_TYPE, "", current_message))
 
     return rows
+
+
+def is_image_message(content: Any) -> bool:
+    return str(content or "").strip() in IMAGE_PLACEHOLDERS
+
+
+def is_video_message(content: Any) -> bool:
+    text = str(content or "").strip()
+    return "视频" in text and len(text) <= 30
+
+
+def cleanup_media_cache(max_age_seconds: int = MEDIA_CACHE_TTL_SECONDS) -> None:
+    if not MEDIA_CACHE_ROOT.exists():
+        return
+    now = time.time()
+    for child in MEDIA_CACHE_ROOT.iterdir():
+        try:
+            if child.is_dir() and now - child.stat().st_mtime > max_age_seconds:
+                shutil.rmtree(child, ignore_errors=True)
+        except OSError:
+            continue
 
 
 def group_dialog_rows(rows: Iterable[DialogRow]) -> list[list[DialogRow]]:
@@ -438,6 +472,127 @@ class WeChatBridge:
         main_window = self._open_main_window(bundle, config)
         return self._open_dialog_in_main_window(main_window, bundle, friend)
 
+    def _media_count_from_rows(self, rows: Iterable[DialogRow]) -> tuple[int, int]:
+        image_count = 0
+        video_count = 0
+        for row_type, _, content in rows:
+            if row_type != USER_MESSAGE_TYPE:
+                continue
+            if is_image_message(content):
+                image_count += 1
+            elif is_video_message(content):
+                video_count += 1
+        return image_count, video_count
+
+    def _saved_media_sort_key(self, path: Path) -> tuple[int, str]:
+        match = re.search(r"(\d+)(?=\.[^.]+$)", path.name)
+        number = int(match.group(1)) if match else 0
+        return number, path.name
+
+    def _create_media_cache_dir(self) -> Path:
+        cleanup_media_cache()
+        MEDIA_CACHE_ROOT.mkdir(parents=True, exist_ok=True)
+        cache_dir = MEDIA_CACHE_ROOT / uuid.uuid4().hex
+        cache_dir.mkdir(parents=True, exist_ok=False)
+        return cache_dir
+
+    def _media_type_for_path(self, path: Path) -> str | None:
+        suffix = path.suffix.lower()
+        if suffix in IMAGE_SUFFIXES:
+            return IMAGE_MESSAGE_TYPE
+        if suffix in VIDEO_SUFFIXES:
+            return VIDEO_MESSAGE_TYPE
+        return None
+
+    def _cached_media_url(self, path: Path) -> str:
+        token = path.parent.name
+        return f"{MEDIA_CACHE_URL_PREFIX}/{quote(token)}/{quote(path.name)}"
+
+    def _cached_media_rows(self, media_paths: Iterable[Path]) -> list[DialogRow]:
+        rows: list[DialogRow] = []
+        for media_path in media_paths:
+            media_type = self._media_type_for_path(media_path)
+            if media_type is None:
+                continue
+            rows.append((media_type, "", self._cached_media_url(media_path)))
+        return rows
+
+    def _load_recent_media_rows(
+        self,
+        friend: str,
+        rows: list[DialogRow],
+        bundle: PyWeixinBundle,
+        config: WeChatConfig,
+    ) -> list[DialogRow]:
+        image_count, video_count = self._media_count_from_rows(rows)
+        media_count = image_count + video_count
+        if media_count <= 0:
+            return []
+
+        try:
+            cache_dir = self._create_media_cache_dir()
+            bundle.Messages.save_media(
+                friend=friend,
+                number=media_count,
+                target_folder=str(cache_dir),
+                search_pages=0,
+                is_maximize=config.is_maximize,
+                close_weixin=False,
+            )
+            media_paths = [
+                path
+                for path in cache_dir.iterdir()
+                if path.is_file() and self._media_type_for_path(path) is not None
+            ]
+            media_paths = sorted(media_paths, key=self._saved_media_sort_key)
+            # save_media stores newest media first; normalized chat rows are chronological.
+            media_paths = list(reversed(media_paths))[-media_count:]
+            if not media_paths:
+                shutil.rmtree(cache_dir, ignore_errors=True)
+            return self._cached_media_rows(media_paths)
+        except Exception:
+            return []
+
+    def _attach_media_rows(
+        self,
+        friend: str,
+        rows: list[DialogRow],
+        bundle: PyWeixinBundle,
+        config: WeChatConfig,
+    ) -> list[DialogRow]:
+        media_rows = self._load_recent_media_rows(friend, rows, bundle, config)
+        if not media_rows:
+            return rows
+
+        placeholder_indices_by_type = {
+            IMAGE_MESSAGE_TYPE: [
+                index
+                for index, row in enumerate(rows)
+                if row[0] == USER_MESSAGE_TYPE and is_image_message(row[2])
+            ],
+            VIDEO_MESSAGE_TYPE: [
+                index
+                for index, row in enumerate(rows)
+                if row[0] == USER_MESSAGE_TYPE and is_video_message(row[2])
+            ],
+        }
+        media_rows_by_type = {IMAGE_MESSAGE_TYPE: [], VIDEO_MESSAGE_TYPE: []}
+        for media_row in media_rows:
+            if media_row[0] in media_rows_by_type:
+                media_rows_by_type[media_row[0]].append(media_row)
+
+        media_row_by_index: dict[int, DialogRow] = {}
+        for media_type, typed_media_rows in media_rows_by_type.items():
+            typed_indices = placeholder_indices_by_type[media_type]
+            media_row_by_index.update(dict(zip(typed_indices[-len(typed_media_rows) :], typed_media_rows)))
+
+        enriched_rows: list[DialogRow] = []
+        for index, row in enumerate(rows):
+            enriched_rows.append(row)
+            if index in media_row_by_index:
+                enriched_rows.append(media_row_by_index[index])
+        return enriched_rows
+
     def _dump_chat_rows(self, friend: str, number: int) -> tuple[list[DialogRow], int]:
         bundle = None
         main_window = None
@@ -450,13 +605,14 @@ class WeChatBridge:
                 search_pages=0,
                 close_weixin=False,
             )
+            rows = normalize_dialog_rows(messages, timestamps)
+            rows = self._attach_media_rows(friend, rows, bundle, config)
         except Exception as exc:
             raise map_runtime_exception(exc) from exc
         finally:
             if bundle is not None and main_window is not None:
                 self._return_to_message_list(main_window, bundle)
 
-        rows = normalize_dialog_rows(messages, timestamps)
         return rows, len(messages)
 
     def send_message(self, name: str, text: str) -> dict[str, Any]:
@@ -531,7 +687,7 @@ class WeChatBridge:
 
     def get_dialogs(self, name: str, n_msg: int) -> list[DialogRow]:
         rows, _ = self._dump_chat_rows(name, n_msg)
-        return rows[-n_msg:]
+        return rows
 
     def get_dialogs_by_time_blocks(self, name: str, n_time_blocks: int) -> list[list[DialogRow]]:
         fetch_size = max(20, n_time_blocks * 5)
