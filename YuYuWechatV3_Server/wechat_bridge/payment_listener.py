@@ -20,6 +20,25 @@ PAYMENT_FOCUS_KEYWORDS = (
     "零钱",
     "Best wishes",
 )
+RED_PACKET_CLOSED_KEYWORDS = (
+    "已领取",
+    "已被领取",
+    "已被领完",
+    "已领完",
+    "已过期",
+    "手慢了",
+    "已抢完",
+)
+TRANSFER_PENDING_KEYWORDS = (
+    "待你收款",
+    "收款",
+)
+TRANSFER_CLOSED_KEYWORDS = (
+    "已存入零钱",
+    "已收款",
+    "已退还",
+    "已过期",
+)
 
 
 @dataclass(slots=True)
@@ -39,11 +58,20 @@ def runtime_id_of(listitem: Any) -> tuple[int, ...]:
 
 
 def iter_recent_items(chat_list: Any, unread_count: int, scan_limit: int) -> Iterable[Any]:
-    items = chat_list.children(control_type="ListItem")
+    items = list(chat_list.children(control_type="ListItem"))
     if not items:
         return []
-    recent_limit = min(len(items), max(scan_limit, unread_count * 3))
-    return reversed(items[-recent_limit:])
+    ordered_items = sorted(items, key=_item_visual_key)
+    recent_limit = min(len(ordered_items), max(scan_limit, unread_count * 3))
+    return reversed(ordered_items[-recent_limit:])
+
+
+def _item_visual_key(listitem: Any) -> tuple[int, int]:
+    try:
+        rect = listitem.rectangle()
+        return rect.mid_point().y, rect.mid_point().x
+    except Exception:
+        return (0, 0)
 
 
 def item_texts(listitem: Any) -> list[str]:
@@ -71,6 +99,22 @@ def is_red_packet_item(listitem: Any) -> bool:
 
 def is_transfer_item(listitem: Any) -> bool:
     return any("转账" in text for text in item_texts(listitem))
+
+
+def is_claimable_red_packet_item(listitem: Any) -> bool:
+    texts = item_texts(listitem)
+    if not any("微信红包" in text for text in texts):
+        return False
+    return not any(keyword in text for text in texts for keyword in RED_PACKET_CLOSED_KEYWORDS)
+
+
+def is_claimable_transfer_item(listitem: Any) -> bool:
+    texts = item_texts(listitem)
+    if not any("转账" in text for text in texts):
+        return False
+    if any(keyword in text for text in texts for keyword in TRANSFER_CLOSED_KEYWORDS):
+        return False
+    return any(keyword in text for text in texts for keyword in TRANSFER_PENDING_KEYWORDS)
 
 
 class AutoPaymentService:
@@ -101,6 +145,31 @@ class AutoPaymentService:
         self._processed_payments: set[tuple[str, str, tuple[int, ...], str]] = set()
         self._runtime: PaymentRuntime | None = None
         self._main_window: Any | None = None
+
+    def claim_payments_for_friend(self, friend: str, reply: str | None = None, reply_provided: bool = False) -> dict[str, Any]:
+        bundle, config = self.bridge._prepare_bundle()
+        runtime = self._load_runtime()
+        main_window = self._get_main_window(bundle, config)
+        red_packet_count, transfer_count = self._claim_payments_in_session(
+            bundle=bundle,
+            runtime=runtime,
+            config=config,
+            friend=friend,
+            unread_count=1,
+            main_window=main_window,
+            scan_limit=max(self.scan_limit, 30),
+            reply_override=reply,
+            use_reply_override=reply_provided,
+        )
+        payload = {
+            "status": "success",
+            "name": friend,
+            "red_packets": red_packet_count,
+            "transfers": transfer_count,
+        }
+        if red_packet_count == 0 and transfer_count == 0:
+            payload["message"] = "No claimable red packet or transfer found"
+        return payload
 
     def _maybe_initialize_com(self) -> None:
         try:
@@ -258,6 +327,9 @@ class AutoPaymentService:
         friend: str,
         unread_count: int,
         main_window: Any,
+        scan_limit: int | None = None,
+        reply_override: str | None = None,
+        use_reply_override: bool = False,
     ) -> tuple[int, int]:
         red_packet_count = 0
         transfer_count = 0
@@ -279,17 +351,18 @@ class AutoPaymentService:
 
         bundle.Tools.activate_chatList(chat_list)
         time.sleep(0.2)
+        effective_scan_limit = self.scan_limit if scan_limit is None else int(scan_limit)
 
-        for item in iter_recent_items(chat_list, unread_count=unread_count, scan_limit=self.scan_limit):
+        for item in iter_recent_items(chat_list, unread_count=unread_count, scan_limit=effective_scan_limit):
             if item.class_name() != "mmui::ChatBubbleItemView":
                 continue
 
             texts = item_texts(item)
             text_key = " | ".join(texts)
             item_kind = None
-            if is_red_packet_item(item):
+            if is_claimable_red_packet_item(item):
                 item_kind = "red_packet"
-            elif is_transfer_item(item):
+            elif is_claimable_transfer_item(item):
                 item_kind = "transfer"
             if item_kind is None:
                 continue
@@ -307,6 +380,8 @@ class AutoPaymentService:
                     config=config,
                     friend=friend,
                     chat_list=chat_list,
+                    reply_override=reply_override,
+                    use_reply_override=use_reply_override,
                 ):
                     self._processed_payments.add(payment_key)
                     red_packet_count += 1
@@ -321,6 +396,8 @@ class AutoPaymentService:
                     config=config,
                     friend=friend,
                     chat_list=chat_list,
+                    reply_override=reply_override,
+                    use_reply_override=use_reply_override,
                 ):
                     self._processed_payments.add(payment_key)
                     transfer_count += 1
@@ -342,6 +419,8 @@ class AutoPaymentService:
         config: Any,
         friend: str,
         chat_list: Any = None,
+        reply_override: str | None = None,
+        use_reply_override: bool = False,
     ) -> bool:
         red_envelop_view = dialog_window.child_window(
             class_name="mmui::PayRedEnvelopeInfoView",
@@ -379,16 +458,28 @@ class AutoPaymentService:
                 config=config,
                 friend=friend,
                 payment_type="红包",
+                reply_override=reply_override,
+                use_reply_override=use_reply_override,
             )
         except Exception:
             pass
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
         return True
 
-    def _render_payment_thanks_message(self, config: Any, friend: str, payment_type: str) -> str:
-        if not getattr(config, "auto_thank_after_red_packet", False):
-            return ""
-        template = (getattr(config, "red_packet_thanks_message", "") or "").strip()
+    def _render_payment_thanks_message(
+        self,
+        config: Any,
+        friend: str,
+        payment_type: str,
+        reply_override: str | None = None,
+        use_reply_override: bool = False,
+    ) -> str:
+        if use_reply_override:
+            template = (reply_override or "").strip()
+        else:
+            if not getattr(config, "auto_thank_after_red_packet", False):
+                return ""
+            template = (getattr(config, "red_packet_thanks_message", "") or "").strip()
         if not template:
             return ""
         try:
@@ -409,10 +500,20 @@ class AutoPaymentService:
         config: Any,
         friend: str,
         payment_type: str,
+        reply_override: str | None = None,
+        use_reply_override: bool = False,
     ) -> bool:
-        thanks_message = self._render_payment_thanks_message(config, friend, payment_type)
+        thanks_message = self._render_payment_thanks_message(
+            config,
+            friend,
+            payment_type,
+            reply_override=reply_override,
+            use_reply_override=use_reply_override,
+        )
         if not thanks_message:
             return False
+
+        time.sleep(float(getattr(config, "payment_reply_delay", 2.0)))
 
         edit_area = dialog_window.child_window(**bundle.Edits.CurrentChatEdit)
         if not edit_area.exists(timeout=0.5) or not edit_area.is_visible():
@@ -443,6 +544,8 @@ class AutoPaymentService:
         config: Any,
         friend: str,
         chat_list: Any = None,
+        reply_override: str | None = None,
+        use_reply_override: bool = False,
     ) -> bool:
         transfer_item.click_input()
         time.sleep(0.6)
@@ -461,6 +564,8 @@ class AutoPaymentService:
                 config=config,
                 friend=friend,
                 payment_type="转账",
+                reply_override=reply_override,
+                use_reply_override=use_reply_override,
             )
         except Exception:
             pass

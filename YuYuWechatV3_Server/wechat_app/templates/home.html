@@ -102,6 +102,19 @@
             成功领取红包/收取转账后自动发送感谢消息
         </label>
     </div>
+    <div class="status-row">
+        <label class="inline" for="payment-reply-delay">
+            自动感谢回复延迟（秒）
+            <input
+                id="payment-reply-delay"
+                type="number"
+                min="0"
+                step="0.1"
+                value="{{ auto_payment_config.payment_reply_delay }}"
+                style="width: 120px; margin-left: 8px;"
+            >
+        </label>
+    </div>
     <div class="status-row muted">支持占位符：<code>{friend}</code>、<code>{name}</code>、<code>{payment_type}</code></div>
     <div class="status-row">
         <textarea
@@ -136,6 +149,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
     const errorEl = document.getElementById("auto-payment-error");
     const messageEl = document.getElementById("auto-payment-message");
     const thankEnabledEl = document.getElementById("thank-after-red-packet");
+    const paymentReplyDelayEl = document.getElementById("payment-reply-delay");
     const thankMessageEl = document.getElementById("red-packet-thanks-message");
     const saveConfigButton = document.getElementById("save-auto-payment-config");
     const configMessageEl = document.getElementById("auto-payment-config-message");
@@ -191,6 +205,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
                 headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({
                     auto_thank_after_red_packet: thankEnabledEl.checked,
+                    payment_reply_delay: Number(paymentReplyDelayEl.value),
                     red_packet_thanks_message: thankMessageEl.value,
                 }),
             });

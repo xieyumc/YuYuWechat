@@ -23,6 +23,15 @@ class SendMessageSerializer(serializers.Serializer):
     text = serializers.CharField(help_text="要发送的文本消息内容")
 
 
+class ClaimPaymentSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="要手动领取红包/转账的好友名称")
+    reply = serializers.CharField(
+        required=False,
+        allow_blank=True,
+        help_text="领取后的回复内容。若传入则优先使用；若不传则回退到系统自动感谢设置。",
+    )
+
+
 class OperationResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
     name = serializers.CharField(required=False)
@@ -31,6 +40,15 @@ class OperationResponseSerializer(serializers.Serializer):
 
 class PingResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
+
+
+class ClaimPaymentResponseSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    name = serializers.CharField()
+    red_packets = serializers.IntegerField()
+    transfers = serializers.IntegerField()
+    message = serializers.CharField(required=False)
+    error = serializers.CharField(required=False)
 
 
 class SendFileSerializer(serializers.Serializer):
@@ -96,6 +114,7 @@ class AutoPaymentStatusSerializer(serializers.Serializer):
 
 class AutoPaymentConfigSerializer(serializers.Serializer):
     auto_thank_after_red_packet = serializers.BooleanField()
+    payment_reply_delay = serializers.FloatField(min_value=0.0)
     red_packet_thanks_message = serializers.CharField(allow_blank=True)
 
 
@@ -159,6 +178,15 @@ def _enqueue_and_wait(task: dict[str, Any]) -> dict[str, Any]:
 def _execute_task(action: str, args: dict[str, Any]) -> dict[str, Any]:
     if action == "send_message":
         return {"http_status": 200, "response": bridge.send_message(args["name"], args["text"])}
+    if action == "claim_payment":
+        return {
+            "http_status": 200,
+            "response": auto_payment_service.claim_payments_for_friend(
+                args["name"],
+                reply=args.get("reply"),
+                reply_provided=bool(args.get("reply_provided")),
+            ),
+        }
     if action == "send_file":
         return {"http_status": 200, "response": bridge.send_file(args["name"], args["file_path"])}
     if action == "check_status":
@@ -245,6 +273,7 @@ def _get_auto_payment_config_payload() -> dict[str, Any]:
     config = WeChatConfig.get_solo()
     return {
         "auto_thank_after_red_packet": config.auto_thank_after_red_packet,
+        "payment_reply_delay": config.payment_reply_delay,
         "red_packet_thanks_message": config.red_packet_thanks_message,
     }
 
@@ -281,6 +310,59 @@ def send_message(request):
         {
             "type": "send_message",
             "args": {"name": name, "text": text},
+            "log_id": log.id,
+        }
+    )
+    return _json_response(result["response"], result["http_status"])
+
+
+@extend_schema(
+    summary="手动领取指定好友的红包/转账，并按优先级发送回复",
+    request=ClaimPaymentSerializer,
+    responses={
+        200: OpenApiResponse(response=ClaimPaymentResponseSerializer, description="领取完成"),
+        400: OpenApiResponse(response=OperationResponseSerializer, description="无效的请求参数"),
+        500: OpenApiResponse(response=OperationResponseSerializer, description="领取失败或发生内部错误"),
+    },
+    tags=["WeChat Actions"],
+)
+@api_view(["POST"])
+@csrf_exempt
+def claim_payment_view(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return _json_response({"status": "error", "error": "Invalid request payload"}, 400)
+
+    name = data.get("name")
+    reply_provided = "reply" in data
+    reply = data.get("reply")
+
+    if not isinstance(name, str) or not name.strip():
+        return _json_response({"status": "error", "error": "Missing or invalid name parameter"}, 400)
+    if reply_provided and not isinstance(reply, str):
+        return _json_response({"status": "error", "error": "reply must be a string"}, 400)
+
+    request_data = {"name": name}
+    if reply_provided:
+        request_data["reply"] = reply
+
+    log = RequestLog.objects.create(
+        action="claim_payment",
+        endpoint=request.path,
+        status="queued",
+        request_data=request_data,
+        client_ip=_get_client_ip(request),
+    )
+
+    result = _enqueue_and_wait(
+        {
+            "type": "claim_payment",
+            "args": {
+                "name": name,
+                "reply": reply,
+                "reply_provided": reply_provided,
+            },
             "log_id": log.id,
         }
     )
@@ -590,15 +672,23 @@ def update_auto_payment_config_view(request):
         return _json_response({"status": "error", "error": "Invalid request payload"}, 400)
 
     auto_thank_after_red_packet = data.get("auto_thank_after_red_packet")
+    payment_reply_delay = data.get("payment_reply_delay", 2.0)
     red_packet_thanks_message = data.get("red_packet_thanks_message", "")
 
     if not isinstance(auto_thank_after_red_packet, bool):
         return _json_response({"status": "error", "error": "auto_thank_after_red_packet must be a boolean"}, 400)
+    try:
+        payment_reply_delay = float(payment_reply_delay)
+        if payment_reply_delay < 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return _json_response({"status": "error", "error": "payment_reply_delay must be a non-negative number"}, 400)
     if not isinstance(red_packet_thanks_message, str):
         return _json_response({"status": "error", "error": "red_packet_thanks_message must be a string"}, 400)
 
     config = WeChatConfig.get_solo()
     config.auto_thank_after_red_packet = auto_thank_after_red_packet
+    config.payment_reply_delay = payment_reply_delay
     config.red_packet_thanks_message = red_packet_thanks_message
     try:
         config.save()

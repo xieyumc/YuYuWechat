@@ -7,6 +7,7 @@ from unittest import mock
 from django.test import SimpleTestCase, TransactionTestCase
 
 from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
+from wechat_bridge.payment_listener import is_claimable_red_packet_item, is_claimable_transfer_item, iter_recent_items
 
 from .models import RequestLog, WeChatConfig
 from . import views
@@ -301,6 +302,150 @@ class BridgeSendStrategyTests(SimpleTestCase):
 
 
 class AutoPaymentServiceTests(SimpleTestCase):
+    def test_iter_recent_items_prefers_visual_bottom_items_first(self):
+        class _Point:
+            def __init__(self, x, y):
+                self.x = x
+                self.y = y
+
+        class _Rect:
+            def __init__(self, y):
+                self._point = _Point(0, y)
+
+            def mid_point(self):
+                return self._point
+
+        class _Item:
+            def __init__(self, name, y):
+                self.name = name
+                self._rect = _Rect(y)
+
+            def rectangle(self):
+                return self._rect
+
+        older = _Item("older", 100)
+        middle = _Item("middle", 200)
+        latest = _Item("latest", 300)
+        chat_list = mock.Mock()
+        chat_list.children.return_value = [middle, latest, older]
+
+        ordered = list(iter_recent_items(chat_list, unread_count=1, scan_limit=3))
+
+        self.assertEqual([item.name for item in ordered], ["latest", "middle", "older"])
+
+    def test_claimable_payment_item_filters_skip_old_claimed_records(self):
+        def make_item(*texts):
+            item = mock.Mock()
+            item.window_text.return_value = texts[0] if texts else ""
+            descendants = []
+            for text in texts[1:]:
+                text_control = mock.Mock()
+                text_control.window_text.return_value = text
+                descendants.append(text_control)
+            item.descendants.return_value = descendants
+            return item
+
+        claimable_red_packet = make_item("微信红包", "恭喜发财")
+        claimed_red_packet = make_item("微信红包", "已领取")
+        claimable_transfer = make_item("微信转账", "待你收款")
+        claimed_transfer = make_item("微信转账", "已存入零钱")
+
+        self.assertTrue(is_claimable_red_packet_item(claimable_red_packet))
+        self.assertFalse(is_claimable_red_packet_item(claimed_red_packet))
+        self.assertTrue(is_claimable_transfer_item(claimable_transfer))
+        self.assertFalse(is_claimable_transfer_item(claimed_transfer))
+
+    def test_render_payment_thanks_message_blank_override_disables_default_reply(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        config = mock.Mock(
+            auto_thank_after_red_packet=True,
+            red_packet_thanks_message="谢谢{friend}的{payment_type}",
+        )
+
+        result = service._render_payment_thanks_message(
+            config,
+            "Mona",
+            "红包",
+            reply_override="",
+            use_reply_override=True,
+        )
+
+        self.assertEqual(result, "")
+
+    def test_claim_payments_for_friend_uses_explicit_reply_override(self):
+        bridge = mock.Mock()
+        service = AutoPaymentService(bridge=bridge, operation_lock=threading.Lock())
+        bundle = mock.Mock()
+        config = mock.Mock()
+        runtime = mock.Mock()
+        main_window = mock.Mock()
+        main_window.exists.return_value = True
+
+        with mock.patch.object(service, "_load_runtime", return_value=runtime), mock.patch.object(
+            service,
+            "_claim_payments_in_session",
+            return_value=(1, 1),
+        ) as claim_in_session:
+            bridge._prepare_bundle.return_value = (bundle, config)
+            service._main_window = main_window
+            result = service.claim_payments_for_friend("Mona", reply="已收到", reply_provided=True)
+
+        self.assertEqual(
+            result,
+            {"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1},
+        )
+        claim_in_session.assert_called_once_with(
+            bundle=bundle,
+            runtime=runtime,
+            config=config,
+            friend="Mona",
+            unread_count=1,
+            main_window=main_window,
+            scan_limit=max(service.scan_limit, 30),
+            reply_override="已收到",
+            use_reply_override=True,
+        )
+
+    def test_claim_payments_for_friend_without_override_uses_system_defaults(self):
+        bridge = mock.Mock()
+        service = AutoPaymentService(bridge=bridge, operation_lock=threading.Lock())
+        bundle = mock.Mock()
+        config = mock.Mock()
+        runtime = mock.Mock()
+        main_window = mock.Mock()
+        main_window.exists.return_value = True
+
+        with mock.patch.object(service, "_load_runtime", return_value=runtime), mock.patch.object(
+            service,
+            "_claim_payments_in_session",
+            return_value=(0, 0),
+        ) as claim_in_session:
+            bridge._prepare_bundle.return_value = (bundle, config)
+            service._main_window = main_window
+            result = service.claim_payments_for_friend("Mona")
+
+        self.assertEqual(
+            result,
+            {
+                "status": "success",
+                "name": "Mona",
+                "red_packets": 0,
+                "transfers": 0,
+                "message": "No claimable red packet or transfer found",
+            },
+        )
+        claim_in_session.assert_called_once_with(
+            bundle=bundle,
+            runtime=runtime,
+            config=config,
+            friend="Mona",
+            unread_count=1,
+            main_window=main_window,
+            scan_limit=max(service.scan_limit, 30),
+            reply_override=None,
+            use_reply_override=False,
+        )
+
     def test_scan_once_reuses_single_main_window(self):
         bridge = mock.Mock()
         service = AutoPaymentService(bridge=bridge, operation_lock=threading.Lock())
@@ -370,17 +515,20 @@ class AutoPaymentServiceTests(SimpleTestCase):
         dialog_window.child_window.return_value = edit_area
         config = mock.Mock(
             auto_thank_after_red_packet=True,
+            payment_reply_delay=2.0,
             red_packet_thanks_message="谢谢{friend}的{payment_type}",
             send_delay=0.2,
         )
 
-        with mock.patch("wechat_bridge.payment_listener.time.sleep"):
+        with mock.patch("wechat_bridge.payment_listener.time.sleep") as mocked_sleep:
             result = service._send_payment_thanks_message(dialog_window, bundle, config, "Mona", "转账")
 
         self.assertTrue(result)
         bundle.SystemSettings.copy_text_to_clipboard.assert_called_once_with("谢谢Mona的转账")
         bundle.pyautogui.hotkey.assert_any_call("ctrl", "v", _pause=False)
         bundle.pyautogui.hotkey.assert_any_call("alt", "s", _pause=False)
+        mocked_sleep.assert_any_call(2.0)
+        mocked_sleep.assert_any_call(0.2)
 
     def test_try_collect_transfer_sends_thanks_message(self):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
@@ -415,6 +563,8 @@ class AutoPaymentServiceTests(SimpleTestCase):
             config=config,
             friend="Mona",
             payment_type="转账",
+            reply_override=None,
+            use_reply_override=False,
         )
         cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
 
@@ -470,6 +620,40 @@ class ApiContractTests(TransactionTestCase):
         self.assertIsNotNone(log.started_at)
         self.assertIsNotNone(log.finished_at)
         self.assertIsNotNone(log.duration_ms)
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "claim_payments_for_friend",
+        return_value={"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1},
+    )
+    def test_claim_payment_contract_and_log_flow(self, mocked_claim):
+        response = self.client.post(
+            "/wechat/claim_payment/",
+            data=json.dumps({"name": "Mona", "reply": "谢谢"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1},
+        )
+        mocked_claim.assert_called_once_with("Mona", reply="谢谢", reply_provided=True)
+
+        log = RequestLog.objects.get(action="claim_payment")
+        self.assertEqual(log.status, "success")
+        self.assertEqual(log.request_data, {"name": "Mona", "reply": "谢谢"})
+        self.assertEqual(log.response_data, {"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1})
+
+    def test_claim_payment_rejects_invalid_reply_type(self):
+        response = self.client.post(
+            "/wechat/claim_payment/",
+            data=json.dumps({"name": "Mona", "reply": 123}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"status": "error", "error": "reply must be a string"})
 
     @mock.patch.object(views.bridge, "send_message", side_effect=BridgeOperationError("发送失败"))
     def test_send_message_failure_contract(self, mocked_send):
@@ -586,6 +770,7 @@ class ApiContractTests(TransactionTestCase):
         self.assertContains(response, "自动领取红包 / 转账")
         self.assertContains(response, "启用自动领取红包/转账")
         self.assertContains(response, "成功领取红包/收取转账后自动发送感谢消息")
+        self.assertContains(response, "自动感谢回复延迟（秒）")
         mocked_status.assert_called_once_with()
 
     @mock.patch.object(
@@ -722,6 +907,7 @@ class ApiContractTests(TransactionTestCase):
             data=json.dumps(
                 {
                     "auto_thank_after_red_packet": True,
+                    "payment_reply_delay": 2.5,
                     "red_packet_thanks_message": "谢谢{friend}的红包",
                 }
             ),
@@ -732,9 +918,11 @@ class ApiContractTests(TransactionTestCase):
         payload = response.json()
         self.assertEqual(payload["message"], "自动感谢消息配置已保存")
         self.assertTrue(payload["auto_payment_config"]["auto_thank_after_red_packet"])
+        self.assertEqual(payload["auto_payment_config"]["payment_reply_delay"], 2.5)
         self.assertEqual(payload["auto_payment_config"]["red_packet_thanks_message"], "谢谢{friend}的红包")
         config = WeChatConfig.get_solo()
         self.assertTrue(config.auto_thank_after_red_packet)
+        self.assertEqual(config.payment_reply_delay, 2.5)
         self.assertEqual(config.red_packet_thanks_message, "谢谢{friend}的红包")
         mocked_status.assert_called_once_with()
 
@@ -760,6 +948,7 @@ class ApiContractTests(TransactionTestCase):
             data=json.dumps(
                 {
                     "auto_thank_after_red_packet": True,
+                    "payment_reply_delay": 2.0,
                     "red_packet_thanks_message": "",
                 }
             ),
@@ -768,4 +957,40 @@ class ApiContractTests(TransactionTestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("不能为空", response.json()["error"])
+        mocked_status.assert_not_called()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_update_auto_payment_config_rejects_negative_delay(self, mocked_status):
+        response = self.client.post(
+            "/wechat/auto_payment_config/",
+            data=json.dumps(
+                {
+                    "auto_thank_after_red_packet": False,
+                    "payment_reply_delay": -1,
+                    "red_packet_thanks_message": "",
+                }
+            ),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(
+            response.json(),
+            {"status": "error", "error": "payment_reply_delay must be a non-negative number"},
+        )
         mocked_status.assert_not_called()

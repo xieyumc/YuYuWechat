@@ -8,12 +8,21 @@ class WeChatConfigAdmin(admin.ModelAdmin):
         "locale",
         "search_pages",
         "send_delay",
+        "payment_reply_delay",
         "is_maximize",
         "window_size",
         "auto_start_wechat",
         "auto_thank_after_red_packet",
     )
-    list_editable = ("search_pages", "send_delay", "is_maximize", "window_size", "auto_start_wechat", "auto_thank_after_red_packet")
+    list_editable = (
+        "search_pages",
+        "send_delay",
+        "payment_reply_delay",
+        "is_maximize",
+        "window_size",
+        "auto_start_wechat",
+        "auto_thank_after_red_packet",
+    )
 
 
 @admin.register(RequestLog)

@@ -26,6 +26,10 @@ class WeChatConfig(models.Model):
         default=False,
         help_text="领取红包成功后，是否自动发送感谢消息。",
     )
+    payment_reply_delay = models.FloatField(
+        default=2.0,
+        help_text="领取红包/转账后自动发送感谢消息前的等待时间（秒）。",
+    )
     red_packet_thanks_message = models.TextField(
         default="",
         blank=True,
@@ -35,6 +39,8 @@ class WeChatConfig(models.Model):
     def clean(self):
         if self.locale != "zh-CN":
             raise ValidationError({"locale": 'YuYuWechat V3 当前仅支持 "zh-CN"。'})
+        if self.payment_reply_delay < 0:
+            raise ValidationError({"payment_reply_delay": "自动感谢回复延迟不能小于 0。"})
         if self.auto_thank_after_red_packet and not self.red_packet_thanks_message.strip():
             raise ValidationError({"red_packet_thanks_message": "启用自动感谢消息时，内容不能为空。"})
 
