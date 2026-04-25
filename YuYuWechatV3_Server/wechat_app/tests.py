@@ -195,7 +195,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
             "MEDIA_CACHE_ROOT",
             Path(cache_root),
         ), mock.patch("wechat_bridge.bridge.uuid.uuid4", return_value=mock.Mock(hex="a" * 32)):
-            enriched = bridge._attach_media_rows("Mona", rows, bundle, config)
+            enriched = bridge._attach_media_rows("Mona", rows, bundle, config, main_window=mock.sentinel.main_window)
 
         self.assertEqual(
             enriched,
@@ -235,7 +235,7 @@ class BridgeSendStrategyTests(SimpleTestCase):
             "MEDIA_CACHE_ROOT",
             Path(cache_root),
         ), mock.patch("wechat_bridge.bridge.uuid.uuid4", return_value=mock.Mock(hex="b" * 32)):
-            enriched = bridge._attach_media_rows("Mona", rows, bundle, config)
+            enriched = bridge._attach_media_rows("Mona", rows, bundle, config, main_window=mock.sentinel.main_window)
 
         self.assertEqual(
             enriched,
@@ -244,6 +244,92 @@ class BridgeSendStrategyTests(SimpleTestCase):
                 ("用户发送", "", "视频"),
                 ("用户发送图片", "", f"/wechat/media_cache/{'b' * 32}/{quote('与Mona的聊天图片1.png')}"),
             ],
+        )
+
+    def test_load_recent_media_rows_uses_shared_media_saver(self):
+        bridge = WeChatBridge()
+        rows = [("用户发送", "", "图片"), ("用户发送", "", "视频")]
+
+        with mock.patch.object(
+            bridge,
+            "_save_recent_media_rows",
+            return_value=[("用户发送图片", "", "/wechat/media_cache/token/image.png")],
+        ) as save_media_rows:
+            result = bridge._load_recent_media_rows(
+                "Mona",
+                rows,
+                mock.sentinel.bundle,
+                mock.sentinel.config,
+                main_window=mock.sentinel.main_window,
+            )
+
+        self.assertEqual(result, [("用户发送图片", "", "/wechat/media_cache/token/image.png")])
+        save_media_rows.assert_called_once_with(
+            "Mona",
+            2,
+            mock.sentinel.bundle,
+            mock.sentinel.config,
+            main_window=mock.sentinel.main_window,
+        )
+
+    def test_get_media_files_returns_cached_media_rows(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        config = mock.Mock(is_maximize=False)
+        main_window = mock.Mock()
+        original_open_dialog_window = bundle.Navigator.open_dialog_window
+        original_open_chat_history = bundle.Navigator.open_chat_history
+
+        def save_media(*, target_folder, **kwargs):
+            self.assertIs(bundle.Navigator.open_dialog_window(), main_window)
+            self.assertIs(
+                bundle.Navigator.open_chat_history(friend="Mona", TabItem="图片与视频"),
+                mock.sentinel.chat_history_window,
+            )
+            folder = Path(target_folder)
+            (folder / "与Mona的聊天图片1.png").write_bytes(b"image")
+            (folder / "与Mona的聊天视频2.mp4").write_bytes(b"video")
+
+        bundle.Messages.save_media.side_effect = save_media
+
+        with tempfile.TemporaryDirectory() as cache_root, mock.patch.object(
+            bridge_module,
+            "MEDIA_CACHE_ROOT",
+            Path(cache_root),
+        ), mock.patch("wechat_bridge.bridge.uuid.uuid4", return_value=mock.Mock(hex="d" * 32)), mock.patch.object(
+            bridge,
+            "_prepare_bundle",
+            return_value=(bundle, config),
+        ), mock.patch.object(
+            bridge,
+            "_open_dialog_via_ctrl_f",
+            return_value=main_window,
+        ) as open_dialog, mock.patch.object(
+            bridge,
+            "_open_chat_history_from_current_dialog",
+            return_value=mock.sentinel.chat_history_window,
+        ) as open_chat_history, mock.patch.object(bridge, "_return_to_message_list") as return_to_list:
+            result = bridge.get_media_files("Mona", 2)
+
+        self.assertEqual(
+            result,
+            [
+                ("用户发送视频", "", f"/wechat/media_cache/{'d' * 32}/{quote('与Mona的聊天视频2.mp4')}"),
+                ("用户发送图片", "", f"/wechat/media_cache/{'d' * 32}/{quote('与Mona的聊天图片1.png')}"),
+            ],
+        )
+        open_dialog.assert_called_once_with(bundle, config, "Mona")
+        open_chat_history.assert_called_once_with(main_window, bundle, {}, tab_item="图片与视频")
+        return_to_list.assert_called_once_with(main_window, bundle)
+        self.assertIs(bundle.Navigator.open_dialog_window, original_open_dialog_window)
+        self.assertIs(bundle.Navigator.open_chat_history, original_open_chat_history)
+        bundle.Messages.save_media.assert_called_once_with(
+            friend="Mona",
+            number=2,
+            target_folder=str(Path(cache_root) / ("d" * 32)),
+            search_pages=0,
+            is_maximize=False,
+            close_weixin=False,
         )
 
     def test_send_message_uses_top_search_and_returns_to_message_list(self):
@@ -976,6 +1062,48 @@ class ApiContractTests(TransactionTestCase):
             {"status": "success", "dialogs": [[["时间信息", "", "10:00"], ["用户发送", "", "hello"]]]},
         )
         mocked_get_dialogs.assert_called_once_with("测试群", 1)
+
+    @mock.patch.object(
+        views.bridge,
+        "get_media_files",
+        return_value=[
+            ("用户发送图片", "", "/wechat/media_cache/token/image.png"),
+            ("用户发送视频", "", "/wechat/media_cache/token/video.mp4"),
+        ],
+    )
+    def test_get_media_files_contract(self, mocked_get_media_files):
+        response = self.client.post(
+            "/wechat/get_media_files/",
+            data=json.dumps({"name": "测试群", "n_media": 2}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": "success",
+                "dialogs": [
+                    ["用户发送图片", "", "/wechat/media_cache/token/image.png"],
+                    ["用户发送视频", "", "/wechat/media_cache/token/video.mp4"],
+                ],
+            },
+        )
+        mocked_get_media_files.assert_called_once_with("测试群", 2)
+
+        log = RequestLog.objects.get(action="get_media_files")
+        self.assertEqual(log.status, "success")
+        self.assertEqual(log.request_data, {"name": "测试群", "n_media": 2})
+
+    def test_get_media_files_rejects_invalid_count(self):
+        response = self.client.post(
+            "/wechat/get_media_files/",
+            data=json.dumps({"name": "测试群", "n_media": 0}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"error": "n_media must be a positive integer"})
 
     def test_media_cache_download_serves_cached_file(self):
         token = "c" * 32

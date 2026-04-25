@@ -81,6 +81,11 @@ class GetDialogsByTimeBlocksSerializer(serializers.Serializer):
     n_time_blocks = serializers.IntegerField(help_text="要获取的时间分块数量")
 
 
+class GetMediaFilesSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="要获取图片/视频媒体文件的联系人或群聊名称")
+    n_media = serializers.IntegerField(help_text="要返回的图片/视频媒体文件数量")
+
+
 class RequestLogItemSerializer(serializers.Serializer):
     id = serializers.IntegerField()
     action = serializers.CharField()
@@ -202,6 +207,9 @@ def _execute_task(action: str, args: dict[str, Any]) -> dict[str, Any]:
         return {"http_status": 200, "response": {"status": "success", "dialogs": dialogs}}
     if action == "get_dialogs_by_time_blocks":
         dialogs = bridge.get_dialogs_by_time_blocks(args["name"], int(args["n_time_blocks"]))
+        return {"http_status": 200, "response": {"status": "success", "dialogs": dialogs}}
+    if action == "get_media_files":
+        dialogs = bridge.get_media_files(args["name"], int(args["n_media"]))
         return {"http_status": 200, "response": {"status": "success", "dialogs": dialogs}}
     if action == "ping":
         return {"http_status": 200, "response": {"status": "pong"}}
@@ -599,6 +607,60 @@ def get_dialogs_by_time_blocks_view(request):
             {
                 "type": "get_dialogs_by_time_blocks",
                 "args": {"name": name, "n_time_blocks": n_time_blocks},
+                "log_id": log.id,
+            }
+        )
+    except Exception as exc:
+        return _json_response({"status": "error", "error": str(exc)}, 500)
+
+    return _json_response(result["response"], result["http_status"])
+
+
+@extend_schema(
+    summary="获取指定联系人或群聊最近 N 个图片/视频媒体文件",
+    request=GetMediaFilesSerializer,
+    responses={
+        200: OpenApiResponse(response=DialogsDataResponseSerializer, description="成功获取媒体文件下载链接"),
+        400: OpenApiResponse(response=OperationResponseSerializer, description="无效的请求参数"),
+        500: OpenApiResponse(response=OperationResponseSerializer, description="获取媒体文件失败或发生内部错误"),
+    },
+    tags=["WeChat Data"],
+)
+@api_view(["POST"])
+@csrf_exempt
+def get_media_files_view(request):
+    try:
+        data = json.loads(request.body)
+        name = data.get("name")
+        n_media = data.get("n_media")
+    except json.JSONDecodeError as exc:
+        return _json_response({"status": "error", "error": str(exc)}, 500)
+
+    if not name:
+        return _json_response({"error": "Missing name parameter"}, 400)
+    if n_media is None:
+        return _json_response({"error": "Missing n_media parameter"}, 400)
+
+    try:
+        n_media = int(n_media)
+        if n_media <= 0:
+            raise ValueError
+    except (TypeError, ValueError):
+        return _json_response({"error": "n_media must be a positive integer"}, 400)
+
+    log = RequestLog.objects.create(
+        action="get_media_files",
+        endpoint=request.path,
+        status="queued",
+        request_data={"name": name, "n_media": n_media},
+        client_ip=_get_client_ip(request),
+    )
+
+    try:
+        result = _enqueue_and_wait(
+            {
+                "type": "get_media_files",
+                "args": {"name": name, "n_media": n_media},
                 "log_id": log.id,
             }
         )

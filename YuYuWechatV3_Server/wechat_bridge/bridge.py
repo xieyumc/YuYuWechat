@@ -568,20 +568,183 @@ class WeChatBridge:
             rows.append((media_type, "", self._cached_media_url(media_path)))
         return rows
 
-    def _load_recent_media_rows(
+    def _find_visible_control(self, root: Any, timeout: float = 2.0, **locator: Any) -> Any | None:
+        deadline = time.time() + timeout
+        while time.time() < deadline:
+            candidates: list[Any] = []
+            try:
+                candidates.append(root.child_window(**locator))
+            except Exception:
+                pass
+            try:
+                candidates.extend(root.descendants(**locator))
+            except Exception:
+                pass
+
+            for candidate in candidates:
+                try:
+                    if candidate.exists(timeout=0.1) and candidate.is_visible():
+                        return candidate
+                except Exception:
+                    continue
+            time.sleep(0.1)
+        return None
+
+    def _wait_for_chat_history_window(self, bundle: PyWeixinBundle, locator: dict[str, Any], timeout: float = 5.0) -> Any:
+        deadline = time.time() + timeout
+        last_error: Exception | None = None
+        while time.time() < deadline:
+            try:
+                chat_history_window = bundle.desktop.window(**locator)
+                if chat_history_window.exists(timeout=0.2):
+                    try:
+                        return bundle.Tools.move_window_to_center(locator)
+                    except Exception:
+                        return chat_history_window
+            except Exception as exc:
+                last_error = exc
+            time.sleep(0.2)
+        raise BridgeOperationError(f"Failed to open chat history window: {last_error or locator}")
+
+    def _select_chat_history_tab(self, chat_history_window: Any, tab_item: str | None, tab_items: Any | None) -> None:
+        try:
+            tab_button = chat_history_window.child_window(control_type="Button", class_name="mmui::XMouseEventView")
+            if tab_button.exists(timeout=0.5):
+                tab_button.click_input()
+                time.sleep(0.2)
+        except Exception:
+            pass
+
+        if not tab_item:
+            return
+
+        tab_locator_by_name = {
+            "文件": getattr(tab_items, "FileTabItem", None),
+            "图片与视频": getattr(tab_items, "PhotoAndVideoTabItem", None),
+            "链接": getattr(tab_items, "LinkTabItem", None),
+            "音乐与音频": getattr(tab_items, "MusicTabItem", None),
+            "小程序": getattr(tab_items, "MiniProgramTabItem", None),
+            "视频号": getattr(tab_items, "ChannelTabItem", None),
+            "日期": getattr(tab_items, "DateTabItem", None),
+        }
+        locator = tab_locator_by_name.get(tab_item) or {"title": tab_item, "control_type": "TabItem"}
+        try:
+            tab = chat_history_window.child_window(**locator)
+            if tab.exists(timeout=1):
+                tab.click_input()
+        except Exception:
+            pass
+
+    def _open_chat_history_from_current_dialog(
+        self,
+        main_window: Any,
+        bundle: PyWeixinBundle,
+        save_media_globals: dict[str, Any],
+        tab_item: str | None = None,
+    ) -> Any:
+        try:
+            if hasattr(main_window, "set_focus"):
+                main_window.set_focus()
+        except Exception:
+            pass
+
+        chat_history_button = self._find_visible_control(
+            main_window,
+            timeout=0.6,
+            **bundle.Buttons.ChatHistoryButton,
+        )
+        if chat_history_button is None:
+            chat_info_button = self._find_visible_control(
+                main_window,
+                timeout=1.5,
+                **bundle.Buttons.ChatInfoButton,
+            )
+            if chat_info_button is None:
+                raise BridgeOperationError("Failed to find WeChat chat info button.")
+            chat_info_button.click_input()
+            chat_history_button = self._find_visible_control(
+                main_window,
+                timeout=2.0,
+                **bundle.Buttons.ChatHistoryButton,
+            )
+
+        if chat_history_button is None:
+            raise BridgeOperationError("Failed to find WeChat chat history button after opening chat info panel.")
+
+        chat_history_button.click_input()
+        independent_window = save_media_globals.get("Independent_window")
+        chat_history_locator = getattr(
+            independent_window,
+            "ChatHistoryWindow",
+            {"control_type": "Window", "class_name": "mmui::SearchMsgUniqueChatWindow", "framework_id": "Qt"},
+        )
+        chat_history_window = self._wait_for_chat_history_window(bundle, chat_history_locator)
+        self._select_chat_history_tab(
+            chat_history_window,
+            tab_item,
+            save_media_globals.get("TabItems"),
+        )
+        return chat_history_window
+
+    def _collect_saved_media_paths(self, cache_dir: Path, media_count: int) -> list[Path]:
+        media_paths = [
+            path
+            for path in cache_dir.iterdir()
+            if path.is_file() and self._media_type_for_path(path) is not None
+        ]
+        media_paths = sorted(media_paths, key=self._saved_media_sort_key)
+        # save_media stores newest media first; normalized chat rows are chronological.
+        return list(reversed(media_paths))[-media_count:]
+
+    def _save_recent_media_rows(
         self,
         friend: str,
-        rows: list[DialogRow],
+        media_count: int,
         bundle: PyWeixinBundle,
         config: WeChatConfig,
+        main_window: Any | None = None,
     ) -> list[DialogRow]:
-        image_count, video_count = self._media_count_from_rows(rows)
-        media_count = image_count + video_count
         if media_count <= 0:
             return []
 
+        cache_dir = self._create_media_cache_dir()
+        owns_main_window = main_window is None
+        original_open_dialog_window = None
+        original_open_chat_history = None
+        navigator = getattr(bundle, "Navigator", None)
         try:
-            cache_dir = self._create_media_cache_dir()
+            if main_window is None:
+                main_window = self._open_dialog_via_ctrl_f(bundle, config, friend)
+
+            try:
+                if hasattr(main_window, "set_focus"):
+                    main_window.set_focus()
+            except Exception:
+                pass
+
+            save_media_globals = getattr(bundle.Messages.save_media, "__globals__", {})
+            if isinstance(save_media_globals, dict):
+                navigator = save_media_globals.get("Navigator") or navigator
+            if navigator is not None and hasattr(navigator, "open_dialog_window"):
+                original_open_dialog_window = navigator.open_dialog_window
+
+                def reuse_current_dialog(*args, **kwargs):
+                    return main_window
+
+                navigator.open_dialog_window = reuse_current_dialog
+            if navigator is not None and hasattr(navigator, "open_chat_history"):
+                original_open_chat_history = navigator.open_chat_history
+
+                def open_current_chat_history(*args, **kwargs):
+                    return self._open_chat_history_from_current_dialog(
+                        main_window,
+                        bundle,
+                        save_media_globals if isinstance(save_media_globals, dict) else {},
+                        tab_item=kwargs.get("TabItem") or (args[1] if len(args) > 1 else None),
+                    )
+
+                navigator.open_chat_history = open_current_chat_history
+
             bundle.Messages.save_media(
                 friend=friend,
                 number=media_count,
@@ -590,17 +753,35 @@ class WeChatBridge:
                 is_maximize=config.is_maximize,
                 close_weixin=False,
             )
-            media_paths = [
-                path
-                for path in cache_dir.iterdir()
-                if path.is_file() and self._media_type_for_path(path) is not None
-            ]
-            media_paths = sorted(media_paths, key=self._saved_media_sort_key)
-            # save_media stores newest media first; normalized chat rows are chronological.
-            media_paths = list(reversed(media_paths))[-media_count:]
+            media_paths = self._collect_saved_media_paths(cache_dir, media_count)
             if not media_paths:
                 shutil.rmtree(cache_dir, ignore_errors=True)
             return self._cached_media_rows(media_paths)
+        except Exception:
+            shutil.rmtree(cache_dir, ignore_errors=True)
+            raise
+        finally:
+            if original_open_chat_history is not None and navigator is not None:
+                navigator.open_chat_history = original_open_chat_history
+            if original_open_dialog_window is not None and navigator is not None:
+                navigator.open_dialog_window = original_open_dialog_window
+            if owns_main_window and main_window is not None:
+                self._return_to_message_list(main_window, bundle)
+
+    def _load_recent_media_rows(
+        self,
+        friend: str,
+        rows: list[DialogRow],
+        bundle: PyWeixinBundle,
+        config: WeChatConfig,
+        main_window: Any | None = None,
+    ) -> list[DialogRow]:
+        image_count, video_count = self._media_count_from_rows(rows)
+        media_count = image_count + video_count
+        if media_count <= 0:
+            return []
+        try:
+            return self._save_recent_media_rows(friend, media_count, bundle, config, main_window=main_window)
         except Exception:
             return []
 
@@ -610,8 +791,9 @@ class WeChatBridge:
         rows: list[DialogRow],
         bundle: PyWeixinBundle,
         config: WeChatConfig,
+        main_window: Any | None = None,
     ) -> list[DialogRow]:
-        media_rows = self._load_recent_media_rows(friend, rows, bundle, config)
+        media_rows = self._load_recent_media_rows(friend, rows, bundle, config, main_window=main_window)
         if not media_rows:
             return rows
 
@@ -658,7 +840,7 @@ class WeChatBridge:
                 close_weixin=False,
             )
             rows = normalize_dialog_rows(messages, timestamps)
-            rows = self._attach_media_rows(friend, rows, bundle, config)
+            rows = self._attach_media_rows(friend, rows, bundle, config, main_window=main_window)
         except Exception as exc:
             raise map_runtime_exception(exc) from exc
         finally:
@@ -740,6 +922,13 @@ class WeChatBridge:
     def get_dialogs(self, name: str, n_msg: int) -> list[DialogRow]:
         rows, _ = self._dump_chat_rows(name, n_msg)
         return rows
+
+    def get_media_files(self, name: str, n_media: int) -> list[DialogRow]:
+        try:
+            bundle, config = self._prepare_bundle()
+            return self._save_recent_media_rows(name, n_media, bundle, config)
+        except Exception as exc:
+            raise map_runtime_exception(exc) from exc
 
     def get_dialogs_by_time_blocks(self, name: str, n_time_blocks: int) -> list[list[DialogRow]]:
         fetch_size = max(20, n_time_blocks * 5)
