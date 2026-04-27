@@ -11,3 +11,8 @@ YuYuWechatV2_Client/celerybeat-schedule.db
 /YuYuWechatV2_Server/dist/YuYuWechatV2_Server.exe
 /YuYuWechatV2_Server/build/
 /pywechat/
+/YuYuWechatV3_Server/dist/
+/YuYuWechatV3_Server/.venv-pyinstaller/
+/YuYuWechatV3_Server/build_pyinstaller_windows.bat
+/YuYuWechatV3_Server/YuYuWechatV3_Server.spec
+/YuYuWechatV3_Server/packaging/

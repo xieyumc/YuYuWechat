@@ -929,6 +929,40 @@ class AutoPaymentServiceTests(SimpleTestCase):
         self.assertFalse(result)
         find_close.assert_not_called()
 
+    def test_close_payment_popup_restores_wechat_focus(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        runtime = mock.Mock()
+        dialog_window = mock.Mock()
+
+        with mock.patch.object(service, "_close_popup") as close_popup, mock.patch.object(
+            service,
+            "_restore_wechat_focus",
+        ) as restore_focus:
+            service._close_payment_popup(runtime, dialog_window)
+
+        close_popup.assert_called_once_with(runtime, dialog_window)
+        restore_focus.assert_called_once_with(runtime, dialog_window)
+
+    def test_cleanup_after_claim_restores_focus_around_return_home(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        runtime = mock.Mock()
+        runtime.SideBar.Weixin = {"control_type": "Button", "title": "微信"}
+        dialog_window = mock.Mock()
+        weixin_button = mock.Mock()
+        weixin_button.exists.return_value = True
+        dialog_window.child_window.return_value = weixin_button
+        bundle = mock.Mock()
+        chat_list = mock.Mock()
+        chat_list.exists.return_value = False
+
+        with mock.patch.object(service, "_restore_wechat_focus") as restore_focus, mock.patch(
+            "wechat_bridge.payment_listener.time.sleep"
+        ):
+            service._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
+
+        self.assertGreaterEqual(restore_focus.call_count, 3)
+        weixin_button.double_click_input.assert_called_once()
+
 
 class ApiContractTests(TransactionTestCase):
     reset_sequences = True

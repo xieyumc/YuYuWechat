@@ -81,6 +81,7 @@
     <div class="status-row">累计收取转账：<span id="auto-payment-transfer">{{ auto_payment.total_transfers }}</span></div>
     <div class="status-row">最近扫描时间：<span id="auto-payment-cycle">{{ auto_payment.last_cycle_at|default:"-" }}</span></div>
     <div class="status-row">最近成功领取时间：<span id="auto-payment-claim">{{ auto_payment.last_claim_at|default:"-" }}</span></div>
+    <div class="status-row">最近事件：<span id="auto-payment-event">{{ auto_payment.last_event|default:"-" }}</span></div>
     <div class="status-row">最近错误：</div>
     <div id="auto-payment-error" class="danger">{{ auto_payment.last_error|default:"-" }}</div>
     <div class="status-row" style="margin-top: 16px;">
@@ -159,6 +160,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
     const transferEl = document.getElementById("auto-payment-transfer");
     const cycleEl = document.getElementById("auto-payment-cycle");
     const claimEl = document.getElementById("auto-payment-claim");
+    const eventEl = document.getElementById("auto-payment-event");
     const errorEl = document.getElementById("auto-payment-error");
     const messageEl = document.getElementById("auto-payment-message");
     const thankEnabledEl = document.getElementById("thank-after-red-packet");
@@ -174,6 +176,7 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
         transferEl.textContent = status.total_transfers;
         cycleEl.textContent = status.last_cycle_at || "-";
         claimEl.textContent = status.last_claim_at || "-";
+        eventEl.textContent = status.last_event || "-";
         errorEl.textContent = status.last_error || "-";
         toggleButton.textContent = status.button_label;
         toggleButton.dataset.running = status.running ? "true" : "false";

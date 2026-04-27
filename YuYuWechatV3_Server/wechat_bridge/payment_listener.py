@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import importlib
+import logging
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any, Iterable
 
+from django.db import close_old_connections
 from django.utils import timezone
 
 from .bridge import WeChatBridge
@@ -39,6 +41,7 @@ TRANSFER_CLOSED_KEYWORDS = (
     "已退还",
     "已过期",
 )
+logger = logging.getLogger(__name__)
 
 
 @dataclass(slots=True)
@@ -137,6 +140,7 @@ class AutoPaymentService:
         self._stop_event = threading.Event()
         self._desired_running = False
         self._last_error = ""
+        self._last_event = ""
         self._last_cycle_at = None
         self._last_claim_at = None
         self._started_at = None
@@ -218,6 +222,7 @@ class AutoPaymentService:
                 "total_red_packets": self._total_red_packets,
                 "total_transfers": self._total_transfers,
                 "last_error": self._last_error,
+                "last_event": self._last_event,
                 "last_cycle_at": self._serialize_datetime(self._last_cycle_at),
                 "last_claim_at": self._serialize_datetime(self._last_claim_at),
                 "started_at": self._serialize_datetime(self._started_at),
@@ -234,11 +239,13 @@ class AutoPaymentService:
                 self._stop_event = threading.Event()
                 self._desired_running = True
                 self._last_error = ""
+                self._last_event = "自动领取线程已启动，准备扫描未读消息"
                 self._started_at = timezone.now()
                 self._processed_payments.clear()
                 self._main_window = None
                 self._thread = threading.Thread(target=self._run, daemon=True, name="auto-payment-listener")
                 self._thread.start()
+                logger.info("Auto payment listener started.")
         if already_running:
             return self.status()
         return self.status()
@@ -246,42 +253,62 @@ class AutoPaymentService:
     def stop(self) -> dict[str, Any]:
         with self._state_lock:
             self._desired_running = False
+            self._last_event = "自动领取线程正在停止"
             self._stop_event.set()
             thread = self._thread
 
         if thread and thread.is_alive():
             thread.join(timeout=0.2)
+        logger.info("Auto payment listener stop requested.")
         return self.status()
 
     def _run(self) -> None:
         self._maybe_initialize_com()
+        close_old_connections()
 
         try:
             while not self._stop_event.is_set():
                 if not self.operation_lock.acquire(timeout=0.1):
+                    self._record_event("微信操作锁忙，等待其他请求完成", log=False)
                     self._stop_event.wait(0.5)
                     continue
 
                 try:
+                    close_old_connections()
+                    self._record_event("开始扫描未读消息")
                     self._scan_once()
                     with self._state_lock:
                         self._last_error = ""
                         self._last_cycle_at = timezone.now()
                 except Exception as exc:
+                    logger.exception("Auto payment scan failed.")
                     with self._state_lock:
                         self._last_error = str(exc)
+                        self._last_event = f"扫描失败：{exc}"
                         self._last_cycle_at = timezone.now()
                     self._safe_back_to_message_list()
                 finally:
                     self.operation_lock.release()
+                    close_old_connections()
 
                 self._trim_processed_payments()
-                self._stop_event.wait(self._get_check_interval_seconds())
+                check_interval_seconds = self._get_check_interval_seconds()
+                self._record_event(f"本轮扫描完成，等待 {check_interval_seconds:.0f} 秒后再次检查", log=False)
+                self._stop_event.wait(check_interval_seconds)
         finally:
             with self._state_lock:
                 self._desired_running = False
                 self._thread = None
                 self._main_window = None
+                self._last_event = "自动领取线程已停止"
+            close_old_connections()
+            logger.info("Auto payment listener stopped.")
+
+    def _record_event(self, message: str, *, log: bool = True) -> None:
+        with self._state_lock:
+            self._last_event = message
+        if log:
+            logger.info("Auto payment: %s", message)
 
     def _get_check_interval_seconds(self) -> float:
         try:
@@ -312,10 +339,16 @@ class AutoPaymentService:
             is_maximize=config.is_maximize,
             close_weixin=False,
         )
+        if unread_sessions:
+            session_names = ", ".join(str(name) for name in unread_sessions.keys())
+            self._record_event(f"发现 {len(unread_sessions)} 个未读会话：{session_names}")
+        else:
+            self._record_event("未发现未读会话")
 
         for friend, unread_count in unread_sessions.items():
             if self._stop_event.is_set():
                 break
+            self._record_event(f"处理未读会话：{friend}（{unread_count} 条未读）")
             red_packet_count, transfer_count = self._claim_payments_in_session(
                 bundle=bundle,
                 runtime=runtime,
@@ -353,11 +386,13 @@ class AutoPaymentService:
         time.sleep(self.open_delay)
 
         if bundle.Tools.is_group_chat(dialog_window):
+            self._record_event(f"跳过群聊：{friend}")
             self._cleanup_after_claim(dialog_window, bundle, runtime)
             return 0, 0
 
         chat_list = dialog_window.child_window(**runtime.Lists.FriendChatList)
         if not chat_list.exists(timeout=0.5):
+            self._record_event(f"未找到聊天列表：{friend}")
             return 0, 0
 
         bundle.Tools.activate_chatList(chat_list)
@@ -383,6 +418,7 @@ class AutoPaymentService:
                 continue
 
             try:
+                self._record_event(f"尝试处理 {friend} 的{item_kind}")
                 if item_kind == "red_packet" and self._try_open_red_packet(
                     dialog_window=dialog_window,
                     runtime=runtime,
@@ -413,11 +449,16 @@ class AutoPaymentService:
                     self._processed_payments.add(payment_key)
                     transfer_count += 1
                     time.sleep(0.5)
-            except Exception:
+            except Exception as exc:
+                logger.exception("Failed to process %s payment item for %s.", item_kind, friend)
+                self._record_event(f"处理 {friend} 的{item_kind}失败：{exc}")
                 continue
 
         if red_packet_count == 0 and transfer_count == 0:
+            self._record_event(f"{friend} 没有可领取红包/转账")
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
+        else:
+            self._record_event(f"{friend} 领取完成：红包 {red_packet_count}，转账 {transfer_count}")
 
         return red_packet_count, transfer_count
 
@@ -589,11 +630,14 @@ class AutoPaymentService:
 
     def _close_payment_popup(self, runtime: PaymentRuntime, dialog_window: Any) -> None:
         self._close_popup(runtime, dialog_window)
+        self._restore_wechat_focus(runtime, dialog_window)
 
     def _cleanup_after_claim(self, dialog_window: Any, bundle: Any, runtime: PaymentRuntime, chat_list: Any = None) -> None:
+        self._restore_wechat_focus(runtime, dialog_window)
         try:
             weixin_button = dialog_window.child_window(**runtime.SideBar.Weixin)
             if weixin_button.exists(timeout=0.5):
+                self._restore_wechat_focus(runtime, dialog_window)
                 weixin_button.double_click_input()
                 time.sleep(0.2)
         except Exception:
@@ -604,18 +648,45 @@ class AutoPaymentService:
                 bundle.Tools.activate_chatList(chat_list)
             except Exception:
                 pass
+        self._restore_wechat_focus(runtime, dialog_window)
 
     def _safe_back_to_message_list(self) -> None:
         try:
             bundle, config = self.bridge._prepare_bundle()
             runtime = self._load_runtime()
             main_window = self._get_main_window(bundle, config)
+            self._restore_wechat_focus(runtime, main_window)
             weixin_button = main_window.child_window(**runtime.SideBar.Weixin)
             if weixin_button.exists(timeout=0.5):
+                self._restore_wechat_focus(runtime, main_window)
                 weixin_button.double_click_input()
                 time.sleep(0.2)
+            self._restore_wechat_focus(runtime, main_window)
         except Exception:
             pass
+
+    def _restore_wechat_focus(self, runtime: PaymentRuntime, window: Any, delay: float = 0.1) -> bool:
+        try:
+            if hasattr(window, "set_focus"):
+                window.set_focus()
+                time.sleep(delay)
+                return True
+        except Exception:
+            pass
+
+        try:
+            handle = getattr(window, "handle", None)
+            if handle:
+                try:
+                    runtime.win32gui.ShowWindow(handle, 5)
+                except Exception:
+                    pass
+                runtime.win32gui.SetForegroundWindow(handle)
+                time.sleep(delay)
+                return True
+        except Exception:
+            pass
+        return False
 
     def _find_visible_button(self, runtime: PaymentRuntime, dialog_window: Any, title: str, timeout: float = 1.5):
         deadline = time.time() + timeout

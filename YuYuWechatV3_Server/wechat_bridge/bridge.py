@@ -76,6 +76,12 @@ class PyWeixinBundle:
     pyautogui: Any
 
 
+def _default_core_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        return Path(getattr(sys, "_MEIPASS", Path(sys.executable).resolve().parent)) / "pywechat"
+    return Path(__file__).resolve().parents[2] / "pywechat"
+
+
 def normalize_dialog_rows(messages: Iterable[Any], timestamps: Iterable[Any]) -> list[DialogRow]:
     rows: list[DialogRow] = []
     ordered_messages = list(messages)[::-1]
@@ -160,7 +166,7 @@ def map_runtime_exception(exc: Exception) -> BridgeOperationError:
 
 
 class WeChatBridge:
-    core_dir = Path(__file__).resolve().parents[2] / "pywechat"
+    core_dir = _default_core_dir()
 
     def _get_config(self) -> WeChatConfig:
         config = WeChatConfig.get_solo()

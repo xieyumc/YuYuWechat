@@ -116,6 +116,7 @@ class AutoPaymentStatusSerializer(serializers.Serializer):
     total_red_packets = serializers.IntegerField()
     total_transfers = serializers.IntegerField()
     last_error = serializers.CharField(allow_blank=True)
+    last_event = serializers.CharField(allow_blank=True)
     last_cycle_at = serializers.CharField(allow_null=True)
     last_claim_at = serializers.CharField(allow_null=True)
     started_at = serializers.CharField(allow_null=True)
