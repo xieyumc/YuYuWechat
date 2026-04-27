@@ -78,18 +78,14 @@ class PyWeixinBundle:
 
 def normalize_dialog_rows(messages: Iterable[Any], timestamps: Iterable[Any]) -> list[DialogRow]:
     rows: list[DialogRow] = []
-    previous_timestamp = object()
     ordered_messages = list(messages)[::-1]
     ordered_timestamps = list(timestamps)[::-1]
 
     for message, timestamp in zip_longest(ordered_messages, ordered_timestamps, fillvalue=""):
         current_timestamp = "" if timestamp is None else str(timestamp)
         current_message = "" if message is None else str(message)
-        if current_timestamp != previous_timestamp:
-            row_type = SYSTEM_MESSAGE_TYPE if current_timestamp == SYSTEM_PAYMENT_TIMESTAMP else TIME_INFO_TYPE
-            rows.append((row_type, "", current_timestamp))
-            previous_timestamp = current_timestamp
-        rows.append((USER_MESSAGE_TYPE, "", current_message))
+        message_timestamp = "" if current_timestamp == SYSTEM_PAYMENT_TIMESTAMP else current_timestamp
+        rows.append((USER_MESSAGE_TYPE, message_timestamp, current_message))
 
     return rows
 
@@ -118,19 +114,34 @@ def cleanup_media_cache(max_age_seconds: int = MEDIA_CACHE_TTL_SECONDS) -> None:
 def group_dialog_rows(rows: Iterable[DialogRow]) -> list[list[DialogRow]]:
     groups: list[list[DialogRow]] = []
     current_group: list[DialogRow] | None = None
+    current_timestamp: str | None = None
+    pending_timestamp = ""
 
     for row in rows:
         if row[0] == TIME_INFO_TYPE:
-            if current_group is not None:
-                groups.append(current_group)
-            current_group = [row]
+            pending_timestamp = row[2]
             continue
 
+        if row[0] == SYSTEM_MESSAGE_TYPE:
+            continue
+
+        row_timestamp = row[1] or pending_timestamp
+        normalized_row = (row[0], row_timestamp, row[2]) if row_timestamp != row[1] else row
         if current_group is None:
-            current_group = [(TIME_INFO_TYPE, "", ""), row]
+            current_group = [normalized_row]
+            current_timestamp = row_timestamp
+            pending_timestamp = ""
             continue
 
-        current_group.append(row)
+        if row_timestamp and row_timestamp != current_timestamp:
+            groups.append(current_group)
+            current_group = [normalized_row]
+            current_timestamp = row_timestamp
+            pending_timestamp = ""
+            continue
+
+        current_group.append(normalized_row)
+        pending_timestamp = ""
 
     if current_group is not None:
         groups.append(current_group)
@@ -817,7 +828,9 @@ class WeChatBridge:
         media_row_by_index: dict[int, DialogRow] = {}
         for media_type, typed_media_rows in media_rows_by_type.items():
             typed_indices = placeholder_indices_by_type[media_type]
-            media_row_by_index.update(dict(zip(typed_indices[-len(typed_media_rows) :], typed_media_rows)))
+            for index, media_row in zip(typed_indices[-len(typed_media_rows) :], typed_media_rows):
+                media_type, _, media_url = media_row
+                media_row_by_index[index] = (media_type, rows[index][1], media_url)
 
         enriched_rows: list[DialogRow] = []
         for index, row in enumerate(rows):

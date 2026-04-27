@@ -30,7 +30,7 @@ class SearchListItem:
 
 
 class DialogCompatTests(SimpleTestCase):
-    def test_normalize_dialog_rows_inserts_time_boundaries(self):
+    def test_normalize_dialog_rows_attaches_time_without_synthetic_rows(self):
         rows = normalize_dialog_rows(
             messages=["latest", "middle", "oldest"],
             timestamps=["2026-04-21 10:02", "2026-04-21 10:01", "2026-04-21 10:01"],
@@ -39,15 +39,13 @@ class DialogCompatTests(SimpleTestCase):
         self.assertEqual(
             rows,
             [
-                ("时间信息", "", "2026-04-21 10:01"),
-                ("用户发送", "", "oldest"),
-                ("用户发送", "", "middle"),
-                ("时间信息", "", "2026-04-21 10:02"),
-                ("用户发送", "", "latest"),
+                ("用户发送", "2026-04-21 10:01", "oldest"),
+                ("用户发送", "2026-04-21 10:01", "middle"),
+                ("用户发送", "2026-04-21 10:02", "latest"),
             ],
         )
 
-    def test_normalize_dialog_rows_maps_payment_timestamp_to_system_message(self):
+    def test_normalize_dialog_rows_omits_synthetic_system_rows(self):
         rows = normalize_dialog_rows(
             messages=["￥0.01 已收款 微信转账", "thank"],
             timestamps=["系统消息或为红包与转账(无法获取时间戳)", "2026年4月24日 14:37"],
@@ -56,29 +54,25 @@ class DialogCompatTests(SimpleTestCase):
         self.assertEqual(
             rows,
             [
-                ("时间信息", "", "2026年4月24日 14:37"),
-                ("用户发送", "", "thank"),
-                ("系统消息", "", "系统消息或为红包与转账(无法获取时间戳)"),
+                ("用户发送", "2026年4月24日 14:37", "thank"),
                 ("用户发送", "", "￥0.01 已收款 微信转账"),
             ],
         )
 
-    def test_group_dialog_rows_uses_time_rows_as_boundaries(self):
+    def test_group_dialog_rows_uses_message_time_as_boundaries(self):
         groups = group_dialog_rows(
             [
-                ("时间信息", "", "10:00"),
-                ("用户发送", "", "A"),
-                ("用户发送", "", "B"),
-                ("时间信息", "", "10:01"),
-                ("用户发送", "", "C"),
+                ("用户发送", "10:00", "A"),
+                ("用户发送", "10:00", "B"),
+                ("用户发送", "10:01", "C"),
             ]
         )
 
         self.assertEqual(
             groups,
             [
-                [("时间信息", "", "10:00"), ("用户发送", "", "A"), ("用户发送", "", "B")],
-                [("时间信息", "", "10:01"), ("用户发送", "", "C")],
+                [("用户发送", "10:00", "A"), ("用户发送", "10:00", "B")],
+                [("用户发送", "10:01", "C")],
             ],
         )
 
@@ -155,10 +149,8 @@ class BridgeSendStrategyTests(SimpleTestCase):
         self.assertEqual(
             rows,
             [
-                ("时间信息", "", "10:00"),
-                ("用户发送", "", "older"),
-                ("时间信息", "", "10:01"),
-                ("用户发送", "", "latest"),
+                ("用户发送", "10:00", "older"),
+                ("用户发送", "10:01", "latest"),
             ],
         )
         self.assertEqual(raw_count, 2)
@@ -176,10 +168,9 @@ class BridgeSendStrategyTests(SimpleTestCase):
         bundle = mock.Mock()
         config = mock.Mock(is_maximize=False)
         rows = [
-            ("时间信息", "", "10:00"),
-            ("用户发送", "", "图片"),
-            ("用户发送", "", "视频"),
-            ("用户发送", "", "图片"),
+            ("用户发送", "10:00", "图片"),
+            ("用户发送", "10:01", "视频"),
+            ("用户发送", "10:02", "图片"),
         ]
 
         def save_media(*, target_folder, **kwargs):
@@ -200,10 +191,9 @@ class BridgeSendStrategyTests(SimpleTestCase):
         self.assertEqual(
             enriched,
             [
-                ("时间信息", "", "10:00"),
-                ("用户发送图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片3.png')}"),
-                ("用户发送视频", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天视频2.mp4')}"),
-                ("用户发送图片", "", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片1.png')}"),
+                ("用户发送图片", "10:00", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片3.png')}"),
+                ("用户发送视频", "10:01", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天视频2.mp4')}"),
+                ("用户发送图片", "10:02", f"/wechat/media_cache/{'a' * 32}/{quote('与Mona的聊天图片1.png')}"),
             ],
         )
         bundle.Messages.save_media.assert_called_once_with(
@@ -220,9 +210,9 @@ class BridgeSendStrategyTests(SimpleTestCase):
         bundle = mock.Mock()
         config = mock.Mock(is_maximize=False)
         rows = [
-            ("用户发送", "", "图片"),
-            ("用户发送", "", "视频"),
-            ("用户发送", "", "图片"),
+            ("用户发送", "10:00", "图片"),
+            ("用户发送", "10:01", "视频"),
+            ("用户发送", "10:02", "图片"),
         ]
 
         def save_media(*, target_folder, **kwargs):
@@ -240,9 +230,9 @@ class BridgeSendStrategyTests(SimpleTestCase):
         self.assertEqual(
             enriched,
             [
-                ("用户发送", "", "图片"),
-                ("用户发送", "", "视频"),
-                ("用户发送图片", "", f"/wechat/media_cache/{'b' * 32}/{quote('与Mona的聊天图片1.png')}"),
+                ("用户发送", "10:00", "图片"),
+                ("用户发送", "10:01", "视频"),
+                ("用户发送图片", "10:02", f"/wechat/media_cache/{'b' * 32}/{quote('与Mona的聊天图片1.png')}"),
             ],
         )
 
@@ -1028,7 +1018,7 @@ class ApiContractTests(TransactionTestCase):
     @mock.patch.object(
         views.bridge,
         "get_dialogs",
-        return_value=[("时间信息", "", "10:00"), ("用户发送", "", "hello")],
+        return_value=[("用户发送", "10:00", "hello")],
     )
     def test_get_dialogs_contract(self, mocked_get_dialogs):
         response = self.client.post(
@@ -1040,14 +1030,14 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"status": "success", "dialogs": [["时间信息", "", "10:00"], ["用户发送", "", "hello"]]},
+            {"status": "success", "dialogs": [["用户发送", "10:00", "hello"]]},
         )
         mocked_get_dialogs.assert_called_once_with("测试群", 2)
 
     @mock.patch.object(
         views.bridge,
         "get_dialogs_by_time_blocks",
-        return_value=[[("时间信息", "", "10:00"), ("用户发送", "", "hello")]],
+        return_value=[[("用户发送", "10:00", "hello")]],
     )
     def test_get_dialogs_by_time_blocks_contract(self, mocked_get_dialogs):
         response = self.client.post(
@@ -1059,7 +1049,7 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"status": "success", "dialogs": [[["时间信息", "", "10:00"], ["用户发送", "", "hello"]]]},
+            {"status": "success", "dialogs": [[["用户发送", "10:00", "hello"]]]},
         )
         mocked_get_dialogs.assert_called_once_with("测试群", 1)
 
