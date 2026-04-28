@@ -18,7 +18,13 @@ from wechat_bridge import (
     wechat_title_alias_locators,
 )
 import wechat_bridge.bridge as bridge_module
-from wechat_bridge.payment_listener import is_claimable_red_packet_item, is_claimable_transfer_item, iter_recent_items
+from wechat_bridge.payment_listener import (
+    PAYMENT_POPUP_WAIT_SECONDS,
+    PAYMENT_RESULT_WAIT_SECONDS,
+    is_claimable_red_packet_item,
+    is_claimable_transfer_item,
+    iter_recent_items,
+)
 
 from .models import RequestLog, WeChatConfig
 from . import views
@@ -892,9 +898,12 @@ class AutoPaymentServiceTests(SimpleTestCase):
             service,
             "_send_payment_thanks_message",
             return_value=True,
-        ) as send_thanks, mock.patch.object(service, "_cleanup_after_claim") as cleanup, mock.patch(
+        ) as send_thanks, mock.patch.object(
+            service,
+            "_cleanup_after_claim",
+        ) as cleanup, mock.patch(
             "wechat_bridge.payment_listener.time.sleep"
-        ):
+        ) as mocked_sleep:
             result = service._try_collect_transfer(
                 dialog_window=dialog_window,
                 runtime=runtime,
@@ -906,12 +915,92 @@ class AutoPaymentServiceTests(SimpleTestCase):
             )
 
         self.assertTrue(result)
+        mocked_sleep.assert_any_call(PAYMENT_POPUP_WAIT_SECONDS)
+        mocked_sleep.assert_any_call(PAYMENT_RESULT_WAIT_SECONDS)
         send_thanks.assert_called_once_with(
             dialog_window=dialog_window,
             bundle=bundle,
             config=config,
             friend="Mona",
             payment_type="转账",
+            reply_override=None,
+            use_reply_override=False,
+        )
+        cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
+
+    def test_try_open_red_packet_waits_for_popup_and_result_before_reply(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        dialog_window = mock.Mock()
+        red_packet = mock.Mock()
+        bundle = mock.Mock()
+        runtime = mock.Mock()
+        config = mock.Mock()
+        red_envelop_view = mock.Mock()
+        open_button = mock.Mock()
+        open_button.exists.return_value = True
+        red_envelop_view.child_window.return_value = open_button
+        dialog_window.child_window.return_value = red_envelop_view
+        red_envelop_detail = mock.Mock()
+        red_envelop_detail.exists.return_value = False
+        runtime.desktop.window.return_value = red_envelop_detail
+        call_order = []
+
+        def mark(name):
+            def _inner(*args, **kwargs):
+                call_order.append(name)
+                return True
+
+            return _inner
+
+        def mark_sleep(seconds):
+            call_order.append(f"sleep:{seconds}")
+
+        with mock.patch.object(
+            service,
+            "_close_payment_popup",
+            side_effect=mark("close_popup"),
+        ) as close_popup, mock.patch.object(
+            service,
+            "_send_payment_thanks_message",
+            side_effect=mark("send_reply"),
+        ) as send_thanks, mock.patch.object(
+            service,
+            "_cleanup_after_claim",
+            side_effect=mark("cleanup"),
+        ) as cleanup, mock.patch(
+            "wechat_bridge.payment_listener.time.sleep",
+            side_effect=mark_sleep,
+        ) as mocked_sleep:
+            result = service._try_open_red_packet(
+                dialog_window=dialog_window,
+                runtime=runtime,
+                red_packet=red_packet,
+                bundle=bundle,
+                config=config,
+                friend="Mona",
+                chat_list=mock.sentinel.chat_list,
+            )
+
+        self.assertTrue(result)
+        mocked_sleep.assert_any_call(PAYMENT_POPUP_WAIT_SECONDS)
+        mocked_sleep.assert_any_call(PAYMENT_RESULT_WAIT_SECONDS)
+        close_popup.assert_called_once_with(runtime, dialog_window)
+        self.assertEqual(
+            call_order,
+            [
+                f"sleep:{PAYMENT_POPUP_WAIT_SECONDS}",
+                f"sleep:{PAYMENT_RESULT_WAIT_SECONDS}",
+                "close_popup",
+                "send_reply",
+                "cleanup",
+            ],
+        )
+        send_thanks.assert_called_once_with(
+            dialog_window=dialog_window,
+            bundle=bundle,
+            config=config,
+            friend="Mona",
+            payment_type="红包",
             reply_override=None,
             use_reply_override=False,
         )
@@ -934,6 +1023,9 @@ class AutoPaymentServiceTests(SimpleTestCase):
 
             return _inner
 
+        def mark_sleep(seconds):
+            call_order.append(f"sleep:{seconds}")
+
         with mock.patch.object(service, "_find_visible_button", return_value=receive_button), mock.patch.object(
             service,
             "_close_payment_popup",
@@ -946,7 +1038,7 @@ class AutoPaymentServiceTests(SimpleTestCase):
             service,
             "_cleanup_after_claim",
             side_effect=mark("cleanup"),
-        ), mock.patch("wechat_bridge.payment_listener.time.sleep"):
+        ), mock.patch("wechat_bridge.payment_listener.time.sleep", side_effect=mark_sleep):
             result = service._try_collect_transfer(
                 dialog_window=dialog_window,
                 runtime=runtime,
@@ -958,7 +1050,16 @@ class AutoPaymentServiceTests(SimpleTestCase):
             )
 
         self.assertTrue(result)
-        self.assertEqual(call_order, ["close_popup", "send_reply", "cleanup"])
+        self.assertEqual(
+            call_order,
+            [
+                f"sleep:{PAYMENT_POPUP_WAIT_SECONDS}",
+                f"sleep:{PAYMENT_RESULT_WAIT_SECONDS}",
+                "close_popup",
+                "send_reply",
+                "cleanup",
+            ],
+        )
 
     def test_close_popup_skips_main_window(self):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())

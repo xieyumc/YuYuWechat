@@ -57,6 +57,8 @@ TRANSFER_CLOSED_KEYWORDS = (
     "已退还",
     "已过期",
 )
+PAYMENT_POPUP_WAIT_SECONDS = 5.0
+PAYMENT_RESULT_WAIT_SECONDS = 5.0
 logger = logging.getLogger(__name__)
 
 
@@ -511,6 +513,7 @@ class AutoPaymentService:
         )
 
         red_packet.click_input()
+        time.sleep(PAYMENT_POPUP_WAIT_SECONDS)
         open_button = red_envelop_view.child_window(control_type="Button", title="拆开")
         if not open_button.exists(timeout=0.8):
             if red_envelop_detail.exists(timeout=0.2):
@@ -523,7 +526,7 @@ class AutoPaymentService:
             return False
 
         open_button.click_input()
-        time.sleep(0.6)
+        time.sleep(PAYMENT_RESULT_WAIT_SECONDS)
         if red_envelop_detail.exists(timeout=1):
             try:
                 red_envelop_detail.close()
@@ -627,7 +630,7 @@ class AutoPaymentService:
         use_reply_override: bool = False,
     ) -> bool:
         transfer_item.click_input()
-        time.sleep(0.6)
+        time.sleep(PAYMENT_POPUP_WAIT_SECONDS)
 
         receive_button = self._find_visible_button(runtime, dialog_window, title="收款", timeout=2)
         if receive_button is None:
@@ -636,7 +639,7 @@ class AutoPaymentService:
             return False
 
         receive_button.click_input()
-        time.sleep(0.6)
+        time.sleep(PAYMENT_RESULT_WAIT_SECONDS)
         self._close_payment_popup(runtime, dialog_window)
         try:
             self._send_payment_thanks_message(
