@@ -3676,7 +3676,7 @@ class Monitor():
             text=newMessage.window_text()
             class_name=newMessage.class_name()
             runtime_id=newMessage.element_info.runtime_id
-            if runtime_id!=initial_runtime_id and '微信红包' in text  and class_name=='mmui::ChatBubbleItemView': 
+            if runtime_id!=initial_runtime_id and any(keyword in text.casefold() for keyword in ('微信红包','wechat红包')) and class_name=='mmui::ChatBubbleItemView':
                 open_redpacket(newMessage)
                 red_packet_count+=1
                 initial_runtime_id=runtime_id

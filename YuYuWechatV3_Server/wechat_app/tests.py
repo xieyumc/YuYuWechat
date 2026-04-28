@@ -634,13 +634,19 @@ class AutoPaymentServiceTests(SimpleTestCase):
             return item
 
         claimable_red_packet = make_item("微信红包", "恭喜发财")
-        claimed_red_packet = make_item("微信红包", "已领取")
+        claimable_english_red_packet = make_item("WeChat红包", "恭喜发财")
+        claimable_lowercase_red_packet = make_item("wechat红包", "恭喜发财")
+        claimed_red_packet = make_item("WeChat红包", "已领取")
         claimable_transfer = make_item("微信转账", "待你收款")
-        claimed_transfer = make_item("微信转账", "已存入零钱")
+        claimable_english_transfer = make_item("WeChat转账", "待你收款")
+        claimed_transfer = make_item("WeChat转账", "已存入零钱")
 
         self.assertTrue(is_claimable_red_packet_item(claimable_red_packet))
+        self.assertTrue(is_claimable_red_packet_item(claimable_english_red_packet))
+        self.assertTrue(is_claimable_red_packet_item(claimable_lowercase_red_packet))
         self.assertFalse(is_claimable_red_packet_item(claimed_red_packet))
         self.assertTrue(is_claimable_transfer_item(claimable_transfer))
+        self.assertTrue(is_claimable_transfer_item(claimable_english_transfer))
         self.assertFalse(is_claimable_transfer_item(claimed_transfer))
 
     def test_render_payment_thanks_message_blank_override_disables_default_reply(self):

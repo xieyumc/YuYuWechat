@@ -18,9 +18,25 @@ PAYMENT_FOCUS_KEYWORDS = (
     "收款",
     "退还",
     "微信红包",
+    "WeChat红包",
+    "wechat红包",
+    "微信转账",
+    "WeChat转账",
+    "wechat转账",
     "转账",
     "零钱",
     "Best wishes",
+)
+RED_PACKET_KEYWORDS = (
+    "微信红包",
+    "WeChat红包",
+    "wechat红包",
+)
+TRANSFER_KEYWORDS = (
+    "微信转账",
+    "WeChat转账",
+    "wechat转账",
+    "转账",
 )
 RED_PACKET_CLOSED_KEYWORDS = (
     "已领取",
@@ -96,24 +112,33 @@ def item_texts(listitem: Any) -> list[str]:
     return texts
 
 
+def text_matches_any(text: str, keywords: Iterable[str]) -> bool:
+    normalized = str(text or "").casefold()
+    return any(str(keyword).casefold() in normalized for keyword in keywords)
+
+
+def texts_match_any(texts: Iterable[str], keywords: Iterable[str]) -> bool:
+    return any(text_matches_any(text, keywords) for text in texts)
+
+
 def is_red_packet_item(listitem: Any) -> bool:
-    return any("微信红包" in text for text in item_texts(listitem))
+    return texts_match_any(item_texts(listitem), RED_PACKET_KEYWORDS)
 
 
 def is_transfer_item(listitem: Any) -> bool:
-    return any("转账" in text for text in item_texts(listitem))
+    return texts_match_any(item_texts(listitem), TRANSFER_KEYWORDS)
 
 
 def is_claimable_red_packet_item(listitem: Any) -> bool:
     texts = item_texts(listitem)
-    if not any("微信红包" in text for text in texts):
+    if not texts_match_any(texts, RED_PACKET_KEYWORDS):
         return False
     return not any(keyword in text for text in texts for keyword in RED_PACKET_CLOSED_KEYWORDS)
 
 
 def is_claimable_transfer_item(listitem: Any) -> bool:
     texts = item_texts(listitem)
-    if not any("转账" in text for text in texts):
+    if not texts_match_any(texts, TRANSFER_KEYWORDS):
         return False
     if any(keyword in text for text in texts for keyword in TRANSFER_CLOSED_KEYWORDS):
         return False
@@ -743,7 +768,7 @@ class AutoPaymentService:
                                 continue
                         except Exception:
                             continue
-                        if any(keyword in text for keyword in PAYMENT_FOCUS_KEYWORDS):
+                        if text_matches_any(text, PAYMENT_FOCUS_KEYWORDS):
                             return control
             time.sleep(0.2)
         return None
