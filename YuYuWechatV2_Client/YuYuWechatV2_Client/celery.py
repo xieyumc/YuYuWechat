@@ -44,6 +44,10 @@ app.conf.beat_schedule = {
         'task': 'client_app.tasks.message_check',
         'schedule': crontab(minute='*/1'),
     },
+    'payment-check-every-minute': {
+        'task': 'client_app.tasks.payment_check',
+        'schedule': crontab(minute='*/1'),
+    },
 
     'send-file-every-minute': {
         'task': 'client_app.tasks.check_and_send_files',

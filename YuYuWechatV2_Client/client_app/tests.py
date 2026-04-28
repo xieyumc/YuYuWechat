@@ -12,8 +12,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .celery_runtime import should_schedule_celery_autostart
-from .models import ErrorLog, WechatUser, ServerConfig, ScheduledMessage
-from .tasks import check_and_log_scheduled_message_errors, check_cron
+from .models import ErrorLog, WechatUser, ServerConfig, ScheduledMessage, PaymentCheck
+from .tasks import check_and_log_scheduled_message_errors, check_cron, payment_check
 
 
 class ViewTests(TestCase):
@@ -57,6 +57,12 @@ class ViewTests(TestCase):
         response = self.client.get(reverse('schedule_management'))
         self.assertEqual(response.status_code, 200)
         self.assertTemplateUsed(response, 'message_schedule_management.html')
+
+    def test_payment_check_view(self):
+        self.login()
+        response = self.client.get(reverse('payment_check'))
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'payment_check.html')
 
     @patch('requests.post')
     def test_send_message_view(self, mock_post):
@@ -145,6 +151,57 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "failure", "message": "微信不在线"}')
 
+    @patch('requests.request')
+    def test_auto_payment_status_proxy(self, mock_request):
+        self.login()
+        mock_request.return_value.status_code = 200
+        mock_request.return_value.json.return_value = {
+            'status': 'success',
+            'auto_payment': {'running': False},
+            'auto_payment_config': {},
+        }
+
+        response = self.client.get(reverse('auto_payment_status'))
+
+        self.assertEqual(response.status_code, 200)
+        mock_request.assert_called_once()
+        self.assertEqual(mock_request.call_args.args[:2], ('GET', 'http://127.0.0.1/wechat/auto_payment_status/'))
+
+    @patch('requests.request')
+    def test_toggle_auto_payment_proxy(self, mock_request):
+        self.login()
+        mock_request.return_value.status_code = 200
+        mock_request.return_value.json.return_value = {'status': 'success', 'message': '自动领取红包/转账已启用'}
+
+        response = self.client.post(
+            reverse('toggle_auto_payment'),
+            json.dumps({'enabled': True}),
+            content_type='application/json',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_request.call_args.args[:2], ('POST', 'http://127.0.0.1/wechat/toggle_auto_payment/'))
+
+    @patch('requests.request')
+    def test_claim_payment_now_updates_task_result(self, mock_request):
+        self.login()
+        task = PaymentCheck.objects.create(user=self.user, cron_expression='* * * * *', reply='谢谢')
+        mock_request.return_value.status_code = 200
+        mock_request.return_value.json.return_value = {
+            'status': 'success',
+            'name': 'user1',
+            'red_packets': 1,
+            'transfers': 2,
+        }
+
+        response = self.client.post(reverse('claim_payment_now'), {'task_id': task.id})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(mock_request.call_args.args[:2], ('POST', 'http://127.0.0.1/wechat/claim_payment/'))
+        task.refresh_from_db()
+        self.assertEqual(task.last_red_packets, 1)
+        self.assertEqual(task.last_transfers, 2)
+
     # def test_log_view(self):
     #     self.login()
     #     response = self.client.get(reverse('log_view'))
@@ -172,6 +229,7 @@ class ViewTests(TestCase):
             reverse('error_detection'),
             reverse('send_message_management'),
             reverse('schedule_management'),
+            reverse('payment_check'),
             # reverse('log_view'),
         ]
 
@@ -197,6 +255,7 @@ class ViewTests(TestCase):
             reverse('error_detection'),
             reverse('send_message_management'),
             reverse('schedule_management'),
+            reverse('payment_check'),
             # reverse('log_view'),
         ]
 
@@ -318,3 +377,38 @@ class TaskTests(TestCase):
                 task_id=str(task.id)
             ).exists()
         )
+
+    @patch('client_app.tasks.requests.post')
+    @patch('client_app.tasks.timezone.now')
+    def test_payment_check_claims_due_payment_rule(self, mock_now, mock_post):
+        current_time = timezone.make_aware(
+            datetime(2026, 4, 21, 10, 5, 30),
+            timezone.get_current_timezone()
+        )
+        mock_now.return_value = current_time
+        ServerConfig.objects.create(server_ip='127.0.0.1')
+        task = PaymentCheck.objects.create(
+            user=self.user,
+            cron_expression='5 * * * *',
+            reply='谢谢',
+            is_active=True,
+            last_checked=timezone.make_aware(
+                datetime(2026, 4, 21, 9, 5, 0),
+                timezone.get_current_timezone()
+            ),
+        )
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {
+            'status': 'success',
+            'name': 'task_user',
+            'red_packets': 1,
+            'transfers': 1,
+        }
+
+        payment_check()
+
+        mock_post.assert_called_once()
+        self.assertEqual(mock_post.call_args.args[0], 'http://127.0.0.1/wechat/claim_payment/')
+        task.refresh_from_db()
+        self.assertEqual(task.last_red_packets, 1)
+        self.assertEqual(task.last_transfers, 1)

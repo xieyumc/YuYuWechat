@@ -26,7 +26,7 @@ from .models import CustomScript
 from .celery_runtime import is_celery_running, start_celery_processes, stop_celery_processes
 from .models import EmailSettings
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, ErrorLog, MessageCheck, \
-    ScheduledFileMessage, TaskLog, BackupSettings
+    ScheduledFileMessage, TaskLog, BackupSettings, PaymentCheck
 
 
 def get_task_logs(request):
@@ -231,6 +231,110 @@ def message_check_view(request):
 
     return render(request, 'message_check.html',
                   {'tasks': tasks, 'groups': groups})
+
+
+@login_required
+def payment_check_view(request):
+    tasks = PaymentCheck.objects.all()
+    now = timezone.localtime(timezone.now())
+
+    for task in tasks:
+        if task.is_active:
+            base = now
+            iter = croniter(task.cron_expression, base)
+            task.next_run = iter.get_next(datetime)
+        else:
+            task.next_run = "不运行"
+
+    groups = WechatUser.objects.values_list('group', flat=True).distinct().order_by('group')
+    return render(request, 'payment_check.html', {'tasks': tasks, 'groups': groups})
+
+
+def _get_latest_server_ip():
+    config = ServerConfig.objects.latest('id')
+    return config.server_ip
+
+
+def _proxy_server_request(method, path, payload=None, timeout=12):
+    try:
+        server_ip = _get_latest_server_ip()
+    except ServerConfig.DoesNotExist:
+        return JsonResponse({'status': 'error', 'error': 'No server IP configured'}, status=400)
+
+    url = f'http://{server_ip}{path}'
+    try:
+        response = requests.request(
+            method,
+            url,
+            headers={'Content-Type': 'application/json'},
+            data=json.dumps(payload or {}) if payload is not None else None,
+            timeout=timeout,
+        )
+    except requests.RequestException as e:
+        return JsonResponse({'status': 'error', 'error': str(e)}, status=502)
+
+    try:
+        data = response.json()
+    except ValueError:
+        data = {'status': 'error', 'error': response.text}
+    return JsonResponse(data, status=response.status_code, json_dumps_params={'ensure_ascii': False})
+
+
+@login_required
+def claim_payment_now(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'Invalid request method'}, status=405)
+
+    task_id = request.POST.get('task_id')
+    try:
+        task = PaymentCheck.objects.get(id=task_id)
+    except PaymentCheck.DoesNotExist:
+        return JsonResponse({'status': 'error', 'error': '任务不存在'}, status=404)
+
+    payload = {'name': task.user.username}
+    reply = (task.reply or '').strip()
+    if reply:
+        payload['reply'] = reply
+
+    response = _proxy_server_request('POST', '/wechat/claim_payment/', payload=payload, timeout=180)
+    if response.status_code == 200:
+        try:
+            data = json.loads(response.content.decode('utf-8'))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            data = {}
+        task.last_checked = timezone.localtime(timezone.now())
+        task.last_red_packets = int(data.get('red_packets', 0) or 0)
+        task.last_transfers = int(data.get('transfers', 0) or 0)
+        task.last_result = data.get('message') or f"红包 {task.last_red_packets} 个，转账 {task.last_transfers} 笔"
+        task.save()
+    return response
+
+
+@login_required
+def auto_payment_status(request):
+    return _proxy_server_request('GET', '/wechat/auto_payment_status/', timeout=8)
+
+
+@login_required
+def toggle_auto_payment(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'Invalid request method'}, status=405)
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'error': 'Invalid request payload'}, status=400)
+    return _proxy_server_request('POST', '/wechat/toggle_auto_payment/', payload=payload, timeout=20)
+
+
+@login_required
+def auto_payment_config(request):
+    if request.method != 'POST':
+        return JsonResponse({'status': 'error', 'error': 'Invalid request method'}, status=405)
+    try:
+        payload = json.loads(request.body or '{}')
+    except json.JSONDecodeError:
+        return JsonResponse({'status': 'error', 'error': 'Invalid request payload'}, status=400)
+    return _proxy_server_request('POST', '/wechat/auto_payment_config/', payload=payload, timeout=20)
 
 
 def skip_execution(request):

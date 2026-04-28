@@ -1,7 +1,7 @@
 from django.contrib import admin
 
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, EmailSettings, ErrorLog, MessageCheck, \
-    ScheduledFileMessage, CustomScript
+    ScheduledFileMessage, CustomScript, PaymentCheck
 
 
 class WechatUserAdmin(admin.ModelAdmin):
@@ -62,6 +62,21 @@ class MessageCheckAdmin(admin.ModelAdmin):
     autocomplete_fields = ['user']  # 启用 user 字段的自动完成搜索
 
 
+class PaymentCheckAdmin(admin.ModelAdmin):
+    list_display = (
+        'user',
+        'cron_expression',
+        'last_checked',
+        'last_red_packets',
+        'last_transfers',
+        'is_active',
+    )
+    search_fields = ('user__username', 'reply')
+    list_filter = ('is_active', 'user__group')
+    ordering = ('user',)
+    autocomplete_fields = ['user']
+
+
 class CustomScriptAdmin(admin.ModelAdmin):
     list_display = ('slot', 'code')
 
@@ -73,4 +88,5 @@ admin.site.register(ScheduledMessage, ScheduledMessageAdmin)
 admin.site.register(EmailSettings, EmailSettingsAdmin)
 admin.site.register(ErrorLog, ErrorLogAdmin)
 admin.site.register(MessageCheck, MessageCheckAdmin)
+admin.site.register(PaymentCheck, PaymentCheckAdmin)
 admin.site.register(CustomScript, CustomScriptAdmin)

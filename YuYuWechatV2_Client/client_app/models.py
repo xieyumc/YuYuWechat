@@ -102,6 +102,36 @@ class MessageCheck(models.Model):
         return f"检测 {self.user.username} 的 {message_detail}, {report_condition}: {self.keyword}"
 
 
+class PaymentCheck(models.Model):
+    """
+    定期检查并领取指定好友的红包/转账。
+    """
+    is_active = models.BooleanField(default=True, help_text="检查规则是否激活")
+    user = models.ForeignKey(
+        WechatUser,
+        on_delete=models.CASCADE,
+        related_name="payment_checks",
+        help_text="关联的微信用户",
+    )
+    cron_expression = models.CharField(max_length=255, help_text="用于定时检查红包/转账的 cron 表达式")
+    reply = models.TextField(
+        blank=True,
+        default="",
+        help_text="领取红包后的可选回复。留空时使用服务端默认自动回复配置。",
+    )
+    last_checked = models.DateTimeField(null=True, blank=True, help_text="上次检查时间")
+    last_red_packets = models.IntegerField(default=0, help_text="上次领取红包数量")
+    last_transfers = models.IntegerField(default=0, help_text="上次收取转账数量")
+    last_result = models.TextField(blank=True, default="", help_text="上次检查结果")
+
+    @property
+    def group(self):
+        return self.user.group
+
+    def __str__(self):
+        return f"检查 {self.user.username} 的红包/转账: {self.cron_expression}"
+
+
 class EmailSettings(models.Model):
     SECURITY_CHOICES = [
         ('tls', 'TLS'),

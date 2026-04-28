@@ -17,7 +17,17 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.utils.timezone import now
 
-from .models import ScheduledMessage, ServerConfig, ErrorLog, EmailSettings, MessageCheck, ScheduledFileMessage, TaskLog, BackupSettings
+from .models import (
+    BackupSettings,
+    EmailSettings,
+    ErrorLog,
+    MessageCheck,
+    PaymentCheck,
+    ScheduledFileMessage,
+    ScheduledMessage,
+    ServerConfig,
+    TaskLog,
+)
 
 
 def log_task(func):
@@ -248,6 +258,75 @@ def message_check():
 
         except requests.RequestException as e:
             print(f"Failed to send message to {check.user.username}: {e}")
+
+
+@shared_task
+@log_task
+def payment_check():
+    """
+    定时调用服务端领取指定好友的红包/转账。
+    """
+    current_time = timezone.localtime(timezone.now())
+    checks = PaymentCheck.objects.filter(is_active=True)
+
+    try:
+        server_config = ServerConfig.objects.first()
+        if not server_config:
+            print("Server IP not set")
+            return
+        server_ip = server_config.server_ip
+    except ServerConfig.DoesNotExist:
+        print("Server IP configuration is missing")
+        return
+
+    for check in checks:
+        if not check_cron(current_time, check.cron_expression, check.last_checked):
+            continue
+
+        data = {"name": check.user.username}
+        reply = (check.reply or "").strip()
+        if reply:
+            data["reply"] = reply
+
+        try:
+            url = f"http://{server_ip}/wechat/claim_payment/"
+            response = requests.post(
+                url,
+                headers={"Content-Type": "application/json"},
+                data=json.dumps(data),
+                timeout=180,
+            )
+
+            if response.status_code == 200:
+                response_data = response.json()
+                red_packets = int(response_data.get("red_packets", 0) or 0)
+                transfers = int(response_data.get("transfers", 0) or 0)
+                message = response_data.get("message", "")
+                check.last_checked = current_time
+                check.last_red_packets = red_packets
+                check.last_transfers = transfers
+                check.last_result = message or f"红包 {red_packets} 个，转账 {transfers} 笔"
+                check.save()
+                ErrorLog.objects.filter(error_type="红包/转账定时检查失败", task_id=str(check.id)).delete()
+            else:
+                error_detail = (
+                    f"检查 <span class='highlight'>{check.user.username}</span> 的红包/转账失败，"
+                    f"HTTP {response.status_code}: {response.text}"
+                )
+                if not ErrorLog.objects.filter(error_type="红包/转账定时检查失败", task_id=str(check.id)).exists():
+                    ErrorLog.objects.create(
+                        error_type="红包/转账定时检查失败",
+                        error_detail=error_detail,
+                        task_id=str(check.id),
+                    )
+        except requests.RequestException as e:
+            error_detail = f"检查 <span class='highlight'>{check.user.username}</span> 的红包/转账失败: {e}"
+            if not ErrorLog.objects.filter(error_type="红包/转账定时检查失败", task_id=str(check.id)).exists():
+                ErrorLog.objects.create(
+                    error_type="红包/转账定时检查失败",
+                    error_detail=error_detail,
+                    task_id=str(check.id),
+                )
 
 
 def check_cron(current_time, cron_expression, last_executed, grace_minutes=None):

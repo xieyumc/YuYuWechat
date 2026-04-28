@@ -1,7 +1,7 @@
 from django.contrib.auth.views import LogoutView
 from django.urls import path
 
-from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database,     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip,     check_wechat_status, error_detection_view,     handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view,     delete_chat_record_error, file_schedule_management, scripts_view, run_script_view, backup_list, download_backup,     manual_backup, get_task_logs, server_logs
+from .views import home, send_message, set_server_ip, schedule_management, send_message_management, export_database,     import_database, start_celery, stop_celery, skip_execution, check_celery_running, get_server_ip,     check_wechat_status, error_detection_view,     handle_error_cron, check_errors, login_view, send_email, check_email_settings, ping_server, message_check_view,     delete_chat_record_error, file_schedule_management, scripts_view, run_script_view, backup_list, download_backup,     manual_backup, get_task_logs, server_logs, payment_check_view, claim_payment_now, auto_payment_status, toggle_auto_payment, auto_payment_config
 
 urlpatterns = [
     path('login/', login_view, name='login'),
@@ -28,6 +28,11 @@ urlpatterns = [
     path('send-email/', send_email, name='send_email'),
     path('check-email-settings/', check_email_settings, name='check_email_settings'),
     path('message_check/', message_check_view, name='message_check'),
+    path('payment_check/', payment_check_view, name='payment_check'),
+    path('payment_check/claim_now/', claim_payment_now, name='claim_payment_now'),
+    path('payment_check/auto_status/', auto_payment_status, name='auto_payment_status'),
+    path('payment_check/toggle_auto/', toggle_auto_payment, name='toggle_auto_payment'),
+    path('payment_check/auto_config/', auto_payment_config, name='auto_payment_config'),
     path('delete_chat_record_error/', delete_chat_record_error, name='delete_chat_record_error'),
     path('scripts/', scripts_view, name='scripts_view'),
     path('scripts/run/', run_script_view, name='run_script_view'),

@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+
+{% block title %}红包/转账检查{% endblock %}
+
+{% block header %}红包/转账检查{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-lg-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">服务端自动领取开关</h5>
+                <p class="text-muted small mb-3">该开关直接控制 V3 服务端的自动领取红包/转账监听。</p>
+                <div class="mb-2">当前状态：<strong id="autoPaymentState">加载中...</strong></div>
+                <div class="mb-2">最近事件：<span id="autoPaymentEvent">-</span></div>
+                <div class="mb-2">最近错误：<span id="autoPaymentError" class="text-danger">-</span></div>
+                <div class="mb-2">累计红包：<span id="autoPaymentRed">0</span></div>
+                <div class="mb-3">累计转账：<span id="autoPaymentTransfer">0</span></div>
+                <button id="toggleAutoPaymentButton" class="btn btn-primary" type="button" onclick="toggleAutoPayment()" data-running="false">
+                    启用自动领取红包/转账
+                </button>
+                <button class="btn btn-outline-secondary" type="button" onclick="loadAutoPaymentStatus()">刷新状态</button>
+                <div id="autoPaymentMessage" class="small text-muted mt-2"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg-6 mb-3">
+        <div class="card h-100">
+            <div class="card-body">
+                <h5 class="card-title">自动领取配置</h5>
+                <div class="form-check mb-3">
+                    <input id="autoThankAfterRedPacket" class="form-check-input" type="checkbox">
+                    <label class="form-check-label" for="autoThankAfterRedPacket">成功领取红包后自动发送感谢消息</label>
+                </div>
+                <div class="row g-3 mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label" for="paymentReplyDelay">回复延迟（秒）</label>
+                        <input id="paymentReplyDelay" class="form-control" type="number" min="0" step="0.1" value="2">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label" for="autoPaymentInterval">自动检查间隔（分钟）</label>
+                        <input id="autoPaymentInterval" class="form-control" type="number" min="0.01" step="0.1" value="2">
+                    </div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label" for="redPacketThanksMessage">红包感谢消息</label>
+                    <textarea id="redPacketThanksMessage" class="form-control" rows="3" placeholder="例如：谢谢{friend}的{payment_type}，已收到～"></textarea>
+                    <div class="form-text">支持占位符：<code>{friend}</code>、<code>{name}</code>、<code>{payment_type}</code></div>
+                </div>
+                <button class="btn btn-success" type="button" onclick="saveAutoPaymentConfig()">保存配置</button>
+                <div id="autoPaymentConfigMessage" class="small text-muted mt-2"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-3">
+    <div class="col-md-8">
+        <div class="input-group">
+            <label class="input-group-text" for="groupFilter">选择分组:</label>
+            <select class="form-select" id="groupFilter" onchange="filterTasks()">
+                <option value="all">所有分组</option>
+                {% for group in groups %}
+                    <option value="{{ group }}">{{ group }}</option>
+                {% endfor %}
+            </select>
+            <a class="btn btn-outline-primary" href="{% url 'admin:client_app_paymentcheck_add' %}" target="_blank">新增定时检查规则</a>
+        </div>
+    </div>
+</div>
+
+<div class="table-responsive">
+    <table class="table table-striped table-hover align-middle">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>用户名</th>
+                <th>分组</th>
+                <th>Cron表达式</th>
+                <th>可选回复</th>
+                <th>上次检查时间</th>
+                <th>上次结果</th>
+                <th>下次检查时间</th>
+                <th>操作</th>
+            </tr>
+        </thead>
+        <tbody id="taskContainer">
+        {% for task in tasks %}
+            <tr data-group="{{ task.group }}">
+                <td class="index"></td>
+                <td>{{ task.user.username }}</td>
+                <td>{{ task.group }}</td>
+                <td><code>{{ task.cron_expression }}</code></td>
+                <td>{{ task.reply|default:"使用服务端默认配置"|truncatechars:30 }}</td>
+                <td>{{ task.last_checked|date:"Y-m-d H:i:s"|default:"N/A" }}</td>
+                <td>
+                    红包 {{ task.last_red_packets }}，转账 {{ task.last_transfers }}
+                    {% if task.last_result %}
+                        <div class="small text-muted">{{ task.last_result }}</div>
+                    {% endif %}
+                </td>
+                <td>{{ task.next_run|date:"Y-m-d H:i:s"|default:"N/A" }}</td>
+                <td>
+                    <form method="post" onsubmit="return claimPaymentNow(this);">
+                        {% csrf_token %}
+                        <input type="hidden" name="task_id" value="{{ task.id }}">
+                        <button type="submit" class="btn btn-sm btn-outline-success">立即检查</button>
+                    </form>
+                    <span class="status-message badge bg-light text-dark mt-2" style="display:none;"></span>
+                </td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<script>
+    function filterTasks() {
+        const selectedGroup = document.getElementById('groupFilter').value;
+        const rows = document.querySelectorAll('#taskContainer tr');
+        let index = 1;
+        rows.forEach(row => {
+            const group = row.getAttribute('data-group');
+            if (selectedGroup === 'all' || group === selectedGroup) {
+                row.style.display = '';
+                row.querySelector('.index').textContent = index++;
+            } else {
+                row.style.display = 'none';
+            }
+        });
+    }
+
+    function renderAutoPayment(payload) {
+        const status = payload.auto_payment || {};
+        const config = payload.auto_payment_config || {};
+        const toggleButton = document.getElementById('toggleAutoPaymentButton');
+
+        document.getElementById('autoPaymentState').textContent = status.state_label || '未知';
+        document.getElementById('autoPaymentEvent').textContent = status.last_event || '-';
+        document.getElementById('autoPaymentError').textContent = status.last_error || '-';
+        document.getElementById('autoPaymentRed').textContent = status.total_red_packets ?? 0;
+        document.getElementById('autoPaymentTransfer').textContent = status.total_transfers ?? 0;
+        toggleButton.dataset.running = status.running ? 'true' : 'false';
+        toggleButton.textContent = status.running ? '停止自动领取红包/转账' : '启用自动领取红包/转账';
+
+        if (Object.keys(config).length > 0) {
+            document.getElementById('autoThankAfterRedPacket').checked = Boolean(config.auto_thank_after_red_packet);
+            document.getElementById('paymentReplyDelay').value = config.payment_reply_delay ?? 2;
+            document.getElementById('autoPaymentInterval').value = config.auto_payment_check_interval_minutes ?? 2;
+            document.getElementById('redPacketThanksMessage').value = config.red_packet_thanks_message || '';
+        }
+    }
+
+    async function loadAutoPaymentStatus() {
+        const messageEl = document.getElementById('autoPaymentMessage');
+        messageEl.textContent = '正在刷新...';
+        try {
+            const response = await fetch('{% url "auto_payment_status" %}');
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || '获取状态失败');
+            }
+            renderAutoPayment(payload);
+            messageEl.textContent = '状态已刷新';
+        } catch (error) {
+            document.getElementById('autoPaymentState').textContent = '连接失败';
+            messageEl.textContent = error.message || '获取状态失败';
+        }
+    }
+
+    async function toggleAutoPayment() {
+        const button = document.getElementById('toggleAutoPaymentButton');
+        const enabled = button.dataset.running !== 'true';
+        const messageEl = document.getElementById('autoPaymentMessage');
+        button.disabled = true;
+        messageEl.textContent = '正在提交...';
+        try {
+            const response = await fetch('{% url "toggle_auto_payment" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({enabled})
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || '操作失败');
+            }
+            renderAutoPayment(payload);
+            messageEl.textContent = payload.message || '操作成功';
+        } catch (error) {
+            messageEl.textContent = error.message || '操作失败';
+        } finally {
+            button.disabled = false;
+        }
+    }
+
+    async function saveAutoPaymentConfig() {
+        const messageEl = document.getElementById('autoPaymentConfigMessage');
+        messageEl.textContent = '正在保存...';
+        try {
+            const response = await fetch('{% url "auto_payment_config" %}', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    auto_thank_after_red_packet: document.getElementById('autoThankAfterRedPacket').checked,
+                    payment_reply_delay: Number(document.getElementById('paymentReplyDelay').value),
+                    auto_payment_check_interval_minutes: Number(document.getElementById('autoPaymentInterval').value),
+                    red_packet_thanks_message: document.getElementById('redPacketThanksMessage').value
+                })
+            });
+            const payload = await response.json();
+            if (!response.ok) {
+                throw new Error(payload.error || '保存失败');
+            }
+            renderAutoPayment(payload);
+            messageEl.textContent = payload.message || '保存成功';
+        } catch (error) {
+            messageEl.textContent = error.message || '保存失败';
+        }
+    }
+
+    function claimPaymentNow(form) {
+        const statusMessage = form.closest('td').querySelector('.status-message');
+        statusMessage.style.display = 'inline-block';
+        statusMessage.textContent = '正在检查...';
+        statusMessage.className = 'status-message badge bg-info mt-2';
+
+        const formData = new FormData(form);
+        fetch('{% url "claim_payment_now" %}', {
+            method: 'POST',
+            body: formData,
+            headers: {'X-CSRFToken': formData.get('csrfmiddlewaretoken')}
+        })
+        .then(response => response.json().then(data => ({response, data})))
+        .then(({response, data}) => {
+            if (response.ok && data.status === 'success') {
+                statusMessage.textContent = `红包 ${data.red_packets || 0}，转账 ${data.transfers || 0}`;
+                statusMessage.className = 'status-message badge bg-success mt-2';
+            } else {
+                throw new Error(data.error || '检查失败');
+            }
+        })
+        .catch(error => {
+            statusMessage.textContent = error.message || '检查失败';
+            statusMessage.className = 'status-message badge bg-danger mt-2';
+        });
+        return false;
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        filterTasks();
+        loadAutoPaymentStatus();
+        setInterval(loadAutoPaymentStatus, 15000);
+    });
+</script>
+{% endblock %}
