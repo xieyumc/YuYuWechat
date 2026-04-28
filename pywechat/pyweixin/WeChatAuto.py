@@ -3666,7 +3666,7 @@ class Monitor():
         chatList=dialog_window.child_window(**Lists.FriendChatList)#聊天界面内存储所有信息的容器
         chatList.type_keys('{END}')
         red_envelop_view=dialog_window.child_window(class_name='mmui::PayRedEnvelopeInfoView',title='',control_type='Group')#微信红包点击后弹出的界面
-        red_envelop_detail=desktop.window(class_name='mmui::PayRedEnvelopDetailWindow',control_type='Window',title='微信')
+        red_envelop_detail=desktop.window(class_name='mmui::PayRedEnvelopDetailWindow',control_type='Window',title_re=r'^(微信|WeChat)$')
         initial_message=chatList.children(control_type='ListItem')[-1]#刚打开聊天界面时的最后一条消息的listitem
         initial_runtime_id=initial_message.element_info.runtime_id
         end_timestamp=time.time()+duration#根据秒数计算截止时间

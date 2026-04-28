@@ -29,6 +29,7 @@ Examples
 
 
 language='简体中文'#目前只支持简体中文，还未增加其他语言扩展
+WECHAT_TITLE_RE=r'^(微信|WeChat)$'
 
 class Buttons():
     '''
@@ -259,14 +260,14 @@ class Windows():
 class Login_window():
     '''登录界面要用到的唯二的两个Ui:登录界面与进入微信按钮'''
     def __init__(self):
-        self.LoginWindow={'title':'微信','class_name':'mmui::LoginWindow'}#登录微信界面
+        self.LoginWindow={'title_re':WECHAT_TITLE_RE,'class_name':'mmui::LoginWindow'}#登录微信界面
         self.LoginButton={'control_type':'Button','title':'进入微信'}#进入微信按钮
         
 
 class SideBar():
     '''主界面侧导航栏下的所有Ui'''
     def __init__(self):
-        self.Weixin={'title':'微信','control_type':'Button','class_name':"mmui::XTabBarItem"}#主界面左侧的微信按钮
+        self.Weixin={'title_re':WECHAT_TITLE_RE,'control_type':'Button','class_name':"mmui::XTabBarItem"}#主界面左侧的微信按钮
         self.Contacts={'title':'通讯录','control_type':'Button'}#主界面左侧的通讯录按钮
         self.Collections={'title':'收藏','control_type':'Button','class_name':"mmui::XTabBarItem"}#主界面左侧的收藏按钮
         self.Moments={'title':'朋友圈','control_type':'Button','class_name':"mmui::XTabBarItem"}#主界面左侧的朋友圈按钮
@@ -280,9 +281,9 @@ class SideBar():
 class Main_window():
     '''主界面下所有的第一级Ui'''
     def __init__(self):
-        self.MainWindow={'title':'微信','class_name':'mmui::MainWindow','framework_id':'Qt'}#微信主界面
+        self.MainWindow={'title_re':WECHAT_TITLE_RE,'class_name':'mmui::MainWindow','framework_id':'Qt'}#微信主界面
         self.AddTalkMemberWindow={'title':'微信选择成员','control_type':'Window','class_name':"mmui::SessionPickerWindow",'framework_id':'Qt'}#添加新朋友时弹出的窗口
-        self.MainWindow={'title':'微信','class_name':'mmui::MainWindow'}#微信主界面
+        self.MainWindow={'title_re':WECHAT_TITLE_RE,'class_name':'mmui::MainWindow'}#微信主界面
         self.Toolbar={'title':'导航','control_type':'ToolBar'}#主界面左侧的侧边栏
         self.SessionList={'title':'会话','control_type':'List','framework_id':'Qt'}#主界面左侧会话列表
         self.Search={'title':'搜索','control_type':'Edit','class_name':"mmui::XValidatorTextEdit"}#主界面顶部的搜索栏
@@ -314,19 +315,19 @@ class Independent_window():
         self.ContactManagerWindow={'title':'通讯录管理','class_name':"mmui::ContactsManagerWindow"}#通讯录管理窗口
         self.MomentsWindow={'title':'朋友圈','control_type':"Window",'class_name':"mmui::SNSWindow",'framework_id':'Qt'}#朋友圈窗口
         self.ChatFilesWindow={'title':'聊天文件','control_type':'Window','class_name':"mmui::FileManagerWindow"}#聊天文件窗口
-        self.MiniProgramWindow={'title':'微信','control_type':'Pane','class_name':'Chrome_WidgetWin_0'}#小程序面板窗口
-        self.SearchWindow={'title':'微信','class_name':'Chrome_WidgetWin_0','control_type':'Pane'}#搜一搜窗口
-        self.ChannelsWindow={'title':'微信','class_name':'Chrome_WidgetWin_0','control_type':'Pane'}#视频号窗口
-        self.ContactProfileWindow={'title':'微信','class_name':'ContactProfileWnd','framework_id':'Win32','control_type':'Pane'}#添加新好友时的添加到通讯录窗口
+        self.MiniProgramWindow={'title_re':WECHAT_TITLE_RE,'control_type':'Pane','class_name':'Chrome_WidgetWin_0'}#小程序面板窗口
+        self.SearchWindow={'title_re':WECHAT_TITLE_RE,'class_name':'Chrome_WidgetWin_0','control_type':'Pane'}#搜一搜窗口
+        self.ChannelsWindow={'title_re':WECHAT_TITLE_RE,'class_name':'Chrome_WidgetWin_0','control_type':'Pane'}#视频号窗口
+        self.ContactProfileWindow={'title_re':WECHAT_TITLE_RE,'class_name':'ContactProfileWnd','framework_id':'Win32','control_type':'Pane'}#添加新好友时的添加到通讯录窗口
         self.ChatHistoryWindow={'control_type':'Window','class_name':'mmui::SearchMsgUniqueChatWindow','framework_id':'Qt'}#聊天记录窗口
         self.GroupAnnouncementWindow={'title':'群公告','framework_id':'Win32','class_name':'ChatRoomAnnouncementWnd'}#群公告窗口
         self.NoteWindow={'title':'笔记','class_name':'FavNoteWnd','framework_id':"Win32"}#笔记窗口
-        self.OldIncomingCallWindow={'class_name':'VoipTrayWnd','title':'微信'}#旧版本来电(视频或语音)窗口
-        self.NewIncomingCallWindow={'class_name':'ILinkVoipTrayWnd','title':'微信'}#旧版本来电(视频或语音)窗口
-        self.OldVoiceCallWindow={'title':'微信','class_name':'AudioWnd'}#旧版本接通语音电话后通话窗口
-        self.NewVoiceCallWindow={'title':'微信','class_name':'ILinkAudioWnd'}#新版本接通语音电话后通话窗口
-        self.OldVideoCallWindow={'title':'微信','class_name':'VoipWnd'}#新版本接通语音电话后通话窗口
-        self.NewVideoCallWindow={'title':'微信','class_name':'ILinkVoipWnd'}#新版本接通视频电话后通话窗口
+        self.OldIncomingCallWindow={'class_name':'VoipTrayWnd','title_re':WECHAT_TITLE_RE}#旧版本来电(视频或语音)窗口
+        self.NewIncomingCallWindow={'class_name':'ILinkVoipTrayWnd','title_re':WECHAT_TITLE_RE}#旧版本来电(视频或语音)窗口
+        self.OldVoiceCallWindow={'title_re':WECHAT_TITLE_RE,'class_name':'AudioWnd'}#旧版本接通语音电话后通话窗口
+        self.NewVoiceCallWindow={'title_re':WECHAT_TITLE_RE,'class_name':'ILinkAudioWnd'}#新版本接通语音电话后通话窗口
+        self.OldVideoCallWindow={'title_re':WECHAT_TITLE_RE,'class_name':'VoipWnd'}#新版本接通语音电话后通话窗口
+        self.NewVideoCallWindow={'title_re':WECHAT_TITLE_RE,'class_name':'ILinkVoipWnd'}#新版本接通视频电话后通话窗口
         self.OfficialAccountWindow={'title':'公众号','control_type':'Pane','class_name':'Chrome_WidgetWin_0','framework_id':'Win32'}#公众号窗口
 
 class Groups():

@@ -316,7 +316,7 @@ def open_red_packet(dialog_window:WindowSpecification,red_packet:ListItemWrapper
         redpacket:红包对应的ListItem
     '''
     red_envelop_view=dialog_window.child_window(class_name='mmui::PayRedEnvelopeInfoView',title='',control_type='Group')#微信红包点击后弹出的界面
-    red_envelop_detail=desktop.window(class_name='mmui::PayRedEnvelopDetailWindow',control_type='Window',title='微信')
+    red_envelop_detail=desktop.window(class_name='mmui::PayRedEnvelopDetailWindow',control_type='Window',title_re=r'^(微信|WeChat)$')
     red_packet.click_input()
     open_button=red_envelop_view.child_window(control_type='Button',title='拆开')
     open_button.click_input()

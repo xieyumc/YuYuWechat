@@ -10,7 +10,7 @@ from typing import Any, Iterable
 from django.db import close_old_connections
 from django.utils import timezone
 
-from .bridge import WeChatBridge
+from .bridge import WeChatBridge, wechat_title_alias_locators
 
 PAYMENT_FOCUS_KEYWORDS = (
     "待你收款",
@@ -482,7 +482,7 @@ class AutoPaymentService:
         red_envelop_detail = runtime.desktop.window(
             class_name="mmui::PayRedEnvelopDetailWindow",
             control_type="Window",
-            title="微信",
+            title_re=r"^(微信|WeChat)$",
         )
 
         red_packet.click_input()
@@ -634,14 +634,16 @@ class AutoPaymentService:
 
     def _cleanup_after_claim(self, dialog_window: Any, bundle: Any, runtime: PaymentRuntime, chat_list: Any = None) -> None:
         self._restore_wechat_focus(runtime, dialog_window)
-        try:
-            weixin_button = dialog_window.child_window(**runtime.SideBar.Weixin)
-            if weixin_button.exists(timeout=0.5):
-                self._restore_wechat_focus(runtime, dialog_window)
-                weixin_button.double_click_input()
-                time.sleep(0.2)
-        except Exception:
-            pass
+        for locator in wechat_title_alias_locators(runtime.SideBar.Weixin):
+            try:
+                weixin_button = dialog_window.child_window(**locator)
+                if weixin_button.exists(timeout=0.5):
+                    self._restore_wechat_focus(runtime, dialog_window)
+                    weixin_button.double_click_input()
+                    time.sleep(0.2)
+                    break
+            except Exception:
+                continue
 
         if chat_list is not None and chat_list.exists(timeout=0.2):
             try:
@@ -656,11 +658,16 @@ class AutoPaymentService:
             runtime = self._load_runtime()
             main_window = self._get_main_window(bundle, config)
             self._restore_wechat_focus(runtime, main_window)
-            weixin_button = main_window.child_window(**runtime.SideBar.Weixin)
-            if weixin_button.exists(timeout=0.5):
-                self._restore_wechat_focus(runtime, main_window)
-                weixin_button.double_click_input()
-                time.sleep(0.2)
+            for locator in wechat_title_alias_locators(runtime.SideBar.Weixin):
+                try:
+                    weixin_button = main_window.child_window(**locator)
+                    if weixin_button.exists(timeout=0.5):
+                        self._restore_wechat_focus(runtime, main_window)
+                        weixin_button.double_click_input()
+                        time.sleep(0.2)
+                        break
+                except Exception:
+                    continue
             self._restore_wechat_focus(runtime, main_window)
         except Exception:
             pass

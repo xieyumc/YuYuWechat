@@ -15,3 +15,4 @@ YuYuWechatV2_Client/celerybeat-schedule.db
 /YuYuWechatV3_Server/build_pyinstaller_windows.bat
 /YuYuWechatV3_Server/YuYuWechatV3_Server.spec
 /YuYuWechatV3_Server/packaging/
+YuYuWechatV3_Server/db.sqlite3

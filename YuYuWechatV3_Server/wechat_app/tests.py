@@ -8,7 +8,15 @@ from urllib.parse import quote
 
 from django.test import SimpleTestCase, TransactionTestCase
 
-from wechat_bridge import AutoPaymentService, BridgeOperationError, WeChatBridge, group_dialog_rows, map_runtime_exception, normalize_dialog_rows
+from wechat_bridge import (
+    AutoPaymentService,
+    BridgeOperationError,
+    WeChatBridge,
+    group_dialog_rows,
+    map_runtime_exception,
+    normalize_dialog_rows,
+    wechat_title_alias_locators,
+)
 import wechat_bridge.bridge as bridge_module
 from wechat_bridge.payment_listener import is_claimable_red_packet_item, is_claimable_transfer_item, iter_recent_items
 
@@ -130,6 +138,40 @@ class QueueWorkerTests(SimpleTestCase):
 
 
 class BridgeSendStrategyTests(SimpleTestCase):
+    def test_wechat_title_alias_locators_accept_chinese_and_english_titles(self):
+        locators = wechat_title_alias_locators(
+            {"title": "微信", "control_type": "Button", "class_name": "mmui::XTabBarItem"}
+        )
+
+        self.assertEqual(
+            locators,
+            [
+                {"title": "微信", "control_type": "Button", "class_name": "mmui::XTabBarItem"},
+                {"control_type": "Button", "class_name": "mmui::XTabBarItem", "title_re": r"^(微信|WeChat)$"},
+            ],
+        )
+
+    def test_return_to_message_list_falls_back_to_english_wechat_tab(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        bundle.Buttons.WeixinButton = {"title": "微信", "control_type": "Button", "class_name": "mmui::XTabBarItem"}
+        bundle.SideBar.Weixin = {"title": "微信", "control_type": "Button", "class_name": "mmui::XTabBarItem"}
+        main_window = mock.Mock()
+        button = mock.Mock()
+        button.exists.return_value = True
+
+        def child_window(**locator):
+            if locator.get("title_re") == r"^(微信|WeChat)$":
+                return button
+            raise RuntimeError("Chinese title not available")
+
+        main_window.child_window.side_effect = child_window
+
+        with mock.patch.object(bridge_module.time, "sleep"):
+            bridge._return_to_message_list(main_window, bundle)
+
+        button.double_click_input.assert_called_once_with()
+
     def test_dump_chat_rows_uses_top_search_and_returns_to_message_list(self):
         bridge = WeChatBridge()
         bundle = mock.Mock()

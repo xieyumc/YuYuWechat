@@ -36,6 +36,7 @@ MEDIA_CACHE_TTL_SECONDS = 6 * 60 * 60
 SEARCH_RESULTS_STABILIZE_SECONDS = 1.0
 LOCAL_SEARCH_SECTION_LABELS = {"最近使用", "联系人", "群聊", "服务号", "公众号", "最常使用", "功能"}
 NETWORK_SEARCH_LABELS = {"搜索网络结果", "网络查找手机/QQ号：", "网络查找手机/QQ号:"}
+WECHAT_TITLE_RE = r"^(微信|WeChat)$"
 KNOWN_RUNTIME_ERROR_NAMES = {
     "NotStartError",
     "NotLoginError",
@@ -55,6 +56,27 @@ class BridgeOperationError(Exception):
         self.http_status = http_status
         self.response = {"status": "error", "error": message}
         super().__init__(message)
+
+
+def wechat_title_alias_locators(*locators: Any) -> list[dict[str, Any]]:
+    expanded: list[dict[str, Any]] = []
+    for locator in locators:
+        try:
+            current = dict(locator)
+        except Exception:
+            continue
+
+        candidates = [current]
+        if current.get("title") in {"微信", "WeChat"}:
+            regex_locator = dict(current)
+            regex_locator.pop("title", None)
+            regex_locator["title_re"] = WECHAT_TITLE_RE
+            candidates.append(regex_locator)
+
+        for candidate in candidates:
+            if candidate not in expanded:
+                expanded.append(candidate)
+    return expanded
 
 
 @dataclass(slots=True)
@@ -294,7 +316,7 @@ class WeChatBridge:
             raise map_runtime_exception(exc) from exc
 
     def _click_weixin_tab(self, main_window: Any, bundle: PyWeixinBundle) -> None:
-        candidates = (
+        candidates = wechat_title_alias_locators(
             bundle.Buttons.WeixinButton,
             bundle.SideBar.Weixin,
         )
@@ -308,7 +330,7 @@ class WeChatBridge:
                 continue
 
     def _return_to_message_list(self, main_window: Any, bundle: PyWeixinBundle) -> None:
-        candidates = (
+        candidates = wechat_title_alias_locators(
             bundle.Buttons.WeixinButton,
             bundle.SideBar.Weixin,
         )
