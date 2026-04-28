@@ -50,9 +50,3 @@ jobs:
       run: |
         coverage run --source='.' manage.py test --verbosity=3
         coverage report
-        coverage xml -o coverage.xml
-
-    - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@v4.0.1
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
