@@ -54,6 +54,7 @@
                     <span id="celeryStatus" class="d-inline-block rounded-circle bg-secondary me-3" style="width: 12px; height: 12px;"></span>
                     <span id="celeryMessage">检查中...</span>
                 </div>
+                <div id="celeryWarning" class="alert alert-warning py-2 px-3 small d-none" role="alert"></div>
                 <div class="mt-auto btn-group w-100">
                     <button type="button" onclick="startCelery()" class="btn btn-success">启动</button>
                     <button type="button" onclick="stopCelery()" class="btn btn-danger">停止</button>
@@ -170,7 +171,7 @@
             indicator.classList.add('bg-success');
         } else if (state === 'error') {
             indicator.classList.add('bg-danger');
-        } else if (state === 'loading') {
+        } else if (state === 'loading' || state === 'warning') {
             indicator.classList.add('bg-warning');
         } else {
             indicator.classList.add('bg-secondary');
@@ -276,14 +277,29 @@
         fetch('{% url "check_celery_running" %}')
             .then(response => response.json())
             .then(data => {
+                const warningEl = document.getElementById('celeryWarning');
+                const workerCount = data.worker_count ?? 0;
+                const beatCount = data.beat_count ?? 0;
+                const processCount = data.process_count ?? 0;
+                const statusText = `Celery 正在运行（worker ${workerCount}，beat ${beatCount}，总计 ${processCount}）`;
+
                 if (data.status === 'Celery is running') {
-                    updateStatusIndicator('celeryStatus', 'success', 'Celery 正在运行');
+                    if (data.duplicate) {
+                        updateStatusIndicator('celeryStatus', 'warning', statusText);
+                        warningEl.textContent = '检测到多个 Celery worker/beat，可能导致定时消息或红包/转账重复执行。请先停止 Celery，再重新启动。';
+                        warningEl.classList.remove('d-none');
+                    } else {
+                        updateStatusIndicator('celeryStatus', 'success', statusText);
+                        warningEl.classList.add('d-none');
+                    }
                 } else {
                     updateStatusIndicator('celeryStatus', 'error', 'Celery 未运行');
+                    warningEl.classList.add('d-none');
                 }
             })
             .catch(error => {
                 updateStatusIndicator('celeryStatus', 'error', '状态检查失败');
+                document.getElementById('celeryWarning').classList.add('d-none');
                 console.error('Error:', error);
             });
     }

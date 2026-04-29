@@ -23,7 +23,12 @@ from django.utils.encoding import smart_str
 from django.utils.timezone import now
 
 from .models import CustomScript
-from .celery_runtime import is_celery_running, start_celery_processes, stop_celery_processes
+from .celery_runtime import (
+    get_celery_process_report,
+    is_celery_running,
+    start_celery_processes,
+    stop_celery_processes,
+)
 from .models import EmailSettings
 from .models import Message, WechatUser, ServerConfig, ScheduledMessage, ErrorLog, MessageCheck, \
     ScheduledFileMessage, TaskLog, BackupSettings, PaymentCheck
@@ -480,10 +485,17 @@ def stop_celery(request):
 
 def check_celery_running(request):
     try:
-        if is_celery_running():
-            return JsonResponse({'status': 'Celery is running'}, status=200)
-        else:
-            return JsonResponse({'status': 'Celery is not running'}, status=404)
+        report = get_celery_process_report()
+        payload = {
+            'status': 'Celery is running' if report['running'] else 'Celery is not running',
+            'running': report['running'],
+            'process_count': report['process_count'],
+            'worker_count': report['worker_count'],
+            'beat_count': report['beat_count'],
+            'unknown_count': report['unknown_count'],
+            'duplicate': report['duplicate'],
+        }
+        return JsonResponse(payload, status=200 if report['running'] else 404)
     except Exception as e:
         return JsonResponse({'status': 'Failed to check Celery status', 'error': str(e)}, status=500)
 

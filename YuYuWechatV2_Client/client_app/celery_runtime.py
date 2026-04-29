@@ -24,6 +24,10 @@ def _celery_base_command():
 
 
 def start_celery_processes():
+    if is_celery_running():
+        logger.info('Celery is already running; skip starting another worker/beat pair.')
+        return None, None
+
     env = os.environ.copy()
     env.setdefault('DJANGO_SETTINGS_MODULE', 'YuYuWechatV2_Client.settings')
     popen_kwargs = {
@@ -42,6 +46,84 @@ def start_celery_processes():
     return worker, beat
 
 
+def _is_target_celery_command(command):
+    return 'celery' in command and 'YuYuWechatV2_Client' in command
+
+
+def _classify_celery_process(command):
+    if ' worker' in f' {command} ':
+        return 'worker'
+    if ' beat' in f' {command} ':
+        return 'beat'
+    return 'unknown'
+
+
+def _parse_ps_output(output):
+    if isinstance(output, bytes):
+        output = output.decode(errors='replace')
+
+    processes = []
+    for line in (output or '').splitlines():
+        parts = line.strip().split(None, 2)
+        if len(parts) < 3:
+            continue
+
+        try:
+            pid = int(parts[0])
+            ppid = int(parts[1])
+        except ValueError:
+            continue
+
+        command = parts[2]
+        if not _is_target_celery_command(command):
+            continue
+
+        processes.append({
+            'pid': pid,
+            'ppid': ppid,
+            'kind': _classify_celery_process(command),
+            'command': command,
+        })
+    return processes
+
+
+def get_celery_process_report():
+    """
+    Count Celery worker/beat root processes for this project.
+
+    Celery prefork workers create child processes, so counting every matching
+    process would produce false alarms. Root process counting flags duplicate
+    worker/beat instances while ignoring worker pool children.
+    """
+    result = subprocess.run(
+        ['ps', '-eo', 'pid=,ppid=,args='],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        check=False,
+    )
+    processes = _parse_ps_output(result.stdout)
+    process_pids = {process['pid'] for process in processes}
+    root_processes = [
+        process for process in processes
+        if process['ppid'] not in process_pids
+    ]
+
+    worker_count = sum(1 for process in root_processes if process['kind'] == 'worker')
+    beat_count = sum(1 for process in root_processes if process['kind'] == 'beat')
+    unknown_count = sum(1 for process in root_processes if process['kind'] == 'unknown')
+    duplicate = worker_count > 1 or beat_count > 1 or unknown_count > 0
+
+    return {
+        'running': bool(root_processes),
+        'process_count': len(root_processes),
+        'worker_count': worker_count,
+        'beat_count': beat_count,
+        'unknown_count': unknown_count,
+        'duplicate': duplicate,
+        'processes': root_processes,
+    }
+
+
 def stop_celery_processes():
     result = subprocess.run(
         ['pkill', '-f', _celery_process_pattern()],
@@ -53,13 +135,7 @@ def stop_celery_processes():
 
 
 def is_celery_running():
-    result = subprocess.run(
-        ['pgrep', '-f', _celery_process_pattern()],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    )
-    return bool(result.stdout)
+    return get_celery_process_report()['running']
 
 
 def should_schedule_celery_autostart(argv=None, env=None):

@@ -3,6 +3,8 @@ import json
 import os
 import re
 import time
+import hashlib
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from functools import wraps
 
@@ -12,6 +14,7 @@ from croniter import croniter
 from django.conf import settings
 from django.core.mail import EmailMessage, get_connection
 from django.core.management import call_command
+from django.db import connection
 from django.http import JsonResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
@@ -45,7 +48,57 @@ def log_task(func):
     return wrapper
 
 
+def _advisory_lock_key(value):
+    raw = int.from_bytes(hashlib.blake2s(value.encode('utf-8'), digest_size=4).digest(), 'big')
+    if raw >= 2 ** 31:
+        raw -= 2 ** 32
+    return raw
+
+
+@contextmanager
+def postgres_advisory_lock(lock_name):
+    """
+    Cross-process lock for periodic tasks.
+
+    The production Docker setup uses PostgreSQL, so this prevents two Celery
+    beat/worker instances from executing the same scheduler sweep at once.
+    Non-PostgreSQL test/dev databases fall back to a no-op lock.
+    """
+    if connection.vendor != 'postgresql':
+        yield True
+        return
+
+    namespace_key = _advisory_lock_key('yuyuwechat-v2-client')
+    lock_key = _advisory_lock_key(lock_name)
+    acquired = False
+
+    with connection.cursor() as cursor:
+        cursor.execute('SELECT pg_try_advisory_lock(%s, %s)', [namespace_key, lock_key])
+        acquired = bool(cursor.fetchone()[0])
+
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            with connection.cursor() as cursor:
+                cursor.execute('SELECT pg_advisory_unlock(%s, %s)', [namespace_key, lock_key])
+
+
+def single_instance_task(func):
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        lock_name = f'{func.__module__}.{func.__name__}'
+        with postgres_advisory_lock(lock_name) as acquired:
+            if not acquired:
+                print(f'Skipped overlapping task: {lock_name}')
+                return None
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 @shared_task
+@single_instance_task
 @log_task
 def check_and_send_messages():
     # 获取当前时间并转换到默认时区
@@ -102,6 +155,7 @@ def check_and_send_messages():
 
 
 @shared_task
+@single_instance_task
 @log_task
 def check_and_send_files():
     # 获取当前时间并转换到默认时区
@@ -158,6 +212,7 @@ def check_and_send_files():
 
 
 @shared_task
+@single_instance_task
 @log_task
 def message_check():
     """
@@ -261,6 +316,7 @@ def message_check():
 
 
 @shared_task
+@single_instance_task
 @log_task
 def payment_check():
     """

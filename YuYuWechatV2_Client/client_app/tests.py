@@ -109,12 +109,26 @@ class ViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.content, b'Database imported successfully.')
 
-    @patch('subprocess.Popen')
-    def test_start_celery_view(self, mock_popen):
+    @patch('client_app.celery_runtime.subprocess.run')
+    @patch('client_app.celery_runtime.subprocess.Popen')
+    def test_start_celery_view(self, mock_popen, mock_run):
+        mock_run.return_value.stdout = b''
+
         response = self.client.post(reverse('start_celery'))
         self.assertEqual(response.status_code, 200)
         self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "Celery started"}')
         self.assertTrue(mock_popen.called)
+
+    @patch('client_app.celery_runtime.subprocess.run')
+    @patch('client_app.celery_runtime.subprocess.Popen')
+    def test_start_celery_view_does_not_start_duplicate_processes(self, mock_popen, mock_run):
+        mock_run.return_value.stdout = b'100 1 celery -A YuYuWechatV2_Client worker --loglevel=info\n'
+
+        response = self.client.post(reverse('start_celery'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "Celery started"}')
+        self.assertFalse(mock_popen.called)
 
     @patch('subprocess.run')
     def test_stop_celery_view(self, mock_run):
@@ -126,15 +140,36 @@ class ViewTests(TestCase):
 
     @patch('subprocess.run')
     def test_check_celery_running_view(self, mock_run):
-        mock_run.return_value.stdout = b'celery process'
+        mock_run.return_value.stdout = (
+            b'100 1 celery -A YuYuWechatV2_Client worker --loglevel=info\n'
+            b'101 100 celery -A YuYuWechatV2_Client worker --loglevel=info\n'
+            b'200 1 celery -A YuYuWechatV2_Client beat --loglevel=info\n'
+        )
         response = self.client.get(reverse('check_celery_running'))
         self.assertEqual(response.status_code, 200)
-        self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "Celery is running"}')
+        self.assertEqual(response.json()['status'], 'Celery is running')
+        self.assertEqual(response.json()['process_count'], 2)
+        self.assertEqual(response.json()['worker_count'], 1)
+        self.assertEqual(response.json()['beat_count'], 1)
+        self.assertFalse(response.json()['duplicate'])
+
+        mock_run.return_value.stdout = (
+            b'100 1 celery -A YuYuWechatV2_Client worker --loglevel=info\n'
+            b'200 1 celery -A YuYuWechatV2_Client beat --loglevel=info\n'
+            b'300 1 celery -A YuYuWechatV2_Client beat --loglevel=info\n'
+        )
+        response = self.client.get(reverse('check_celery_running'))
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['status'], 'Celery is running')
+        self.assertEqual(response.json()['process_count'], 3)
+        self.assertEqual(response.json()['beat_count'], 2)
+        self.assertTrue(response.json()['duplicate'])
 
         mock_run.return_value.stdout = b''
         response = self.client.get(reverse('check_celery_running'))
         self.assertEqual(response.status_code, 404)
-        self.assertJSONEqual(str(response.content, encoding='utf8'), '{"status": "Celery is not running"}')
+        self.assertEqual(response.json()['status'], 'Celery is not running')
+        self.assertEqual(response.json()['process_count'], 0)
 
     @patch('requests.post')
     def test_check_wechat_status_view(self, mock_post):
