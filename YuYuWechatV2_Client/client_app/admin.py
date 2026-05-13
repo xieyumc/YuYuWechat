@@ -25,17 +25,19 @@ class ServerConfigAdmin(admin.ModelAdmin):
 
 
 class ScheduledMessageAdmin(admin.ModelAdmin):
-    list_display = ('user', 'text', 'cron_expression', 'execution_count', 'last_executed', 'is_active')  # 在列表页显示字段
+    list_display = ('user', 'text', 'cron_expression', 'execution_count', 'execution_skip', 'last_executed',
+                    'is_active')  # 在列表页显示字段
     search_fields = ('text', 'user__username')  # 支持按消息内容和用户名搜索
-    list_filter = ('is_active', 'user__group')  # 按是否激活和用户分组过滤
+    list_filter = ('is_active', 'execution_skip', 'user__group')  # 按是否激活、跳过次数和用户分组过滤
     ordering = ('-last_executed',)  # 按照 last_executed 字段倒序排列记录
     autocomplete_fields = ['user']  # 启用 user 字段的自动完成搜索
 
 
 class ScheduledFileMessageAdmin(admin.ModelAdmin):
-    list_display = ('user', 'file_path', 'cron_expression', 'execution_count', 'last_executed', 'is_active')  # 在列表页显示字段
+    list_display = ('user', 'file_path', 'cron_expression', 'execution_count', 'execution_skip', 'last_executed',
+                    'is_active')  # 在列表页显示字段
     search_fields = ('file_path', 'user__username')  # 支持按文件路径和用户名搜索
-    list_filter = ('is_active', 'user__group')  # 按是否激活和用户分组过滤
+    list_filter = ('is_active', 'execution_skip', 'user__group')  # 按是否激活、跳过次数和用户分组过滤
     ordering = ('-last_executed',)  # 按照 last_executed 字段倒序排列记录
     autocomplete_fields = ['user']  # 启用 user 字段的自动完成搜索
 
