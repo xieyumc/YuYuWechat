@@ -770,6 +770,22 @@ class AutoPaymentServiceTests(SimpleTestCase):
             close_weixin=False,
         )
 
+    def test_claim_unread_payments_once_ignores_stopped_listener_event(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        service._stop_event.set()
+
+        with mock.patch.object(service, "_maybe_initialize_com"), mock.patch.object(
+            service,
+            "_scan_once",
+            return_value=[{"name": "Mona", "red_packets": 1, "transfers": 0}],
+        ) as scan_once:
+            result = service.claim_unread_payments_once()
+
+        scan_once.assert_called_once_with(respect_stop_event=False)
+        self.assertEqual(result["claimed_users"], ["Mona"])
+        self.assertEqual(result["red_packets"], 1)
+        self.assertEqual(result["transfers"], 0)
+
     def test_auto_payment_run_waits_configured_interval_after_releasing_lock(self):
         lock = threading.Lock()
         bridge = mock.Mock()
@@ -1477,6 +1493,46 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(response.json()["message"], "自动领取红包/转账已停止")
         mocked_stop.assert_called_once_with()
         mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "claim_unread_payments_once",
+        return_value={
+            "status": "success",
+            "claimed_users": ["Mona", "文件传输助手"],
+            "claimed_payments": [
+                {"name": "Mona", "red_packets": 1, "transfers": 0},
+                {"name": "文件传输助手", "red_packets": 0, "transfers": 1},
+            ],
+            "red_packets": 1,
+            "transfers": 1,
+            "message": "本轮领取完成：Mona, 文件传输助手",
+        },
+    )
+    def test_run_auto_payment_once_contract_and_log_flow(self, mocked_run_once):
+        response = self.client.post("/wechat/run_auto_payment_once/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "status": "success",
+                "claimed_users": ["Mona", "文件传输助手"],
+                "claimed_payments": [
+                    {"name": "Mona", "red_packets": 1, "transfers": 0},
+                    {"name": "文件传输助手", "red_packets": 0, "transfers": 1},
+                ],
+                "red_packets": 1,
+                "transfers": 1,
+                "message": "本轮领取完成：Mona, 文件传输助手",
+            },
+        )
+        mocked_run_once.assert_called_once_with()
+
+        log = RequestLog.objects.get(action="auto_payment_run_once")
+        self.assertEqual(log.status, "success")
+        self.assertEqual(log.request_data, {})
+        self.assertEqual(log.response_data, response.json())
 
     @mock.patch.object(
         views.auto_payment_service,

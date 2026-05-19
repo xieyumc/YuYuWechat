@@ -289,6 +289,52 @@ class AutoPaymentService:
         logger.info("Auto payment listener stop requested.")
         return self.status()
 
+    def claim_unread_payments_once(self) -> dict[str, Any]:
+        """
+        Execute one auto-payment scan without starting the long-running listener.
+
+        The caller is expected to hold the global WeChat operation lock, matching
+        the normal queued request model used by the server views.
+        """
+        self._maybe_initialize_com()
+        close_old_connections()
+
+        try:
+            self._record_event("开始执行一次自动领取扫描")
+            claimed_sessions = self._scan_once(respect_stop_event=False)
+            red_packets = sum(item["red_packets"] for item in claimed_sessions)
+            transfers = sum(item["transfers"] for item in claimed_sessions)
+            claimed_users = [item["name"] for item in claimed_sessions]
+
+            with self._state_lock:
+                self._last_error = ""
+                self._last_cycle_at = timezone.now()
+                if claimed_sessions:
+                    self._last_claim_at = timezone.now()
+
+            message = "本轮未领取到红包/转账"
+            if claimed_sessions:
+                message = f"本轮领取完成：{', '.join(claimed_users)}"
+
+            return {
+                "status": "success",
+                "claimed_users": claimed_users,
+                "claimed_payments": claimed_sessions,
+                "red_packets": red_packets,
+                "transfers": transfers,
+                "message": message,
+            }
+        except Exception as exc:
+            logger.exception("One-off auto payment scan failed.")
+            with self._state_lock:
+                self._last_error = str(exc)
+                self._last_event = f"一次性扫描失败：{exc}"
+                self._last_cycle_at = timezone.now()
+            self._safe_back_to_message_list()
+            raise
+        finally:
+            close_old_connections()
+
     def _run(self) -> None:
         self._maybe_initialize_com()
         close_old_connections()
@@ -357,7 +403,7 @@ class AutoPaymentService:
         self._main_window = self.bridge._open_main_window(bundle, config)
         return self._main_window
 
-    def _scan_once(self) -> None:
+    def _scan_once(self, respect_stop_event: bool = True) -> list[dict[str, Any]]:
         bundle, config = self.bridge._prepare_bundle()
         runtime = self._load_runtime()
         main_window = self._get_main_window(bundle, config)
@@ -372,8 +418,9 @@ class AutoPaymentService:
         else:
             self._record_event("未发现未读会话")
 
+        claimed_sessions: list[dict[str, Any]] = []
         for friend, unread_count in unread_sessions.items():
-            if self._stop_event.is_set():
+            if respect_stop_event and self._stop_event.is_set():
                 break
             self._record_event(f"处理未读会话：{friend}（{unread_count} 条未读）")
             red_packet_count, transfer_count = self._claim_payments_in_session(
@@ -385,10 +432,18 @@ class AutoPaymentService:
                 main_window=main_window,
             )
             if red_packet_count or transfer_count:
+                claimed_sessions.append(
+                    {
+                        "name": str(friend),
+                        "red_packets": red_packet_count,
+                        "transfers": transfer_count,
+                    }
+                )
                 with self._state_lock:
                     self._total_red_packets += red_packet_count
                     self._total_transfers += transfer_count
                     self._last_claim_at = timezone.now()
+        return claimed_sessions
 
     def _claim_payments_in_session(
         self,

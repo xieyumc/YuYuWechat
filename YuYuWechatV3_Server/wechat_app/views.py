@@ -55,6 +55,16 @@ class ClaimPaymentResponseSerializer(serializers.Serializer):
     error = serializers.CharField(required=False)
 
 
+class AutoPaymentRunOnceResponseSerializer(serializers.Serializer):
+    status = serializers.CharField()
+    claimed_users = serializers.ListField(child=serializers.CharField())
+    claimed_payments = serializers.JSONField()
+    red_packets = serializers.IntegerField()
+    transfers = serializers.IntegerField()
+    message = serializers.CharField(required=False)
+    error = serializers.CharField(required=False)
+
+
 class SendFileSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="接收文件的联系人或群聊名称")
     file_path = serializers.CharField(help_text="要发送文件的绝对路径")
@@ -199,6 +209,8 @@ def _execute_task(action: str, args: dict[str, Any]) -> dict[str, Any]:
                 reply_provided=bool(args.get("reply_provided")),
             ),
         }
+    if action == "auto_payment_run_once":
+        return {"http_status": 200, "response": auto_payment_service.claim_unread_payments_once()}
     if action == "send_file":
         return {"http_status": 200, "response": bridge.send_file(args["name"], args["file_path"])}
     if action == "check_status":
@@ -761,6 +773,37 @@ def toggle_auto_payment_view(request):
 
     auto_payment_service.stop()
     return _json_response(_auto_payment_response("自动领取红包/转账已停止"), 200)
+
+
+@extend_schema(
+    summary="执行一次自动领取红包/转账扫描",
+    description="只扫描并处理当前未读单聊一次，不启动长期监听；返回本轮成功领取红包/转账的用户名。",
+    request=None,
+    responses={
+        200: OpenApiResponse(response=AutoPaymentRunOnceResponseSerializer, description="一次性扫描完成"),
+        500: OpenApiResponse(response=OperationResponseSerializer, description="扫描失败或发生内部错误"),
+    },
+    tags=["Automation"],
+)
+@api_view(["POST"])
+@csrf_exempt
+def run_auto_payment_once_view(request):
+    log = RequestLog.objects.create(
+        action="auto_payment_run_once",
+        endpoint=request.path,
+        status="queued",
+        request_data={},
+        client_ip=_get_client_ip(request),
+    )
+
+    result = _enqueue_and_wait(
+        {
+            "type": "auto_payment_run_once",
+            "args": {},
+            "log_id": log.id,
+        }
+    )
+    return _json_response(result["response"], result["http_status"])
 
 
 @extend_schema(
