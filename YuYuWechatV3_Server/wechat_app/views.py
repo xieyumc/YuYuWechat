@@ -27,6 +27,11 @@ class SendMessageSerializer(serializers.Serializer):
     text = serializers.CharField(help_text="要发送的文本消息内容")
 
 
+class PinChatSerializer(serializers.Serializer):
+    name = serializers.CharField(help_text="要置顶或取消置顶的好友/群聊名称")
+    pinned = serializers.BooleanField(help_text="true 为置顶聊天，false 为取消置顶聊天")
+
+
 class ClaimPaymentSerializer(serializers.Serializer):
     name = serializers.CharField(help_text="要手动领取红包/转账的好友名称")
     reply = serializers.CharField(
@@ -39,6 +44,7 @@ class ClaimPaymentSerializer(serializers.Serializer):
 class OperationResponseSerializer(serializers.Serializer):
     status = serializers.CharField()
     name = serializers.CharField(required=False)
+    pinned = serializers.BooleanField(required=False)
     error = serializers.CharField(required=False)
 
 
@@ -200,6 +206,8 @@ def _enqueue_and_wait(task: dict[str, Any]) -> dict[str, Any]:
 def _execute_task(action: str, args: dict[str, Any]) -> dict[str, Any]:
     if action == "send_message":
         return {"http_status": 200, "response": bridge.send_message(args["name"], args["text"])}
+    if action == "pin_chat":
+        return {"http_status": 200, "response": bridge.pin_chat(args["name"], bool(args["pinned"]))}
     if action == "claim_payment":
         return {
             "http_status": 200,
@@ -377,6 +385,49 @@ def send_message(request):
         {
             "type": "send_message",
             "args": {"name": name, "text": text},
+            "log_id": log.id,
+        }
+    )
+    return _json_response(result["response"], result["http_status"])
+
+
+@extend_schema(
+    summary="置顶或取消置顶指定好友/群聊聊天",
+    request=PinChatSerializer,
+    responses={
+        200: OpenApiResponse(response=OperationResponseSerializer, description="操作成功"),
+        400: OpenApiResponse(response=OperationResponseSerializer, description="无效的请求参数"),
+        500: OpenApiResponse(response=OperationResponseSerializer, description="置顶失败或发生内部错误"),
+    },
+    tags=["WeChat Actions"],
+)
+@api_view(["POST"])
+@csrf_exempt
+def pin_chat_view(request):
+    try:
+        data = json.loads(request.body or "{}")
+    except json.JSONDecodeError:
+        return _json_response({"status": "error", "error": "Invalid request payload"}, 400)
+
+    name = data.get("name")
+    pinned = data.get("pinned")
+    if not isinstance(name, str) or not name.strip():
+        return _json_response({"status": "error", "error": "Missing or invalid name parameter"}, 400)
+    if not isinstance(pinned, bool):
+        return _json_response({"status": "error", "error": "pinned must be a boolean"}, 400)
+
+    log = RequestLog.objects.create(
+        action="pin_chat",
+        endpoint=request.path,
+        status="queued",
+        request_data={"name": name, "pinned": pinned},
+        client_ip=_get_client_ip(request),
+    )
+
+    result = _enqueue_and_wait(
+        {
+            "type": "pin_chat",
+            "args": {"name": name, "pinned": pinned},
             "log_id": log.id,
         }
     )

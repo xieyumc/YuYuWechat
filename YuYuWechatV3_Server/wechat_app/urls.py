@@ -2,7 +2,7 @@
 
 from django.urls import path
 
-from .views import send_message, ping, check_wechat_status, get_dialogs_view, get_dialogs_by_time_blocks_view, \
+from .views import send_message, ping, check_wechat_status, get_dialogs_view, get_dialogs_by_time_blocks_view, pin_chat_view, \
     send_file_view, request_logs_view, auto_payment_status_view, toggle_auto_payment_view, update_auto_payment_config_view, \
     claim_payment_view, media_cache_view, get_media_files_view, run_auto_payment_once_view
 
@@ -10,6 +10,7 @@ urlpatterns = [
     path('media_cache/<str:token>/<path:filename>', media_cache_view, name='media_cache'),
     path('ping/', ping, name='ping'),
     path('send_message/', send_message, name='send_message'),
+    path('pin_chat/', pin_chat_view, name='pin_chat'),
     path('claim_payment/', claim_payment_view, name='claim_payment'),
     path('check_wechat_status/', check_wechat_status, name='check_wechat_status'),
     path('get_dialogs/', get_dialogs_view, name='get_dialogs'),

@@ -82,6 +82,7 @@ def wechat_title_alias_locators(*locators: Any) -> list[dict[str, Any]]:
 @dataclass(slots=True)
 class PyWeixinBundle:
     Buttons: Any
+    CheckBoxes: Any
     Edits: Any
     Files: Any
     GlobalConfig: Any
@@ -214,6 +215,7 @@ class WeChatBridge:
 
         return PyWeixinBundle(
             Buttons=tools_module.Buttons,
+            CheckBoxes=auto_module.CheckBoxes,
             Edits=tools_module.Edits,
             Files=auto_module.Files,
             GlobalConfig=config_module.GlobalConfig,
@@ -561,6 +563,43 @@ class WeChatBridge:
     def _open_dialog_via_ctrl_f(self, bundle: PyWeixinBundle, config: WeChatConfig, friend: str) -> Any:
         main_window = self._open_main_window(bundle, config)
         return self._open_dialog_in_main_window(main_window, bundle, friend)
+
+    def _visible_chat_info_pane(self, main_window: Any) -> Any | None:
+        pane_locators = (
+            {"auto_id": "single_chat_info_view", "control_type": "Group"},
+            {"class_name": "mmui::ChatRoomMemberInfoView", "control_type": "Group"},
+        )
+        for locator in pane_locators:
+            try:
+                pane = main_window.child_window(**locator)
+                if pane.exists(timeout=0.2) and pane.is_visible():
+                    return pane
+            except Exception:
+                continue
+        return None
+
+    def _open_chat_info_pane(self, main_window: Any, bundle: PyWeixinBundle) -> Any:
+        chat_info_button = self._find_visible_control(
+            main_window,
+            timeout=1.5,
+            **bundle.Buttons.ChatInfoButton,
+        )
+        if chat_info_button is None:
+            raise BridgeOperationError("Failed to find WeChat chat info button.")
+
+        chat_info_pane = self._visible_chat_info_pane(main_window)
+        if chat_info_pane is not None:
+            return chat_info_pane
+
+        chat_info_button.click_input()
+        deadline = time.time() + 2.0
+        while time.time() < deadline:
+            chat_info_pane = self._visible_chat_info_pane(main_window)
+            if chat_info_pane is not None:
+                return chat_info_pane
+            time.sleep(0.1)
+
+        raise BridgeOperationError("Failed to open WeChat chat info panel.")
 
     def _media_count_from_rows(self, rows: Iterable[DialogRow]) -> tuple[int, int]:
         image_count = 0
@@ -940,6 +979,33 @@ class WeChatBridge:
         finally:
             if original_search_pages is not None:
                 bundle.GlobalConfig.search_pages = original_search_pages
+            if bundle is not None and main_window is not None:
+                self._return_to_message_list(main_window, bundle)
+
+    def pin_chat(self, name: str, pinned: bool) -> dict[str, Any]:
+        bundle = None
+        main_window = None
+        try:
+            bundle, config = self._prepare_bundle()
+            main_window = self._open_dialog_via_ctrl_f(bundle, config, name)
+            chat_info_pane = self._open_chat_info_pane(main_window, bundle)
+            pin_checkbox = self._find_visible_control(
+                chat_info_pane,
+                timeout=2.0,
+                **bundle.CheckBoxes.PinChatCheckBox,
+            )
+            if pin_checkbox is None:
+                raise BridgeOperationError("Failed to find WeChat pin chat checkbox.")
+
+            current_pinned = bool(pin_checkbox.get_toggle_state())
+            if current_pinned != bool(pinned):
+                pin_checkbox.click_input()
+                time.sleep(0.2)
+
+            return {"status": "success", "name": name, "pinned": bool(pinned)}
+        except Exception as exc:
+            raise map_runtime_exception(exc) from exc
+        finally:
             if bundle is not None and main_window is not None:
                 self._return_to_message_list(main_window, bundle)
 

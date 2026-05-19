@@ -429,6 +429,44 @@ class BridgeSendStrategyTests(SimpleTestCase):
         )
         self.assertEqual(bundle.GlobalConfig.search_pages, 5)
 
+    def test_pin_chat_uses_top_search_and_returns_to_message_list(self):
+        bridge = WeChatBridge()
+        bundle = mock.Mock()
+        bundle.CheckBoxes.PinChatCheckBox = {"title": "置顶聊天", "control_type": "CheckBox"}
+        pin_checkbox = mock.Mock()
+        pin_checkbox.get_toggle_state.return_value = False
+
+        with mock.patch.object(
+            bridge,
+            "_prepare_bundle",
+            return_value=(bundle, mock.sentinel.config),
+        ), mock.patch.object(
+            bridge,
+            "_open_dialog_via_ctrl_f",
+            return_value=mock.sentinel.main_window,
+        ) as open_dialog, mock.patch.object(
+            bridge,
+            "_open_chat_info_pane",
+            return_value=mock.sentinel.chat_info_pane,
+        ) as open_chat_info, mock.patch.object(
+            bridge,
+            "_find_visible_control",
+            return_value=pin_checkbox,
+        ) as find_visible_control, mock.patch.object(bridge, "_return_to_message_list") as return_to_list:
+            result = bridge.pin_chat("Mona", True)
+
+        self.assertEqual(result, {"status": "success", "name": "Mona", "pinned": True})
+        open_dialog.assert_called_once_with(bundle, mock.sentinel.config, "Mona")
+        open_chat_info.assert_called_once_with(mock.sentinel.main_window, bundle)
+        find_visible_control.assert_called_once_with(
+            mock.sentinel.chat_info_pane,
+            timeout=2.0,
+            title="置顶聊天",
+            control_type="CheckBox",
+        )
+        pin_checkbox.click_input.assert_called_once_with()
+        return_to_list.assert_called_once_with(mock.sentinel.main_window, bundle)
+
     def test_open_dialog_via_ctrl_f_uses_keyboard_fallback_when_search_edit_is_not_detected(self):
         bridge = WeChatBridge()
         bundle = mock.Mock()
@@ -1163,6 +1201,33 @@ class ApiContractTests(TransactionTestCase):
         self.assertIsNotNone(log.started_at)
         self.assertIsNotNone(log.finished_at)
         self.assertIsNotNone(log.duration_ms)
+
+    @mock.patch.object(views.bridge, "pin_chat", return_value={"status": "success", "name": "Mona", "pinned": True})
+    def test_pin_chat_contract_and_log_flow(self, mocked_pin_chat):
+        response = self.client.post(
+            "/wechat/pin_chat/",
+            data=json.dumps({"name": "Mona", "pinned": True}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"status": "success", "name": "Mona", "pinned": True})
+        mocked_pin_chat.assert_called_once_with("Mona", True)
+
+        log = RequestLog.objects.get(action="pin_chat")
+        self.assertEqual(log.status, "success")
+        self.assertEqual(log.request_data, {"name": "Mona", "pinned": True})
+        self.assertEqual(log.response_data, {"status": "success", "name": "Mona", "pinned": True})
+
+    def test_pin_chat_rejects_invalid_pinned_type(self):
+        response = self.client.post(
+            "/wechat/pin_chat/",
+            data=json.dumps({"name": "Mona", "pinned": "true"}),
+            content_type="application/json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json(), {"status": "error", "error": "pinned must be a boolean"})
 
     @mock.patch.object(
         views.auto_payment_service,
