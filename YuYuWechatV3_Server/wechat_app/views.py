@@ -57,6 +57,10 @@ class ClaimPaymentResponseSerializer(serializers.Serializer):
     name = serializers.CharField()
     red_packets = serializers.IntegerField()
     transfers = serializers.IntegerField()
+    red_packet_amounts = serializers.ListField(child=serializers.CharField(allow_null=True), required=False)
+    transfer_amounts = serializers.ListField(child=serializers.CharField(allow_null=True), required=False)
+    total_amount = serializers.CharField(required=False)
+    unknown_amount_count = serializers.IntegerField(required=False)
     message = serializers.CharField(required=False)
     error = serializers.CharField(required=False)
 
@@ -67,6 +71,10 @@ class AutoPaymentRunOnceResponseSerializer(serializers.Serializer):
     claimed_payments = serializers.JSONField()
     red_packets = serializers.IntegerField()
     transfers = serializers.IntegerField()
+    red_packet_amounts = serializers.ListField(child=serializers.CharField(allow_null=True), required=False)
+    transfer_amounts = serializers.ListField(child=serializers.CharField(allow_null=True), required=False)
+    total_amount = serializers.CharField(required=False)
+    unknown_amount_count = serializers.IntegerField(required=False)
     message = serializers.CharField(required=False)
     error = serializers.CharField(required=False)
 

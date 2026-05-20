@@ -21,6 +21,8 @@ import wechat_bridge.bridge as bridge_module
 from wechat_bridge.payment_listener import (
     PAYMENT_POPUP_WAIT_SECONDS,
     PAYMENT_RESULT_WAIT_SECONDS,
+    extract_red_packet_amount_from_image,
+    extract_payment_amount,
     is_claimable_red_packet_item,
     is_claimable_transfer_item,
     iter_recent_items,
@@ -693,6 +695,39 @@ class AutoPaymentServiceTests(SimpleTestCase):
         self.assertTrue(is_claimable_transfer_item(claimable_english_transfer))
         self.assertFalse(is_claimable_transfer_item(claimed_transfer))
 
+    def test_extract_payment_amount_formats_known_money_texts(self):
+        self.assertEqual(extract_payment_amount(["来自Mona的￥0.01 已收款"]), "0.01")
+        self.assertEqual(extract_payment_amount(["转账", "¥1,234.5 待你收款"]), "1234.50")
+        self.assertEqual(extract_payment_amount(["Mona发出的红包", "0.01", "元", "已存入零钱"]), "0.01")
+        self.assertEqual(extract_payment_amount(["没有金额", "微信红包"]), None)
+
+    def test_extract_red_packet_amount_from_image_reads_gold_amount(self):
+        try:
+            from PIL import Image, ImageDraw, ImageFont
+        except Exception as exc:
+            self.skipTest(f"Pillow unavailable: {exc}")
+
+        font = None
+        for path in (
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/Library/Fonts/Arial.ttf",
+            r"C:\Windows\Fonts\arial.ttf",
+            r"C:\Windows\Fonts\msyh.ttc",
+        ):
+            try:
+                font = ImageFont.truetype(path, 80)
+                break
+            except Exception:
+                pass
+        if font is None:
+            self.skipTest("No suitable font for image OCR test")
+
+        image = Image.new("RGB", (640, 1134), "white")
+        draw = ImageDraw.Draw(image)
+        draw.text((245, 390), "0.01", fill=(214, 174, 115), font=font)
+
+        self.assertEqual(extract_red_packet_amount_from_image(image), "0.01")
+
     def test_render_payment_thanks_message_blank_override_disables_default_reply(self):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
         config = mock.Mock(
@@ -730,7 +765,16 @@ class AutoPaymentServiceTests(SimpleTestCase):
 
         self.assertEqual(
             result,
-            {"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1},
+            {
+                "status": "success",
+                "name": "Mona",
+                "red_packets": 1,
+                "transfers": 1,
+                "red_packet_amounts": [None],
+                "transfer_amounts": [None],
+                "total_amount": "0.00",
+                "unknown_amount_count": 2,
+            },
         )
         claim_in_session.assert_called_once_with(
             bundle=bundle,
@@ -769,6 +813,10 @@ class AutoPaymentServiceTests(SimpleTestCase):
                 "name": "Mona",
                 "red_packets": 0,
                 "transfers": 0,
+                "red_packet_amounts": [],
+                "transfer_amounts": [],
+                "total_amount": "0.00",
+                "unknown_amount_count": 0,
                 "message": "No claimable red packet or transfer found",
             },
         )
@@ -823,6 +871,10 @@ class AutoPaymentServiceTests(SimpleTestCase):
         self.assertEqual(result["claimed_users"], ["Mona"])
         self.assertEqual(result["red_packets"], 1)
         self.assertEqual(result["transfers"], 0)
+        self.assertEqual(result["red_packet_amounts"], [None])
+        self.assertEqual(result["transfer_amounts"], [])
+        self.assertEqual(result["total_amount"], "0.00")
+        self.assertEqual(result["unknown_amount_count"], 1)
 
     def test_auto_payment_run_waits_configured_interval_after_releasing_lock(self):
         lock = threading.Lock()
@@ -892,7 +944,7 @@ class AutoPaymentServiceTests(SimpleTestCase):
         with mock.patch.object(service, "_cleanup_after_claim") as cleanup, mock.patch(
             "wechat_bridge.payment_listener.time.sleep"
         ):
-            red_count, transfer_count = service._claim_payments_in_session(
+            result = service._claim_payments_in_session(
                 bundle=bundle,
                 runtime=runtime,
                 config=config,
@@ -901,7 +953,8 @@ class AutoPaymentServiceTests(SimpleTestCase):
                 main_window=mock.sentinel.main_window,
             )
 
-        self.assertEqual((red_count, transfer_count), (0, 0))
+        self.assertEqual(result.to_payload()["red_packets"], 0)
+        self.assertEqual(result.to_payload()["transfers"], 0)
         bridge._open_dialog_in_main_window.assert_called_once_with(
             mock.sentinel.main_window,
             bundle,
@@ -940,10 +993,14 @@ class AutoPaymentServiceTests(SimpleTestCase):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
         dialog_window = mock.Mock()
         transfer_item = mock.Mock()
+        transfer_item.window_text.return_value = "￥88.00 待你收款"
+        transfer_item.descendants.return_value = []
         bundle = mock.Mock()
         runtime = mock.Mock()
         config = mock.Mock()
         receive_button = mock.Mock()
+        receive_button.window_text.return_value = ""
+        receive_button.descendants.return_value = []
 
         with mock.patch.object(service, "_find_visible_button", return_value=receive_button), mock.patch.object(
             service,
@@ -968,7 +1025,8 @@ class AutoPaymentServiceTests(SimpleTestCase):
                 chat_list=mock.sentinel.chat_list,
             )
 
-        self.assertTrue(result)
+        self.assertTrue(result.success)
+        self.assertEqual(result.amount, "88.00")
         mocked_sleep.assert_any_call(PAYMENT_POPUP_WAIT_SECONDS)
         mocked_sleep.assert_any_call(PAYMENT_RESULT_WAIT_SECONDS)
         send_thanks.assert_called_once_with(
@@ -995,7 +1053,9 @@ class AutoPaymentServiceTests(SimpleTestCase):
         red_envelop_view.child_window.return_value = open_button
         dialog_window.child_window.return_value = red_envelop_view
         red_envelop_detail = mock.Mock()
-        red_envelop_detail.exists.return_value = False
+        red_envelop_detail.exists.return_value = True
+        red_envelop_detail.window_text.return_value = "红包详情 ￥0.88"
+        red_envelop_detail.descendants.return_value = []
         runtime.desktop.window.return_value = red_envelop_detail
         call_order = []
 
@@ -1035,7 +1095,8 @@ class AutoPaymentServiceTests(SimpleTestCase):
                 chat_list=mock.sentinel.chat_list,
             )
 
-        self.assertTrue(result)
+        self.assertTrue(result.success)
+        self.assertEqual(result.amount, "0.88")
         mocked_sleep.assert_any_call(PAYMENT_POPUP_WAIT_SECONDS)
         mocked_sleep.assert_any_call(PAYMENT_RESULT_WAIT_SECONDS)
         close_popup.assert_called_once_with(runtime, dialog_window)
@@ -1103,7 +1164,7 @@ class AutoPaymentServiceTests(SimpleTestCase):
                 chat_list=mock.sentinel.chat_list,
             )
 
-        self.assertTrue(result)
+        self.assertTrue(result.success)
         self.assertEqual(
             call_order,
             [
@@ -1232,7 +1293,16 @@ class ApiContractTests(TransactionTestCase):
     @mock.patch.object(
         views.auto_payment_service,
         "claim_payments_for_friend",
-        return_value={"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1},
+        return_value={
+            "status": "success",
+            "name": "Mona",
+            "red_packets": 1,
+            "transfers": 1,
+            "red_packet_amounts": ["0.88"],
+            "transfer_amounts": ["200.00"],
+            "total_amount": "200.88",
+            "unknown_amount_count": 0,
+        },
     )
     def test_claim_payment_contract_and_log_flow(self, mocked_claim):
         response = self.client.post(
@@ -1244,14 +1314,23 @@ class ApiContractTests(TransactionTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(
             response.json(),
-            {"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1},
+            {
+                "status": "success",
+                "name": "Mona",
+                "red_packets": 1,
+                "transfers": 1,
+                "red_packet_amounts": ["0.88"],
+                "transfer_amounts": ["200.00"],
+                "total_amount": "200.88",
+                "unknown_amount_count": 0,
+            },
         )
         mocked_claim.assert_called_once_with("Mona", reply="谢谢", reply_provided=True)
 
         log = RequestLog.objects.get(action="claim_payment")
         self.assertEqual(log.status, "success")
         self.assertEqual(log.request_data, {"name": "Mona", "reply": "谢谢"})
-        self.assertEqual(log.response_data, {"status": "success", "name": "Mona", "red_packets": 1, "transfers": 1})
+        self.assertEqual(log.response_data, response.json())
 
     def test_claim_payment_rejects_invalid_reply_type(self):
         response = self.client.post(
@@ -1566,11 +1645,31 @@ class ApiContractTests(TransactionTestCase):
             "status": "success",
             "claimed_users": ["Mona", "文件传输助手"],
             "claimed_payments": [
-                {"name": "Mona", "red_packets": 1, "transfers": 0},
-                {"name": "文件传输助手", "red_packets": 0, "transfers": 1},
+                {
+                    "name": "Mona",
+                    "red_packets": 1,
+                    "transfers": 0,
+                    "red_packet_amounts": ["0.88"],
+                    "transfer_amounts": [],
+                    "total_amount": "0.88",
+                    "unknown_amount_count": 0,
+                },
+                {
+                    "name": "文件传输助手",
+                    "red_packets": 0,
+                    "transfers": 1,
+                    "red_packet_amounts": [],
+                    "transfer_amounts": [None],
+                    "total_amount": "0.00",
+                    "unknown_amount_count": 1,
+                },
             ],
             "red_packets": 1,
             "transfers": 1,
+            "red_packet_amounts": ["0.88"],
+            "transfer_amounts": [None],
+            "total_amount": "0.88",
+            "unknown_amount_count": 1,
             "message": "本轮领取完成：Mona, 文件传输助手",
         },
     )
@@ -1584,11 +1683,31 @@ class ApiContractTests(TransactionTestCase):
                 "status": "success",
                 "claimed_users": ["Mona", "文件传输助手"],
                 "claimed_payments": [
-                    {"name": "Mona", "red_packets": 1, "transfers": 0},
-                    {"name": "文件传输助手", "red_packets": 0, "transfers": 1},
+                    {
+                        "name": "Mona",
+                        "red_packets": 1,
+                        "transfers": 0,
+                        "red_packet_amounts": ["0.88"],
+                        "transfer_amounts": [],
+                        "total_amount": "0.88",
+                        "unknown_amount_count": 0,
+                    },
+                    {
+                        "name": "文件传输助手",
+                        "red_packets": 0,
+                        "transfers": 1,
+                        "red_packet_amounts": [],
+                        "transfer_amounts": [None],
+                        "total_amount": "0.00",
+                        "unknown_amount_count": 1,
+                    },
                 ],
                 "red_packets": 1,
                 "transfers": 1,
+                "red_packet_amounts": ["0.88"],
+                "transfer_amounts": [None],
+                "total_amount": "0.88",
+                "unknown_amount_count": 1,
                 "message": "本轮领取完成：Mona, 文件传输助手",
             },
         )

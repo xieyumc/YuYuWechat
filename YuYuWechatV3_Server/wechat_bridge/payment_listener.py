@@ -2,9 +2,13 @@ from __future__ import annotations
 
 import importlib
 import logging
+import math
+import re
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from decimal import Decimal, InvalidOperation
+from pathlib import Path
 from typing import Any, Iterable
 
 from django.db import close_old_connections
@@ -59,6 +63,10 @@ TRANSFER_CLOSED_KEYWORDS = (
 )
 PAYMENT_POPUP_WAIT_SECONDS = 5.0
 PAYMENT_RESULT_WAIT_SECONDS = 5.0
+MONEY_RE = re.compile(r"[￥¥]\s*([0-9][0-9,]*(?:\.\d{1,2})?)")
+YUAN_MONEY_RE = re.compile(r"(?<![\d:])([0-9][0-9,]*(?:\.\d{1,2})?)\s*元")
+PLAIN_AMOUNT_RE = re.compile(r"^[0-9][0-9,]*(?:\.\d{1,2})?$")
+MONEY_QUANT = Decimal("0.01")
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +77,59 @@ class PaymentRuntime:
     desktop: Any
     scan_for_new_messages: Any
     win32gui: Any
+
+
+@dataclass(slots=True)
+class PaymentItemResult:
+    success: bool
+    amount: str | None = None
+
+
+@dataclass(slots=True)
+class PaymentSessionResult:
+    red_packets: int = 0
+    transfers: int = 0
+    red_packet_amounts: list[str | None] = field(default_factory=list)
+    transfer_amounts: list[str | None] = field(default_factory=list)
+
+    @classmethod
+    def from_counts(cls, red_packets: int, transfers: int) -> "PaymentSessionResult":
+        return cls(
+            red_packets=red_packets,
+            transfers=transfers,
+            red_packet_amounts=[None] * red_packets,
+            transfer_amounts=[None] * transfers,
+        )
+
+    def add_red_packet(self, amount: str | None) -> None:
+        self.red_packets += 1
+        self.red_packet_amounts.append(amount)
+
+    def add_transfer(self, amount: str | None) -> None:
+        self.transfers += 1
+        self.transfer_amounts.append(amount)
+
+    @property
+    def total_amount(self) -> str:
+        total = Decimal("0")
+        for amount in [*self.red_packet_amounts, *self.transfer_amounts]:
+            if amount is not None:
+                total += Decimal(amount)
+        return f"{total.quantize(MONEY_QUANT):.2f}"
+
+    @property
+    def unknown_amount_count(self) -> int:
+        return sum(amount is None for amount in [*self.red_packet_amounts, *self.transfer_amounts])
+
+    def to_payload(self) -> dict[str, Any]:
+        return {
+            "red_packets": self.red_packets,
+            "transfers": self.transfers,
+            "red_packet_amounts": self.red_packet_amounts,
+            "transfer_amounts": self.transfer_amounts,
+            "total_amount": self.total_amount,
+            "unknown_amount_count": self.unknown_amount_count,
+        }
 
 
 def runtime_id_of(listitem: Any) -> tuple[int, ...]:
@@ -96,9 +157,13 @@ def _item_visual_key(listitem: Any) -> tuple[int, int]:
 
 
 def item_texts(listitem: Any) -> list[str]:
+    return control_texts(listitem)
+
+
+def control_texts(root: Any) -> list[str]:
     texts: list[str] = []
     try:
-        window_text = listitem.window_text()
+        window_text = root.window_text()
         if window_text:
             texts.append(window_text)
     except Exception:
@@ -106,12 +171,317 @@ def item_texts(listitem: Any) -> list[str]:
     try:
         texts.extend(
             text.window_text()
-            for text in listitem.descendants(control_type="Text")
+            for text in root.descendants(control_type="Text")
             if text.window_text()
         )
     except Exception:
         pass
     return texts
+
+
+def deep_control_texts(root: Any) -> list[str]:
+    texts: list[str] = []
+    seen: set[str] = set()
+
+    def append_text(value: Any) -> None:
+        text = str(value or "").strip()
+        if text and text not in seen:
+            seen.add(text)
+            texts.append(text)
+
+    for getter in (
+        lambda: root.window_text(),
+        lambda: getattr(getattr(root, "element_info", None), "name", ""),
+    ):
+        try:
+            append_text(getter())
+        except Exception:
+            pass
+
+    try:
+        descendants = root.descendants()
+    except Exception:
+        descendants = []
+
+    try:
+        iterator = iter(descendants)
+    except TypeError:
+        iterator = iter(())
+
+    for control in iterator:
+        for getter in (
+            lambda control=control: control.window_text(),
+            lambda control=control: getattr(getattr(control, "element_info", None), "name", ""),
+        ):
+            try:
+                append_text(getter())
+            except Exception:
+                pass
+
+    return texts
+
+
+def _format_money(raw_amount: str) -> str | None:
+    try:
+        amount = Decimal(raw_amount.replace(",", ""))
+    except (InvalidOperation, ValueError):
+        return None
+    return f"{amount.quantize(MONEY_QUANT):.2f}"
+
+
+def _font_paths() -> list[str]:
+    return [
+        r"C:\Windows\Fonts\msyh.ttc",
+        r"C:\Windows\Fonts\msyhbd.ttc",
+        r"C:\Windows\Fonts\arial.ttf",
+        r"C:\Windows\Fonts\segoeui.ttf",
+        "/System/Library/Fonts/Supplemental/Arial.ttf",
+        "/Library/Fonts/Arial.ttf",
+    ]
+
+
+def _normalize_binary_image(image: Any, size: tuple[int, int] = (36, 56)) -> Any:
+    from PIL import Image
+
+    grayscale = image.convert("L")
+    bbox = grayscale.getbbox()
+    if bbox:
+        grayscale = grayscale.crop(bbox)
+    canvas = Image.new("L", size, 0)
+    if grayscale.width and grayscale.height:
+        scale = min((size[0] - 4) / grayscale.width, (size[1] - 4) / grayscale.height)
+        new_size = (
+            max(1, int(grayscale.width * scale)),
+            max(1, int(grayscale.height * scale)),
+        )
+        grayscale = grayscale.resize(new_size, Image.Resampling.LANCZOS)
+        canvas.paste(grayscale, ((size[0] - new_size[0]) // 2, (size[1] - new_size[1]) // 2))
+    return canvas.point(lambda pixel: 255 if pixel > 80 else 0)
+
+
+def _template_images(height: int) -> dict[str, list[Any]]:
+    from PIL import Image, ImageDraw, ImageFont
+
+    templates: dict[str, list[Any]] = {char: [] for char in "0123456789."}
+    font_sizes = [max(20, int(height * factor)) for factor in (0.9, 1.0, 1.1, 1.2)]
+    fonts = []
+    for path in _font_paths():
+        if not Path(path).exists():
+            continue
+        for size in font_sizes:
+            try:
+                fonts.append(ImageFont.truetype(path, size))
+            except Exception:
+                pass
+    if not fonts:
+        try:
+            fonts.append(ImageFont.load_default())
+        except Exception:
+            pass
+
+    for font in fonts:
+        for char in templates:
+            image = Image.new("L", (120, 120), 0)
+            draw = ImageDraw.Draw(image)
+            bbox = draw.textbbox((0, 0), char, font=font)
+            draw.text((-bbox[0] + 4, -bbox[1] + 4), char, fill=255, font=font)
+            templates[char].append(_normalize_binary_image(image))
+    return templates
+
+
+def _image_distance(left: Any, right: Any) -> float:
+    left_pixels = list(left.getdata())
+    right_pixels = list(right.getdata())
+    if not left_pixels or len(left_pixels) != len(right_pixels):
+        return math.inf
+    mismatches = 0
+    for left_pixel, right_pixel in zip(left_pixels, right_pixels):
+        if (left_pixel > 0) != (right_pixel > 0):
+            mismatches += 1
+    return mismatches / len(left_pixels)
+
+
+def _recognize_digit_image(image: Any, height: int) -> str | None:
+    normalized = _normalize_binary_image(image)
+    best_char = None
+    best_score = math.inf
+    for char, templates in _template_images(height).items():
+        if char == ".":
+            continue
+        for template in templates:
+            score = _image_distance(normalized, template)
+            if score < best_score:
+                best_score = score
+                best_char = char
+    if best_score > 0.36:
+        return None
+    return best_char
+
+
+def _connected_components(mask: Any) -> list[dict[str, int]]:
+    width, height = mask.size
+    pixels = mask.load()
+    visited: set[tuple[int, int]] = set()
+    components: list[dict[str, int]] = []
+
+    for y in range(height):
+        for x in range(width):
+            if (x, y) in visited or not pixels[x, y]:
+                continue
+            stack = [(x, y)]
+            visited.add((x, y))
+            min_x = max_x = x
+            min_y = max_y = y
+            area = 0
+            while stack:
+                cx, cy = stack.pop()
+                area += 1
+                min_x = min(min_x, cx)
+                max_x = max(max_x, cx)
+                min_y = min(min_y, cy)
+                max_y = max(max_y, cy)
+                for nx in (cx - 1, cx, cx + 1):
+                    for ny in (cy - 1, cy, cy + 1):
+                        if nx < 0 or ny < 0 or nx >= width or ny >= height or (nx, ny) in visited:
+                            continue
+                        if pixels[nx, ny]:
+                            visited.add((nx, ny))
+                            stack.append((nx, ny))
+            components.append(
+                {
+                    "left": min_x,
+                    "top": min_y,
+                    "right": max_x + 1,
+                    "bottom": max_y + 1,
+                    "width": max_x - min_x + 1,
+                    "height": max_y - min_y + 1,
+                    "area": area,
+                }
+            )
+    return components
+
+
+def extract_red_packet_amount_from_image(image: Any) -> str | None:
+    from PIL import Image
+
+    if image is None:
+        return None
+    if image.mode != "RGB":
+        image = image.convert("RGB")
+
+    width, height = image.size
+    crop_box = (
+        int(width * 0.18),
+        int(height * 0.28),
+        int(width * 0.82),
+        int(height * 0.50),
+    )
+    crop = image.crop(crop_box)
+    mask = Image.new("1", crop.size, 0)
+    source = crop.load()
+    target = mask.load()
+    for y in range(crop.height):
+        for x in range(crop.width):
+            red, green, blue = source[x, y]
+            if red >= 150 and green >= 105 and 55 <= blue <= 180 and red >= green >= blue:
+                target[x, y] = 1
+
+    components = _connected_components(mask)
+    large = [
+        component
+        for component in components
+        if component["height"] >= max(24, int(crop.height * 0.22))
+        and component["width"] >= 6
+        and component["area"] >= 80
+    ]
+    if not large:
+        return None
+
+    top = min(component["top"] for component in large)
+    bottom = max(component["bottom"] for component in large)
+    left = min(component["left"] for component in large)
+    right = max(component["right"] for component in large)
+    digit_height = max(component["height"] for component in large)
+    dot_candidates = [
+        component
+        for component in components
+        if component not in large
+        and component["height"] <= digit_height * 0.35
+        and component["width"] <= digit_height * 0.35
+        and component["area"] >= 4
+        and left - digit_height <= component["left"] <= right + digit_height
+        and top + digit_height * 0.55 <= component["top"] <= bottom + digit_height * 0.10
+    ]
+
+    chars: list[tuple[int, str | None, dict[str, int]]] = []
+    for component in large:
+        char_image = mask.crop((component["left"], component["top"], component["right"], component["bottom"]))
+        chars.append((component["left"], _recognize_digit_image(char_image, digit_height), component))
+    for component in dot_candidates:
+        chars.append((component["left"], ".", component))
+
+    amount_text = "".join(char for _, char, _ in sorted(chars) if char)
+    amount_text = amount_text.strip(".")
+    if not PLAIN_AMOUNT_RE.match(amount_text):
+        return None
+    return _format_money(amount_text)
+
+
+def capture_control_image(control: Any) -> Any:
+    try:
+        return control.capture_as_image()
+    except Exception:
+        pass
+
+    try:
+        rect = control.rectangle()
+        import pyautogui
+
+        return pyautogui.screenshot(region=(rect.left, rect.top, rect.width(), rect.height()))
+    except Exception:
+        return None
+
+
+def extract_payment_amount(texts: Iterable[str]) -> str | None:
+    text_values = [str(text or "") for text in texts if str(text or "").strip()]
+    for text in [*text_values, " ".join(text_values)]:
+        for pattern in (MONEY_RE, YUAN_MONEY_RE):
+            match = pattern.search(text)
+            if not match:
+                continue
+            amount = _format_money(match.group(1))
+            if amount is not None:
+                return amount
+    return None
+
+
+def _coerce_session_result(value: Any) -> PaymentSessionResult:
+    if isinstance(value, PaymentSessionResult):
+        return value
+    if isinstance(value, tuple) and len(value) == 2:
+        return PaymentSessionResult.from_counts(int(value[0]), int(value[1]))
+    raise TypeError(f"Unsupported payment session result: {value!r}")
+
+
+def _amounts_from_payload(payload: dict[str, Any], count_key: str, amount_key: str) -> list[str | None]:
+    amounts = payload.get(amount_key)
+    count = int(payload.get(count_key, 0))
+    if isinstance(amounts, list):
+        normalized = [amount if isinstance(amount, str) else None for amount in amounts]
+        if len(normalized) < count:
+            normalized.extend([None] * (count - len(normalized)))
+        return normalized[:count]
+    return [None] * count
+
+
+def aggregate_payment_payloads(payloads: Iterable[dict[str, Any]]) -> dict[str, Any]:
+    result = PaymentSessionResult()
+    for payload in payloads:
+        for amount in _amounts_from_payload(payload, "red_packets", "red_packet_amounts"):
+            result.add_red_packet(amount)
+        for amount in _amounts_from_payload(payload, "transfers", "transfer_amounts"):
+            result.add_transfer(amount)
+    return result.to_payload()
 
 
 def text_matches_any(text: str, keywords: Iterable[str]) -> bool:
@@ -181,24 +551,25 @@ class AutoPaymentService:
         bundle, config = self.bridge._prepare_bundle()
         runtime = self._load_runtime()
         main_window = self._get_main_window(bundle, config)
-        red_packet_count, transfer_count = self._claim_payments_in_session(
-            bundle=bundle,
-            runtime=runtime,
-            config=config,
-            friend=friend,
-            unread_count=1,
-            main_window=main_window,
-            scan_limit=max(self.scan_limit, 30),
-            reply_override=reply,
-            use_reply_override=reply_provided,
+        claim_result = _coerce_session_result(
+            self._claim_payments_in_session(
+                bundle=bundle,
+                runtime=runtime,
+                config=config,
+                friend=friend,
+                unread_count=1,
+                main_window=main_window,
+                scan_limit=max(self.scan_limit, 30),
+                reply_override=reply,
+                use_reply_override=reply_provided,
+            )
         )
         payload = {
             "status": "success",
             "name": friend,
-            "red_packets": red_packet_count,
-            "transfers": transfer_count,
+            **claim_result.to_payload(),
         }
-        if red_packet_count == 0 and transfer_count == 0:
+        if claim_result.red_packets == 0 and claim_result.transfers == 0:
             payload["message"] = "No claimable red packet or transfer found"
         return payload
 
@@ -302,8 +673,7 @@ class AutoPaymentService:
         try:
             self._record_event("开始执行一次自动领取扫描")
             claimed_sessions = self._scan_once(respect_stop_event=False)
-            red_packets = sum(item["red_packets"] for item in claimed_sessions)
-            transfers = sum(item["transfers"] for item in claimed_sessions)
+            payment_summary = aggregate_payment_payloads(claimed_sessions)
             claimed_users = [item["name"] for item in claimed_sessions]
 
             with self._state_lock:
@@ -320,8 +690,7 @@ class AutoPaymentService:
                 "status": "success",
                 "claimed_users": claimed_users,
                 "claimed_payments": claimed_sessions,
-                "red_packets": red_packets,
-                "transfers": transfers,
+                **payment_summary,
                 "message": message,
             }
         except Exception as exc:
@@ -423,25 +792,26 @@ class AutoPaymentService:
             if respect_stop_event and self._stop_event.is_set():
                 break
             self._record_event(f"处理未读会话：{friend}（{unread_count} 条未读）")
-            red_packet_count, transfer_count = self._claim_payments_in_session(
-                bundle=bundle,
-                runtime=runtime,
-                config=config,
-                friend=friend,
-                unread_count=int(unread_count),
-                main_window=main_window,
+            claim_result = _coerce_session_result(
+                self._claim_payments_in_session(
+                    bundle=bundle,
+                    runtime=runtime,
+                    config=config,
+                    friend=friend,
+                    unread_count=int(unread_count),
+                    main_window=main_window,
+                )
             )
-            if red_packet_count or transfer_count:
+            if claim_result.red_packets or claim_result.transfers:
                 claimed_sessions.append(
                     {
                         "name": str(friend),
-                        "red_packets": red_packet_count,
-                        "transfers": transfer_count,
+                        **claim_result.to_payload(),
                     }
                 )
                 with self._state_lock:
-                    self._total_red_packets += red_packet_count
-                    self._total_transfers += transfer_count
+                    self._total_red_packets += claim_result.red_packets
+                    self._total_transfers += claim_result.transfers
                     self._last_claim_at = timezone.now()
         return claimed_sessions
 
@@ -456,9 +826,8 @@ class AutoPaymentService:
         scan_limit: int | None = None,
         reply_override: str | None = None,
         use_reply_override: bool = False,
-    ) -> tuple[int, int]:
-        red_packet_count = 0
-        transfer_count = 0
+    ) -> PaymentSessionResult:
+        result = PaymentSessionResult()
         dialog_window = self.bridge._open_dialog_in_main_window(
             main_window,
             bundle,
@@ -470,12 +839,12 @@ class AutoPaymentService:
         if bundle.Tools.is_group_chat(dialog_window):
             self._record_event(f"跳过群聊：{friend}")
             self._cleanup_after_claim(dialog_window, bundle, runtime)
-            return 0, 0
+            return result
 
         chat_list = dialog_window.child_window(**runtime.Lists.FriendChatList)
         if not chat_list.exists(timeout=0.5):
             self._record_event(f"未找到聊天列表：{friend}")
-            return 0, 0
+            return result
 
         bundle.Tools.activate_chatList(chat_list)
         time.sleep(0.2)
@@ -501,48 +870,54 @@ class AutoPaymentService:
 
             try:
                 self._record_event(f"尝试处理 {friend} 的{item_kind}")
-                if item_kind == "red_packet" and self._try_open_red_packet(
-                    dialog_window=dialog_window,
-                    runtime=runtime,
-                    red_packet=item,
-                    bundle=bundle,
-                    config=config,
-                    friend=friend,
-                    chat_list=chat_list,
-                    reply_override=reply_override,
-                    use_reply_override=use_reply_override,
-                ):
+                if item_kind == "red_packet":
+                    item_result = self._try_open_red_packet(
+                        dialog_window=dialog_window,
+                        runtime=runtime,
+                        red_packet=item,
+                        bundle=bundle,
+                        config=config,
+                        friend=friend,
+                        chat_list=chat_list,
+                        reply_override=reply_override,
+                        use_reply_override=use_reply_override,
+                    )
+                    if not item_result.success:
+                        continue
                     self._processed_payments.add(payment_key)
-                    red_packet_count += 1
+                    result.add_red_packet(item_result.amount)
                     time.sleep(0.5)
                     continue
 
-                if item_kind == "transfer" and self._try_collect_transfer(
-                    dialog_window=dialog_window,
-                    runtime=runtime,
-                    transfer_item=item,
-                    bundle=bundle,
-                    config=config,
-                    friend=friend,
-                    chat_list=chat_list,
-                    reply_override=reply_override,
-                    use_reply_override=use_reply_override,
-                ):
+                if item_kind == "transfer":
+                    item_result = self._try_collect_transfer(
+                        dialog_window=dialog_window,
+                        runtime=runtime,
+                        transfer_item=item,
+                        bundle=bundle,
+                        config=config,
+                        friend=friend,
+                        chat_list=chat_list,
+                        reply_override=reply_override,
+                        use_reply_override=use_reply_override,
+                    )
+                    if not item_result.success:
+                        continue
                     self._processed_payments.add(payment_key)
-                    transfer_count += 1
+                    result.add_transfer(item_result.amount)
                     time.sleep(0.5)
             except Exception as exc:
                 logger.exception("Failed to process %s payment item for %s.", item_kind, friend)
                 self._record_event(f"处理 {friend} 的{item_kind}失败：{exc}")
                 continue
 
-        if red_packet_count == 0 and transfer_count == 0:
+        if result.red_packets == 0 and result.transfers == 0:
             self._record_event(f"{friend} 没有可领取红包/转账")
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
         else:
-            self._record_event(f"{friend} 领取完成：红包 {red_packet_count}，转账 {transfer_count}")
+            self._record_event(f"{friend} 领取完成：红包 {result.red_packets}，转账 {result.transfers}")
 
-        return red_packet_count, transfer_count
+        return result
 
     def _try_open_red_packet(
         self,
@@ -555,7 +930,7 @@ class AutoPaymentService:
         chat_list: Any = None,
         reply_override: str | None = None,
         use_reply_override: bool = False,
-    ) -> bool:
+    ) -> PaymentItemResult:
         red_envelop_view = dialog_window.child_window(
             class_name="mmui::PayRedEnvelopeInfoView",
             title="",
@@ -578,10 +953,23 @@ class AutoPaymentService:
                     pass
             self._close_payment_popup(runtime, dialog_window)
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
-            return False
+            return PaymentItemResult(False)
 
         open_button.click_input()
         time.sleep(PAYMENT_RESULT_WAIT_SECONDS)
+        amount = extract_payment_amount(
+            self._payment_popup_texts(
+                runtime,
+                dialog_window,
+                red_envelop_detail,
+                red_envelop_view,
+                red_packet,
+            )
+        )
+        if amount is None:
+            amount = extract_payment_amount([*control_texts(red_envelop_view), *item_texts(red_packet)])
+        if amount is None and red_envelop_detail.exists(timeout=0.2):
+            amount = extract_red_packet_amount_from_image(capture_control_image(red_envelop_detail))
         if red_envelop_detail.exists(timeout=1):
             try:
                 red_envelop_detail.close()
@@ -601,7 +989,38 @@ class AutoPaymentService:
         except Exception:
             pass
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
-        return True
+        return PaymentItemResult(True, amount)
+
+    def _payment_popup_texts(self, runtime: PaymentRuntime, dialog_window: Any, *roots: Any) -> list[str]:
+        texts: list[str] = []
+        for root in roots:
+            texts.extend(deep_control_texts(root))
+
+        active_window = self._get_active_window(runtime, dialog_window)
+        try:
+            if active_window.handle != dialog_window.handle:
+                texts.extend(deep_control_texts(active_window))
+        except Exception:
+            texts.extend(deep_control_texts(active_window))
+
+        try:
+            windows = runtime.desktop.windows()
+        except Exception:
+            windows = []
+
+        try:
+            window_iterator = iter(windows)
+        except TypeError:
+            window_iterator = iter(())
+
+        for window in window_iterator:
+            try:
+                class_name = window.class_name()
+            except Exception:
+                class_name = ""
+            if "PayRedEnvelop" in class_name or "PayRedEnvelope" in class_name:
+                texts.extend(deep_control_texts(window))
+        return texts
 
     def _render_payment_thanks_message(
         self,
@@ -683,18 +1102,22 @@ class AutoPaymentService:
         chat_list: Any = None,
         reply_override: str | None = None,
         use_reply_override: bool = False,
-    ) -> bool:
+    ) -> PaymentItemResult:
+        amount = extract_payment_amount(item_texts(transfer_item))
         transfer_item.click_input()
         time.sleep(PAYMENT_POPUP_WAIT_SECONDS)
+        amount = amount or extract_payment_amount(control_texts(self._get_active_window(runtime, dialog_window)))
 
         receive_button = self._find_visible_button(runtime, dialog_window, title="收款", timeout=2)
         if receive_button is None:
             self._close_payment_popup(runtime, dialog_window)
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
-            return False
+            return PaymentItemResult(False)
 
+        amount = amount or extract_payment_amount(control_texts(receive_button))
         receive_button.click_input()
         time.sleep(PAYMENT_RESULT_WAIT_SECONDS)
+        amount = amount or extract_payment_amount(control_texts(self._get_active_window(runtime, dialog_window)))
         self._close_payment_popup(runtime, dialog_window)
         try:
             self._send_payment_thanks_message(
@@ -709,7 +1132,7 @@ class AutoPaymentService:
         except Exception:
             pass
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
-        return True
+        return PaymentItemResult(True, amount)
 
     def _close_payment_popup(self, runtime: PaymentRuntime, dialog_window: Any) -> None:
         self._close_popup(runtime, dialog_window)
