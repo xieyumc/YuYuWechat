@@ -152,6 +152,10 @@ class AutoPaymentConfigSerializer(serializers.Serializer):
     payment_reply_delay = serializers.FloatField(min_value=0.0)
     auto_payment_check_interval_minutes = serializers.FloatField(min_value=0.01)
     red_packet_thanks_message = serializers.CharField(allow_blank=True)
+    window_width = serializers.IntegerField(required=False, min_value=1)
+    window_height = serializers.IntegerField(required=False, min_value=1)
+    window_size = serializers.CharField(required=False)
+    is_maximize = serializers.BooleanField(required=False)
 
 
 class AutoPaymentEnvelopeSerializer(serializers.Serializer):
@@ -171,6 +175,7 @@ task_queue: Queue = Queue()
 lock = threading.Lock()
 worker_started = False
 auto_payment_service = AutoPaymentService(bridge=bridge, operation_lock=lock)
+DEFAULT_WINDOW_SIZE = "1000,1000"
 
 
 def home(request):
@@ -314,12 +319,60 @@ def _auto_payment_response(message: str = "") -> dict[str, Any]:
 
 def _get_auto_payment_config_payload() -> dict[str, Any]:
     config = WeChatConfig.get_solo()
+    window_width, window_height = _safe_window_size_parts(config.window_size)
     return {
         "auto_thank_after_red_packet": config.auto_thank_after_red_packet,
         "payment_reply_delay": config.payment_reply_delay,
         "auto_payment_check_interval_minutes": config.auto_payment_check_interval_minutes,
         "red_packet_thanks_message": config.red_packet_thanks_message,
+        "window_width": window_width,
+        "window_height": window_height,
+        "window_size": f"{window_width},{window_height}",
+        "is_maximize": config.is_maximize,
     }
+
+
+def _parse_window_size_text(raw_value: Any) -> tuple[int, int]:
+    parts = str(raw_value or "").split(",", 1)
+    if len(parts) != 2:
+        raise ValueError("window_size must be formatted as width,height")
+    try:
+        width = int(parts[0].strip())
+        height = int(parts[1].strip())
+    except (TypeError, ValueError) as exc:
+        raise ValueError("window_size must be formatted as width,height") from exc
+    if width <= 0 or height <= 0:
+        raise ValueError("window_size must contain positive integers")
+    return width, height
+
+
+def _safe_window_size_parts(raw_value: Any) -> tuple[int, int]:
+    try:
+        return _parse_window_size_text(raw_value)
+    except ValueError:
+        return _parse_window_size_text(DEFAULT_WINDOW_SIZE)
+
+
+def _positive_integer_from_payload(data: dict[str, Any], key: str, default: int) -> int:
+    value = data.get(key, default)
+    if isinstance(value, bool):
+        raise ValueError(f"{key} must be a positive integer")
+    if isinstance(value, int):
+        number = value
+    elif isinstance(value, float):
+        if not value.is_integer():
+            raise ValueError(f"{key} must be a positive integer")
+        number = int(value)
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if not re.fullmatch(r"\d+", stripped):
+            raise ValueError(f"{key} must be a positive integer")
+        number = int(stripped)
+    else:
+        raise ValueError(f"{key} must be a positive integer")
+    if number <= 0:
+        raise ValueError(f"{key} must be a positive integer")
+    return number
 
 
 @extend_schema(
@@ -866,7 +919,7 @@ def run_auto_payment_once_view(request):
 
 
 @extend_schema(
-    summary="更新自动领取红包/转账后的感谢消息配置",
+    summary="更新自动领取红包/转账配置和微信窗口尺寸",
     request=AutoPaymentConfigSerializer,
     responses={
         200: OpenApiResponse(response=AutoPaymentEnvelopeSerializer, description="保存成功"),
@@ -890,6 +943,7 @@ def update_auto_payment_config_view(request):
         config.auto_payment_check_interval_minutes,
     )
     red_packet_thanks_message = data.get("red_packet_thanks_message", config.red_packet_thanks_message)
+    current_width, current_height = _safe_window_size_parts(config.window_size)
 
     if not isinstance(auto_thank_after_red_packet, bool):
         return _json_response({"status": "error", "error": "auto_thank_after_red_packet must be a boolean"}, 400)
@@ -910,15 +964,24 @@ def update_auto_payment_config_view(request):
         )
     if not isinstance(red_packet_thanks_message, str):
         return _json_response({"status": "error", "error": "red_packet_thanks_message must be a string"}, 400)
+    if "is_maximize" in data and not isinstance(data["is_maximize"], bool):
+        return _json_response({"status": "error", "error": "is_maximize must be a boolean"}, 400)
+    try:
+        window_width = _positive_integer_from_payload(data, "window_width", current_width)
+        window_height = _positive_integer_from_payload(data, "window_height", current_height)
+    except ValueError as exc:
+        return _json_response({"status": "error", "error": str(exc)}, 400)
 
     config.auto_thank_after_red_packet = auto_thank_after_red_packet
     config.payment_reply_delay = payment_reply_delay
     config.auto_payment_check_interval_minutes = auto_payment_check_interval_minutes
     config.red_packet_thanks_message = red_packet_thanks_message
+    config.window_size = f"{window_width},{window_height}"
+    config.is_maximize = False
     try:
         config.save()
     except Exception as exc:
         return _json_response({"status": "error", "error": str(exc)}, 400)
 
-    message = "自动感谢消息配置已保存"
+    message = "自动领取配置和微信窗口尺寸已保存"
     return _json_response(_auto_payment_response(message), 200)

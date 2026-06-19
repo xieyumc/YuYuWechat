@@ -129,6 +129,43 @@
             >
         </label>
     </div>
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
+    <h3>微信单栏窗口尺寸</h3>
+    <p class="muted">
+        建议设置为能让微信保持单栏模式的尺寸；保存后不会立即调整微信窗口，下一次发送、获取聊天记录或领取红包/转账时生效。
+        宽度可先尝试 600-900，高度可先尝试 700-1200，再按当前屏幕缩放微调。
+    </p>
+    <div class="status-row">
+        当前保存值：<code id="wechat-window-size">{{ auto_payment_config.window_size }}</code>；
+        首页保存会关闭最大化模式，避免微信进入双栏。
+    </div>
+    <div class="status-row">
+        <label class="inline" for="wechat-window-width">
+            微信窗口宽度
+            <input
+                id="wechat-window-width"
+                type="number"
+                min="1"
+                step="1"
+                value="{{ auto_payment_config.window_width }}"
+                style="width: 120px; margin-left: 8px;"
+            >
+        </label>
+    </div>
+    <div class="status-row">
+        <label class="inline" for="wechat-window-height">
+            微信窗口高度
+            <input
+                id="wechat-window-height"
+                type="number"
+                min="1"
+                step="1"
+                value="{{ auto_payment_config.window_height }}"
+                style="width: 120px; margin-left: 8px;"
+            >
+        </label>
+    </div>
+    <hr style="margin: 20px 0; border: 0; border-top: 1px solid #eee;">
     <div class="status-row muted">支持占位符：<code>{friend}</code>、<code>{name}</code>、<code>{payment_type}</code></div>
     <div class="status-row">
         <textarea
@@ -166,6 +203,9 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
     const thankEnabledEl = document.getElementById("thank-after-red-packet");
     const paymentReplyDelayEl = document.getElementById("payment-reply-delay");
     const autoPaymentCheckIntervalEl = document.getElementById("auto-payment-check-interval");
+    const windowWidthEl = document.getElementById("wechat-window-width");
+    const windowHeightEl = document.getElementById("wechat-window-height");
+    const windowSizeEl = document.getElementById("wechat-window-size");
     const thankMessageEl = document.getElementById("red-packet-thanks-message");
     const saveConfigButton = document.getElementById("save-auto-payment-config");
     const configMessageEl = document.getElementById("auto-payment-config-message");
@@ -224,12 +264,20 @@ Invoke-WebRequest -Uri http://127.0.0.1:8000/wechat/send_message/ -Method Post -
                     auto_thank_after_red_packet: thankEnabledEl.checked,
                     payment_reply_delay: Number(paymentReplyDelayEl.value),
                     auto_payment_check_interval_minutes: Number(autoPaymentCheckIntervalEl.value),
+                    window_width: Number(windowWidthEl.value),
+                    window_height: Number(windowHeightEl.value),
+                    is_maximize: false,
                     red_packet_thanks_message: thankMessageEl.value,
                 }),
             });
             const payload = await response.json();
             if (!response.ok) {
                 throw new Error(payload.error || "保存失败");
+            }
+            if (payload.auto_payment_config) {
+                windowWidthEl.value = payload.auto_payment_config.window_width;
+                windowHeightEl.value = payload.auto_payment_config.window_height;
+                windowSizeEl.textContent = payload.auto_payment_config.window_size;
             }
             configMessageEl.textContent = payload.message || "保存成功";
         } catch (error) {

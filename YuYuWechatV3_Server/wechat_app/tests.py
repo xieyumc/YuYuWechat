@@ -1040,6 +1040,41 @@ class AutoPaymentServiceTests(SimpleTestCase):
         )
         cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
 
+    def test_try_collect_transfer_dumps_buttons_when_receive_button_missing(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        dialog_window = mock.Mock()
+        transfer_item = mock.Mock()
+        transfer_item.window_text.return_value = "Wechat转账 待你接收"
+        transfer_item.descendants.return_value = []
+        bundle = mock.Mock()
+        runtime = mock.Mock()
+        config = mock.Mock()
+
+        with mock.patch.object(service, "_find_visible_button", return_value=None), mock.patch.object(
+            service,
+            "_dump_payment_buttons",
+        ) as dump_buttons, mock.patch.object(
+            service,
+            "_close_payment_popup",
+        ) as close_popup, mock.patch.object(
+            service,
+            "_cleanup_after_claim",
+        ) as cleanup, mock.patch("wechat_bridge.payment_listener.time.sleep"):
+            result = service._try_collect_transfer(
+                dialog_window=dialog_window,
+                runtime=runtime,
+                transfer_item=transfer_item,
+                bundle=bundle,
+                config=config,
+                friend="Mona",
+                chat_list=mock.sentinel.chat_list,
+            )
+
+        self.assertFalse(result.success)
+        dump_buttons.assert_called_once_with(runtime, dialog_window, "transfer_receive_button_missing", transfer_item)
+        close_popup.assert_called_once_with(runtime, dialog_window)
+        cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
+
     def test_try_open_red_packet_waits_for_popup_and_result_before_reply(self):
         service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
         dialog_window = mock.Mock()
@@ -1119,6 +1154,44 @@ class AutoPaymentServiceTests(SimpleTestCase):
             reply_override=None,
             use_reply_override=False,
         )
+        cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
+
+    def test_try_open_red_packet_dumps_buttons_when_open_button_missing(self):
+        service = AutoPaymentService(bridge=mock.Mock(), operation_lock=threading.Lock())
+        dialog_window = mock.Mock()
+        red_packet = mock.Mock()
+        bundle = mock.Mock()
+        runtime = mock.Mock()
+        config = mock.Mock()
+        red_envelop_view = mock.Mock()
+        open_button = mock.Mock()
+        open_button.exists.return_value = False
+        red_envelop_view.child_window.return_value = open_button
+        dialog_window.child_window.return_value = red_envelop_view
+        red_envelop_detail = mock.Mock()
+        red_envelop_detail.exists.return_value = False
+        runtime.desktop.window.return_value = red_envelop_detail
+
+        with mock.patch.object(service, "_dump_payment_buttons") as dump_buttons, mock.patch.object(
+            service,
+            "_close_payment_popup",
+        ) as close_popup, mock.patch.object(
+            service,
+            "_cleanup_after_claim",
+        ) as cleanup, mock.patch("wechat_bridge.payment_listener.time.sleep"):
+            result = service._try_open_red_packet(
+                dialog_window=dialog_window,
+                runtime=runtime,
+                red_packet=red_packet,
+                bundle=bundle,
+                config=config,
+                friend="Mona",
+                chat_list=mock.sentinel.chat_list,
+            )
+
+        self.assertFalse(result.success)
+        dump_buttons.assert_called_once_with(runtime, dialog_window, "red_packet_open_button_missing", red_envelop_view)
+        close_popup.assert_called_once_with(runtime, dialog_window)
         cleanup.assert_called_once_with(dialog_window, bundle, runtime, chat_list=mock.sentinel.chat_list)
 
     def test_try_collect_transfer_closes_popup_before_reply_and_returns_after_reply(self):
@@ -1524,6 +1597,9 @@ class ApiContractTests(TransactionTestCase):
         self.assertContains(response, "成功领取红包/收取转账后自动发送感谢消息")
         self.assertContains(response, "自动感谢回复延迟（秒）")
         self.assertContains(response, "自动检查间隔（分钟）")
+        self.assertContains(response, "微信单栏窗口尺寸")
+        self.assertContains(response, 'id="wechat-window-width"')
+        self.assertContains(response, 'id="wechat-window-height"')
         mocked_status.assert_called_once_with()
 
     @mock.patch.object(
@@ -1742,6 +1818,9 @@ class ApiContractTests(TransactionTestCase):
                     "auto_thank_after_red_packet": True,
                     "payment_reply_delay": 2.5,
                     "auto_payment_check_interval_minutes": 3,
+                    "window_width": 760,
+                    "window_height": 900,
+                    "is_maximize": True,
                     "red_packet_thanks_message": "谢谢{friend}的红包",
                 }
             ),
@@ -1750,17 +1829,72 @@ class ApiContractTests(TransactionTestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["message"], "自动感谢消息配置已保存")
+        self.assertEqual(payload["message"], "自动领取配置和微信窗口尺寸已保存")
         self.assertTrue(payload["auto_payment_config"]["auto_thank_after_red_packet"])
         self.assertEqual(payload["auto_payment_config"]["payment_reply_delay"], 2.5)
         self.assertEqual(payload["auto_payment_config"]["auto_payment_check_interval_minutes"], 3.0)
         self.assertEqual(payload["auto_payment_config"]["red_packet_thanks_message"], "谢谢{friend}的红包")
+        self.assertEqual(payload["auto_payment_config"]["window_width"], 760)
+        self.assertEqual(payload["auto_payment_config"]["window_height"], 900)
+        self.assertEqual(payload["auto_payment_config"]["window_size"], "760,900")
+        self.assertFalse(payload["auto_payment_config"]["is_maximize"])
         config = WeChatConfig.get_solo()
         self.assertTrue(config.auto_thank_after_red_packet)
         self.assertEqual(config.payment_reply_delay, 2.5)
         self.assertEqual(config.auto_payment_check_interval_minutes, 3.0)
         self.assertEqual(config.red_packet_thanks_message, "谢谢{friend}的红包")
+        self.assertEqual(config.window_size, "760,900")
+        self.assertFalse(config.is_maximize)
         mocked_status.assert_called_once_with()
+
+    @mock.patch.object(
+        views.auto_payment_service,
+        "status",
+        return_value={
+            "running": False,
+            "thread_alive": False,
+            "state_label": "已停止",
+            "button_label": "启用自动领取红包/转账",
+            "total_red_packets": 0,
+            "total_transfers": 0,
+            "last_error": "",
+            "last_cycle_at": None,
+            "last_claim_at": None,
+            "started_at": None,
+        },
+    )
+    def test_update_auto_payment_config_rejects_invalid_window_size(self, mocked_status):
+        base_payload = {
+            "auto_thank_after_red_packet": False,
+            "payment_reply_delay": 2.0,
+            "auto_payment_check_interval_minutes": 2,
+            "red_packet_thanks_message": "",
+        }
+        cases = [
+            ({"window_width": 0, "window_height": 900}, "window_width must be a positive integer"),
+            ({"window_width": -1, "window_height": 900}, "window_width must be a positive integer"),
+            ({"window_width": 760, "window_height": "bad"}, "window_height must be a positive integer"),
+        ]
+
+        for window_payload, expected_error in cases:
+            with self.subTest(window_payload=window_payload):
+                response = self.client.post(
+                    "/wechat/auto_payment_config/",
+                    data=json.dumps(
+                        {
+                            **base_payload,
+                            **window_payload,
+                        }
+                    ),
+                    content_type="application/json",
+                )
+
+                self.assertEqual(response.status_code, 400)
+                self.assertEqual(
+                    response.json(),
+                    {"status": "error", "error": expected_error},
+                )
+        mocked_status.assert_not_called()
 
     @mock.patch.object(
         views.auto_payment_service,

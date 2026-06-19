@@ -946,6 +946,7 @@ class AutoPaymentService:
         time.sleep(PAYMENT_POPUP_WAIT_SECONDS)
         open_button = red_envelop_view.child_window(control_type="Button", title="拆开")
         if not open_button.exists(timeout=0.8):
+            self._dump_payment_buttons(runtime, dialog_window, "red_packet_open_button_missing", red_envelop_view)
             if red_envelop_detail.exists(timeout=0.2):
                 try:
                     red_envelop_detail.close()
@@ -990,6 +991,70 @@ class AutoPaymentService:
             pass
         self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
         return PaymentItemResult(True, amount)
+
+    def _dump_payment_buttons(self, runtime: PaymentRuntime, dialog_window: Any, reason: str, *roots: Any) -> None:
+        print(f"[payment-button-debug] {reason}: dumping visible payment popup buttons/texts", flush=True)
+
+        dump_roots = list(roots)
+        try:
+            active_window = self._get_active_window(runtime, dialog_window)
+            dump_roots.insert(0, active_window)
+        except Exception:
+            pass
+
+        try:
+            windows = runtime.desktop.windows()
+        except Exception:
+            windows = []
+        try:
+            window_iterator = iter(windows)
+        except TypeError:
+            window_iterator = iter(())
+        for window in window_iterator:
+            try:
+                class_name = window.class_name()
+                title = window.window_text()
+            except Exception:
+                continue
+            if class_name.startswith("mmui::Pay") or title in {"微信", "WeChat"}:
+                dump_roots.append(window)
+
+        seen_roots: set[int] = set()
+        for root_index, root in enumerate(dump_roots, start=1):
+            root_id = id(root)
+            if root_id in seen_roots:
+                continue
+            seen_roots.add(root_id)
+            try:
+                root_text = root.window_text()
+                root_class = root.class_name()
+            except Exception as exc:
+                print(f"[payment-button-debug] root-{root_index}: unavailable: {exc}", flush=True)
+                continue
+            print(f"[payment-button-debug] root-{root_index}: text={root_text!r} class={root_class!r}", flush=True)
+            for control_type in ("Button", "Text"):
+                try:
+                    controls = root.descendants(control_type=control_type)
+                except Exception as exc:
+                    print(f"[payment-button-debug] root-{root_index}: {control_type} descendants error: {exc}", flush=True)
+                    continue
+                for control_index, control in enumerate(controls[:40], start=1):
+                    try:
+                        text = control.window_text()
+                        visible = control.is_visible()
+                        class_name = control.class_name()
+                    except Exception as exc:
+                        print(
+                            f"[payment-button-debug] root-{root_index} {control_type}-{control_index}: error={exc}",
+                            flush=True,
+                        )
+                        continue
+                    if text or control_type == "Button":
+                        print(
+                            f"[payment-button-debug] root-{root_index} {control_type}-{control_index}: "
+                            f"text={text!r} class={class_name!r} visible={visible}",
+                            flush=True,
+                        )
 
     def _payment_popup_texts(self, runtime: PaymentRuntime, dialog_window: Any, *roots: Any) -> list[str]:
         texts: list[str] = []
@@ -1110,6 +1175,7 @@ class AutoPaymentService:
 
         receive_button = self._find_visible_button(runtime, dialog_window, title="收款", timeout=2)
         if receive_button is None:
+            self._dump_payment_buttons(runtime, dialog_window, "transfer_receive_button_missing", transfer_item)
             self._close_payment_popup(runtime, dialog_window)
             self._cleanup_after_claim(dialog_window, bundle, runtime, chat_list=chat_list)
             return PaymentItemResult(False)
