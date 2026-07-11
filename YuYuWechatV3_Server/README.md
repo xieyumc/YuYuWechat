@@ -15,7 +15,7 @@
 - Python 3.10+
 - 微信 `4.1.6+`
 - 微信界面语言为简体中文
-- 建议在微信登录前先启用讲述人/无障碍服务，保证 UI Automation 可见
+- 必须在微信登录前先启用讲述人/无障碍服务，保证 UI Automation 可见
 
 ## 安装
 
@@ -26,6 +26,12 @@ python -m venv .venv
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py createsuperuser
+```
+
+> [!IMPORTANT]
+> 运行服务端前，必须先完全退出微信，打开 Windows 讲述人，再启动并登录微信。确认微信已经登录后，最后执行服务端启动命令。不要先登录微信再打开讲述人。
+
+```bash
 python manage.py runserver 0.0.0.0:8000
 ```
 

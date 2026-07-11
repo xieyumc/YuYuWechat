@@ -1,381 +1,479 @@
-<h1 align="center"> 🌧️YuYuWechat</h1>
+<h1 align="center">YuYuWechat V3</h1>
 
-一个让微信定时循环发送消息（使用cron表达式任务可以精确到分钟），批量群发消息的小工具🚀，并且提供了一个简易直观的界面，可部署到任意平台
+<p align="center">
+  基于 Django、Celery 与 Windows UI Automation 的微信自动化管理工具
+</p>
 
-️YuYuWechatV3(适配微信4.x)正在更新，不久将会发布，如要控制微信3.x，请使用YuYuWechatV2，手动切换到V2分支
+YuYuWechat 用于批量发送消息、定时发送消息和文件、检测聊天记录、记录执行日志并在异常时报警
+> V3 当前只支持 Windows 10/11、微信 `4.1.8` 和简体中文界面。需要控制微信 3.x 时，请切换到 `V2` 分支并使用 `YuYuWechatV2_Server`。
 
-![img_2.png](img/img_new_color/img_1.png)
-<h6 align="center">首页管理界面，在这里，可以概览系统的所有功能
+## 目录
 
-![img.png](img/img_new_color/img.png)
-<h6 align="center">登录保护，保证数据安全性
+- [功能概览](#功能概览)
+- [系统结构](#系统结构)
+- [运行要求](#运行要求)
+- [部署 V3 服务端](#部署-v3-服务端)
+- [服务端接口](#服务端接口)
+- [部署管理客户端](#部署管理客户端)
+- [配置自动化任务](#配置自动化任务)
+- [自动领取红包和转账](#自动领取红包和转账)
+- [日志与可靠性](#日志与可靠性)
+- [开发与测试](#开发与测试)
+- [常见问题](#常见问题)
 
-![img_3.png](img/img_new_color/img_3.png)
-<h6 align="center">批量发送消息
+## 功能概览
 
-![img_4.png](img/img_new_color/img_4.png)
-<h6 align="center">定时发送消息
-
-![img_5.png](img/img_new_color/img_5.png)
-<h6 align="center">定时发送文件
-
-![img_.png](img/img_20.png)
-![img_.png](img/img_21.png)
-<h6 align="center">定时检测聊天记录，并根据检测结果提醒
-
-![img_6.png](img/img_new_color/img_6.png)
-<h6 align="center">错误检测
-
-![img.png](img/img_18.png)
-<h6 align="center">自动检测错误，并且通过邮件报警，及时处理错误
-
-![img_3.png](img/img_3.png)
-<h6 align="center">后台管理界面，对消息数据进行增删改。
-
-![img.png](img/img_new_color/img_7.png)
-<h6 align="center">执行自定义脚本
-
-![img_1.png](img/img_new_color/img_8.png)
-<h6 align="center">定期自动备份数据库
-
-# 📋 目录
-
-- [✨功能特点](#功能特点)
-- [1. 介绍](#1-介绍)
-  - [YuYuWechatV2_Server服务端](#yuyuwechatv2_server服务端)
-  - [YuYuWechatV2_Client客户端](#yuyuwechatv2_client客户端)
-- [2. 部署服务端](#2-部署服务端)
-  - [使用编译后EXE直接部署（推荐）](#使用编译后exe直接部署推荐)
-  - [使用源码部署](#使用源码部署)
-  - [测试服务端是否正常运行](#测试服务端是否正常运行)
-  - [确保Windows不锁屏](#确保windows不锁屏)
-- [3. 部署客户端](#3-部署客户端)
-  - [使用docker运行（推荐）](#使用docker运行推荐)
-  - [从源码运行](#从源码运行)
-- [4. 额外功能](#4-额外功能)
-  - [邮件报警](#邮件报警)
-  - [根据 ScheduledMessage 生成 MessageCheck](#根据-scheduledmessage-生成-messagecheck)
-- [5. 可靠性](#5-可靠性)
-  - [错误检测](#错误检测)
-  - [自动化测试](#自动化测试)
-- [6. 感谢](#6-感谢)
-- [7. 支持YuYu](#7-支持yuyu)
-- [8. 其他](#8-其他)
-
-# ✨功能特点
-
-✅群发消息：一次性向多个好友发送不同的消息👥
-
-✅自动发送消息：自动检查时间并在对应时刻发送消息🤖（基于cron表达式，可精确到分钟）
-
-✅循环发送消息：cron表达式可设置任意循环作业🔄
-
-✅定时检测聊天记录，并根据检测结果提醒🔍
-
-✅可靠性保证：日志记录以及自动错误检测，可保证定时任务不遗漏执行🔍
-
-✅登录认证保护：登录保护，保证数据安全性🔒
-
-✅全平台支持，轻松部署在服务器上，服务端部署在win平台接受客户端的请求，客户端可部署到任意平台🌍
-
-# 1. 介绍
-
-本项目分为2部分，服务端和客户端：
-
-## YuYuWechatV2_Server服务端
-
-![img_4.png](img/img_4.png)  
-
-服务端是一个轻量的服务器，和微信一起安装在win上
-
-服务端完全与客户端脱耦，接受http请求来对微信进行自动化操作，你也可以自己写一个客户端来调用服务端的接口
-
-### 服务端接受以下请求：
+- 批量发送不同文本消息
+- 使用五段式 Cron 表达式定时、循环发送消息
+- 定时发送服务端本地文件
+- 获取聊天记录并按时间分块检测关键词或正则表达式
+- 获取聊天中的图片、视频以及临时下载链接
+- 置顶或取消置顶指定聊天
+- 手动领取红包、收取转账
+- 监听未读单聊，自动领取红包和转账，并可发送感谢消息
+- 服务端请求串行执行，避免多个请求同时抢占微信窗口
+- 客户端任务日志、服务端请求日志、漏执行检测和邮件报警
+- Django Admin 数据管理、数据库备份和自定义脚本
 
 
-- `wechat/ping`：检查服务端是否正常运行，返回`'status': 'pong'`
-- `wechat/send_message`：发送消息，接受json格式的数据`name`、`text`，并对微信进行自动化操作
-- `wechat/check_wechat_status`：检查微信是否正常运行
-- `wechat/get_dialogs`:获取聊天记录
-- `wechat/get_dialogs_by_time_blocks`:根据时间段获取聊天记录，返回嵌套列表
-- `wechat/send_file`:发送文件
 
-```
-.....更多接口请部署服务的后访问交互式文档 `http://127.0.0.1:8000/api/schema/swagger-ui/`
-```
-### 并发保证
 
-服务端有消息队列和互斥锁，只需要把消息发送给服务端，服务端会自动处理消息队列，保证消息依次发送，所以你还可以部署多个客户端对同一个服务端发送消息
+![首页](img/img_new_color/img_1.png)
 
-## YuYuWechatV2_Client客户端
+![登录](img/img_new_color/img_2.png)
 
-![img_2.png](img/img_new_color/img_1.png)
-客户端是一个轻量的前端，可以在任意平台上运行，通过网络请求发送消息给服务端
+![批量发送](img/img_new_color/img_3.png)
 
-### 客户端功能
+![定时消息](img/img_new_color/img_4.png)
 
-- `首页`：功能概览
-- `日志`：查看客户端函数调用情况的日志，方便调试和检测错误，正常情况下是不会失败的，失败说明函数调用出现问题了，有可能出现漏发消息，发错消息，数据保存失败的情况，需要注意⚠️
-- `错误检测`：检测客户端的各种功能是否正常以及定时任务是否遗漏
-- `发送消息管理`：批量发送消息
-- `定时任务管理`：定时发送消息
-- `邮箱报警`：自动检测错误，并且发送错误信息到指定的邮箱上
-- `数据管理界面`：管理数据库内容，编辑发送消息
+![定时文件](img/img_new_color/img_5.png)
 
-# 2. 部署服务端
+![错误检测](img/img_new_color/img_6.png)
 
-## 使用编译后EXE直接部署（推荐）
+![自定义脚本](img/img_new_color/img_7.png)
 
-- 在release界面找到最新的版本，下载`YuYuWechatV2_Server.exe`和`YuYuWechatV2_Server_run.bat`
+![数据库备份](img/img_new_color/img_8.png)
 
-- 把这两个文件放在微信安装的目录下，双击`YuYuWechatV2_Server_run.bat`即可运行（默认端口是8000，若冲突了请自行修改bat文件指定端口）
 
-###### ⚠️Windows的bug，有的时候若是打开bat没反应，需要在控制台（小黑黑窗口那个）按一下回车
 
-## 使用源码部署
+## 系统结构
 
-- cd到`YuYuWechatV2_Server`目录下
-
-- 安装依赖`pip install -r requirements.txt`
-
-- 运行`python manage.py runserver 0.0.0.0:8000`
-
-本项目默认的微信路径是在项目的本目录下，使用源码部署时，若是微信安装在其他目录下，需要修改一下：
-
-> 访问`http://127.0.0.1:8000/admin/wechat_app/wechatconfig/1/change/` ，用户名`admin`,密码`tykWyr-bepqu6-fafvym`
-> ，手动修改微信的安装位置
-
-> **注意windows的路径分隔符是`\`，但是在python中`\`是转义字符，所以需要用`/`代替，例如**
-
-```
-Windows资源管理器复制出来文件路径是：`C:\Program Files\Tencent\WeChat\WeChat.exe`
-
-但是在后台中需要写成：`C:/Program Files/Tencent/WeChat/WeChat.exe
+```mermaid
+flowchart LR
+    Browser["浏览器"] --> Client["YuYuWechatV2_Client<br/>Django 管理端"]
+    Client --> Tasks["Celery 定时任务"]
+    Client -->|"HTTP /wechat/*"| Server["YuYuWechatV3_Server"]
+    Tasks -->|"HTTP /wechat/*"| Server
+    Server --> Queue["单队列 / 单 Worker"]
+    Queue --> Bridge["wechat_bridge"]
+    Bridge --> Core["pywechat / pyweixin"]
+    Core --> Weixin["PC 微信 4.1.6+"]
+    Client --> PostgreSQL[(PostgreSQL)]
+    Tasks --> Redis[(Redis)]
 ```
 
-## 测试服务端是否正常运行
+项目分为三个主要部分：
 
-上一步安装并运行服务端后，可以访问`http://127.0.0.1:8000/api/schema/swagger-ui/`
-![img.png](img/img29.png)
-可以看到服务端的接口文档，并且进行接口测试
+- `YuYuWechatV3_Server`：部署在安装微信的 Windows 电脑上，接收 HTTP 请求并执行微信 UI 自动化。
+- `YuYuWechatV2_Client`：管理页面和定时任务中心，可部署在 Windows、macOS 或 Linux。
+- `pywechat/pyweixin`：V3 使用的微信 4.x 自动化核心库。源码部署时必须与 V3 服务端保持同仓、同级目录结构。
 
-另外还有其他类型的接口文档可选：
-`http://127.0.0.1:8000/api/schema/redoc/`
-![img.png](img/img_30.png)
+V3 保留了服务端全局任务队列和互斥锁。即使多个客户端同时连接同一个服务端，微信操作也会按顺序执行。
 
+## 运行要求
 
+### 服务端
 
+- Windows 10 或 Windows 11
+- Python 3.10+，推荐 Python 3.11
+- PC 微信 `4.1.8`
+- 微信界面语言为简体中文，即 `zh-CN`
+- Windows 用户已经登录微信
+- 桌面保持解锁，运行期间不能进入锁屏或睡眠状态
 
-## 确保Windows不锁屏
-YuYuWechatV2_Server需要GUI界面，所以需要保证Windows不会锁屏
-- 首先在电源选项里设置不永不关闭屏幕
-![img.png](img/img_15.png)
-- 然后到注册表里设置不锁屏
-```shell
-win+r运行命令
+### 让微信 UI 可被自动化识别
+
+微信 4.x 可能默认隐藏部分 UI Automation 元素。根据 `pywechat/Weixin4.0.md` 的说明，建议首次配置时执行以下操作：
+
+1. 完全退出微信。
+2. 在启动微信前打开 Windows 讲述人，可使用 `Win + Ctrl + Enter`。
+3. 启动微信并登录，保持讲述人运行约 5 分钟。
+4. 关闭讲述人，然后再启动 YuYuWechat V3 服务端。
+5. 在 Windows 电源设置中关闭自动睡眠、自动息屏和锁屏。
+
+如果接口提示无法定位微信主窗口，先重复以上流程，而不是修改 UI 定位代码。
+
+## 部署 V3 服务端
+
+### 使用批处理自行编译 EXE（推荐）
+
+V3 建议用户在 Windows 上从 `v3` 分支源码自行编译。仓库已经提供 `YuYuWechatV3_Server/build_pyinstaller_windows.bat`，不需要手动安装和调用 PyInstaller。
+
+编译前确认：
+
+- 已安装 Python 3.10+，推荐 Python 3.11。
+- 已完整获取仓库，`pywechat` 和 `YuYuWechatV3_Server` 必须是同级目录。
+- 已关闭正在运行的 `YuYuWechatV3_Server.exe`。
+- 电脑可以访问 Python 包索引，脚本需要安装构建依赖。
+
+获取源码并编译：
+
+```powershell
+git clone -b v3 https://github.com/xieyumc/YuYuWechat.git
+cd YuYuWechat\YuYuWechatV3_Server
+.\build_pyinstaller_windows.bat
 ```
-```shell
-gpedit.msc
-```
-- 找到不显示锁屏选项，设置为已启用
-![img_2.png](img/img_17.png)
 
-# 3. 部署客户端
-## 使用docker运行（推荐）
-我已经编译好了x86和arm的docker镜像，Windows/mac/Linux的x86和arm架构均可运行
 
-- 在release界面找到最新的版本，下载`docker-compose.yml`文件
-- 在同目录下创建一个文件夹`postgres_data`和`backups`，用于挂载数据库文件，以及数据库备份文件
-- 运行`docker-compose up`即可运行
+> 脚本每次都会删除旧 `dist`。不要直接把生产数据库和日志长期放在源码的 `dist` 目录中；重新编译前请备份 `dist\YuYuWechatV3_Server\db.sqlite3` 和 `logs`，或者把编译结果复制到单独的运行目录。
 
-###### 如果你想用https访问，需要在`docker-compose.yml`文件里修改
-`- CSRF_TRUSTED_ORIGINS=https://localhost,https://yourdomain.com  # 定义CSRF信任域`，不然会出现csrf问题
-###### 
+编译成功后，进入产物目录并初始化：
 
-这个docker文件会拉取三个镜像，
-```
-`mona233/yuyuwechatv2_client:latest`
-
-`redis:latest`，因为定时任务的celery需要一个消息队列，我默认使用redis，端口为6379  
-
-`postgres:latest`，因为客户端需要一个数据库，我默认使用postgres，端口为5432
+```powershell
+cd dist\YuYuWechatV3_Server
+.\YuYuWechatV3_Server.exe migrate
+.\YuYuWechatV3_Server.exe createsuperuser
 ```
 
-###### 如果你从docker hub拉取镜像有困难，可以在release界面找到最新版本的`yuyuwechatv2_client.tar.gz`，这是编译好的docker镜像，导入本地docker即可
+> 每次运行服务端前，都必须先完全退出微信，打开 Windows 讲述人，再启动并登录微信。确认微信已经登录后，最后启动 YuYuWechat V3 服务端。不要先登录微信再打开讲述人。
 
-## 从源码运行
-如果你想自定义数据库结构和增加功能，可以从源码运行
+按上述顺序准备完成后，启动服务端：
 
-- 首先自行安装redis和postgres数据库，redis默认端口为6379，postgres默认端口为5432，并且默认连接密码为`tykWyr-bepqu6-fafvym`，你也可以手动在Django的设置里修改
-- cd到`YuYuWechatV2_Client`目录下
-- 安装依赖`pip install -r requirements.txt`
-- 运行`python manage.py runserver 127.0.0.1:7500 --insecure`
-
-###### 如果你想用https访问，需要在`YuYuWechatV2_Client/YuYuWechatV2_Client/settings.py`文件里修改
-`CSRF_TRUSTED_ORIGINS = os.environ.get('CSRF_TRUSTED_ORIGINS', 'https://localhost').split(',')`，不然会出现csrf问题
-
-## 打开客户端
-
-### 在本地浏览器输入`127.0.0.1:7500`即可打开前端首页
-![img_2.png](img/img_new_color/img_2.png)
-![img.png](img/img_new_color/img.png)
-首先是登录界面，需要自己手动创建一个超级用户，新开一个终端：  
-
-进入docker容器
-```shell
-docker exec -it yuyuwechatv2_client bash
+```powershell
+.\YuYuWechatV3_Server.exe
 ```
-挂载目录
-```shell
-cd /app
+
+不带参数启动时，服务端默认监听 `0.0.0.0:8000`。运行数据保存在 EXE 同目录的 `db.sqlite3`，滚动日志保存在 `logs/server.log`。
+
+> 编译结果采用 PyInstaller 目录模式。部署或备份时必须复制整个 `dist\YuYuWechatV3_Server` 文件夹，不能只复制 EXE，因为程序依赖同目录的 `_internal`。
+
+### 从源码运行
+
+源码目录需要保持如下结构：
+
+```text
+YuYuWechat/
+├── pywechat/
+└── YuYuWechatV3_Server/
 ```
-创建超级用户（请自己设置用户和密码）
-```shell
+
+在 Windows PowerShell 中运行：
+
+```powershell
+cd YuYuWechatV3_Server
+py -3.11 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+python manage.py migrate
 python manage.py createsuperuser
 ```
-然后在登录界面输入用户名和密码即可登录
 
-### 第一次使用需要配置客户端
+> 运行服务端前，必须先完全退出微信，打开 Windows 讲述人，再启动并登录微信。确认微信已经登录后，最后执行服务端启动命令。不要先登录微信再打开讲述人。
 
-- 在连接服务器处，输入服务器的ip地址和端口，如`192.168.50.1:8000`，然后点击测试服务器是否连通，连通后，点击保存服务器ip即可持久化保存到数据库，下次不需要再配置服务器ip  
-- 数据库导入导出功能可以方便备份和还原
-- 点击`启动定时任务`，才会启动定时发送任务和邮箱报警功能
+```powershell
+python manage.py runserver 0.0.0.0:8000 --noreload
+```
 
-其他功能在侧边栏点击即可跳转到对应的界面，前端网页只涉及对数据库的查看和发送操作，对用户和消息内容的增加，删除，修改均需要在后台管理界面进行，这样可以保证数据的安全性
+服务端会自动从仓库根目录的 `pywechat` 加载 `pyweixin`。如果移动了目录，服务端会返回 `pywechat core library not found`。
+
+### 首次配置
+
+启动后访问：
+
+- 服务端首页：`http://127.0.0.1:8000/`
+- Django Admin：`http://127.0.0.1:8000/admin/`
+- Swagger：`http://127.0.0.1:8000/api/schema/swagger-ui/`
+- Redoc：`http://127.0.0.1:8000/api/schema/redoc/`
+
+在 Admin 中打开 `WeChatConfig`。V3 只使用第一条配置记录，各字段含义如下：
+
+| 字段 | 默认值 | 说明 |
+| --- | --- | --- |
+| `path` | `C:/Program Files/Tencent/Weixin/Weixin.exe` | 微信 4.x 的 `Weixin.exe` 路径；无效时服务端也会尝试自动发现。 |
+| `locale` | `zh-CN` | 当前固定为简体中文，其他值无法保存。 |
+| `search_pages` | `5` | 在会话列表中滚动查找好友的页数。 |
+| `send_delay` | `0.2` | 发送消息或文件时的延迟秒数。 |
+| `is_maximize` | `false` | 是否最大化微信；推荐保持关闭。 |
+| `window_size` | `1000,1000` | 微信窗口宽高。单栏模式可先尝试宽 600-900、高 700-1200。 |
+| `auto_start_wechat` | `true` | 微信未启动时是否尝试自动启动。 |
+| `auto_thank_after_red_packet` | `false` | 领取红包或转账后是否自动回复。 |
+| `payment_reply_delay` | `2.0` | 领取完成到发送感谢消息之间的延迟秒数。 |
+| `auto_payment_check_interval_minutes` | `2.0` | 自动扫描未读消息的间隔分钟数。 |
+| `red_packet_thanks_message` | 空 | 自动感谢模板，支持 `{friend}`、`{name}`、`{payment_type}`。 |
+
+服务端首页也提供自动领取状态、启停按钮、感谢消息和微信窗口尺寸配置。首页保存窗口尺寸时会关闭最大化模式，以保持微信单栏布局。
+
+## 服务端接口
+
+旧客户端依赖的接口路径、请求字段和主要响应结构保持兼容。完整字段和在线调试以 Swagger 为准。
+
+| 方法 | 路径 | 请求体或参数 | 用途 |
+| --- | --- | --- | --- |
+| `GET` | `/wechat/ping/` | 无 | 服务端健康检查，返回 `{"status":"pong"}`。 |
+| `POST` | `/wechat/send_message/` | `{"name":"好友","text":"内容"}` | 发送文本消息。 |
+| `POST` | `/wechat/send_file/` | `{"name":"好友","file_path":"C:/path/file.pdf"}` | 发送服务端本地文件。 |
+| `POST` | `/wechat/check_wechat_status/` | 无 | 检查微信运行、登录和 UI 可访问状态。 |
+| `POST` | `/wechat/get_dialogs/` | `{"name":"好友","n_msg":10}` | 获取最近 N 条聊天记录。 |
+| `POST` | `/wechat/get_dialogs_by_time_blocks/` | `{"name":"好友","n_time_blocks":3}` | 按时间分块获取聊天记录。 |
+| `POST` | `/wechat/get_media_files/` | `{"name":"好友","n_media":5}` | 保存并返回最近图片/视频的临时下载链接。 |
+| `GET` | `/wechat/media_cache/<token>/<filename>` | 服务端生成 | 下载媒体缓存文件，缓存默认保留 6 小时。 |
+| `POST` | `/wechat/pin_chat/` | `{"name":"好友","pinned":true}` | 置顶或取消置顶聊天。 |
+| `POST` | `/wechat/claim_payment/` | `{"name":"好友","reply":"谢谢"}` | 手动领取指定好友的红包/转账；`reply` 可省略。 |
+| `GET` | `/wechat/auto_payment_status/` | 无 | 获取自动领取监听状态和累计数量。 |
+| `POST` | `/wechat/toggle_auto_payment/` | `{"enabled":true}` | 启用或停止自动领取；不传 `enabled` 时切换状态。 |
+| `POST` | `/wechat/run_auto_payment_once/` | 无 | 只扫描一次当前未读单聊。 |
+| `POST` | `/wechat/auto_payment_config/` | 自动领取配置 JSON | 更新感谢消息、检查间隔和窗口尺寸。 |
+| `GET` | `/wechat/request_logs/?limit=100&offset=0` | 查询参数 | 获取服务端请求日志。 |
+
+聊天记录继续返回兼容旧客户端的三元组结构：
+
+```json
+{
+  "status": "success",
+  "dialogs": [
+    ["用户发送", "2026年7月10日 09:30", "你好"],
+    ["用户发送图片", "2026年7月10日 09:31", "/wechat/media_cache/.../image.png"]
+  ]
+}
+```
+
+测试服务端连接：
+
+```powershell
+Invoke-RestMethod -Uri http://127.0.0.1:8000/wechat/ping/
+```
+
+发送消息：
+
+```powershell
+$body = @{name = "文件传输助手"; text = "YuYuWechat V3 测试消息"} | ConvertTo-Json
+Invoke-RestMethod `
+  -Uri http://127.0.0.1:8000/wechat/send_message/ `
+  -Method Post `
+  -ContentType "application/json; charset=utf-8" `
+  -Body $body
+```
+
+### 安全说明
+
+V3 服务端接口当前没有 API Token 鉴权，并且微信操作接口允许跨站调用。请只在可信局域网中部署，使用 Windows 防火墙限制来源 IP，不要直接把 `8000` 端口暴露到公网。
+
+## 部署管理客户端
+
+V3 继续使用 `YuYuWechatV2_Client`。客户端负责页面、数据、Celery 定时任务和错误报警，服务端负责实际操作微信。
+
+### Docker 部署
+
+客户端 Compose 会启动以下服务：
+
+- `mona233/yuyuwechatv2_client:latest`
+- Redis，作为 Celery 消息队列
+- PostgreSQL，保存客户端业务数据
+
+准备 `postgres_data` 和 `backups` 目录后运行：
+
+```shell
+cd YuYuWechatV2_Client
+docker compose up -d
+```
+
+第一次使用需要创建管理账号：
+
+```shell
+docker exec -it yuyuwechatv2_client python manage.py createsuperuser
+```
+
+如果通过 HTTPS 访问客户端，需要在 `docker-compose.yml` 的 `CSRF_TRUSTED_ORIGINS` 中加入实际域名。
+
+### 源码部署
+
+源码运行需要 PostgreSQL 和 Redis。默认配置可在 `YuYuWechatV2_Client/YuYuWechatV2_Client/settings.py` 中查看或通过环境变量覆盖。
+
+```shell
+cd YuYuWechatV2_Client
+python -m pip install -r requirements.txt
+python manage.py migrate
+python manage.py createsuperuser
+python manage.py runserver 127.0.0.1:7500 --insecure
+```
+
+Celery Worker 和 Beat 需要分别运行：
+
+```shell
+celery -A YuYuWechatV2_Client worker --loglevel=info
+celery -A YuYuWechatV2_Client beat --loglevel=info
+```
+
+### 连接 V3 服务端
+
+打开 `http://127.0.0.1:7500/` 登录，在首页填写 V3 服务端的 IP 和端口，例如：
+
+```text
+192.168.50.10:8000
+```
+
+点击测试连接，成功后保存。客户端会继续调用兼容的 `/wechat/*` 接口，不需要修改现有任务数据。
 
 ## 配置自动化任务
 
-### 在本地浏览器输入`127.0.0.1:7500/admin`，可以进入后台管理界面
-![img_10.png](img/img_10.png)
+访问客户端 Admin：`http://127.0.0.1:7500/admin/`。
 
-在client_app里是客户端的数据，可以看到有以下数据表
+### 微信用户
 
-- `Messages`：发送消息管理的数据表
-- `Scheduled messages`：定时任务管理的数据表
-- `Server configs`：服务端配置
-- `Wechat users`：微信用户数据表
-- `Email settingss`：邮件设置
-- `Logs`：日志数据表
-- `Error logs`：错误检测数据表
+创建 `WechatUser` 时，`username` 必须填写微信中能够准确搜索到的好友备注或群聊名称。V3 会优先匹配本地搜索结果，名称不准确可能导致找不到联系人。
 
-#### 首先先创建一个微信用户  
+### 定时消息和文件
 
-![img_11.png](img/img_11.png)
+`ScheduledMessage` 的关键字段：
 
-- `Username`：微信好友名字或者备注名，必须在搜索结果中排名第一（**必填**）
-- `Wechatid`：微信号（**非必填**）
-- `Date added`：好友添加日期（**非必填**）
-- `Group:`：好友分组，前端网页可以根据分组筛选好友，方便分组管理（**非必填**）
+- `is_active`：是否启用任务。
+- `user`：关联的微信用户。
+- `text`：发送内容。
+- `cron_expression`：五段式 Cron 表达式，顺序为“分 时 日 月 周”。
+- `execution_count`：剩余执行次数，`0` 表示不再执行。
+- `execution_skip`：需要跳过的执行次数。
 
-#### 然后再创建消息，这里以定时消息为例
-![img_12.png](img/img_12.png)
+`ScheduledFileMessage.file_path` 必须是 V3 服务端 Windows 电脑上的绝对路径，而不是客户端容器中的路径。
 
-- `Is active`：本条消息是否激活，激活后才会定时发送，默认是激活的
-- `User`：选择在上一步增加的微信用户（**必填**）
-- `Text`：发送的消息内容（**必填**）
-- `Cron expression`：cron表达式，定时发送的时间，格式为`* * * * *`，分别代表`分 时 日 月 周`（**必填**）
-- `Execution count:`：消息的执行次数，0为不执行，每次执行后会减一，直到为0，这样可以控制消息的发送次数（**需要手动设置次数**）
-- `Execution skip`：消息的跳过次数，默认为0。若设置为1，则下次不会执行任务，下下次才会，若设置为2，则会跳过两次任务，以此类推，这样可以控制定时发送消息的开始（**非必填**）
+常用 Cron 示例：
 
-通过`cron表达式`和`消息的执行次数`和`消息的跳过次数`，即可实现消息的任意时刻开始，结束，在任意时间发送消息，循环发送消息
-
-关于`cron表达式`，本程序是5段式的cron表达式，精确到分钟，请不要和7段式搞混  
-网上有在线生成器或者ChatGPT生成也可以
-以下是一些例子
-
-```
-* * * * *：每分钟执行一次
-0 * * * *：每小时执行一次
-0 0 * * *：每天执行一次
-0 0 * * 1：每周一执行一次
-
-
-*/10 * * * * # 每10分钟执行一次
-0 0 */2 * * # 每隔一天午夜12点执行
-0 0 * * 1    # 每周一午夜12点执行
-0 0 1 * *    # 每月1日午夜12点执行
-```
-# 4. 额外功能
-
-## 邮件报警
-使用邮件报警功能，可以在出现错误时，自动发送邮件给指定的邮箱，方便及时处理错误  
-
-在首页点击邮箱配置，会跳转到后台  
-![img.png](img/img_19.png)  
-
-这里建议使用163邮箱，以下是邮箱的详细配置（如果使用163邮箱，前三项不需要改动）
-- `Email host`：smtp的地址
-- `Email port`：smtp的端口
-- `Email security`：选择加密方法
-- `Email host user`：邮箱账号
-- `Email host password`：邮箱密码（这里一般是授权码，请自行申请）
-- `Default from email:`：发送邮件的邮箱，一般跟`Email host user`一样
-- `Recipient list:`：接收邮件的邮箱，可以填多个，用逗号隔开
-
-## 根据 ScheduledMessage 生成 MessageCheck
-
-> 现在也可以使用执行自定义脚本的功能来生成，不需要手动进入后台创建
-
-写好ScheduledMessage后，有时候需要同时生成 MessageCheck，这是很常见的场景，所以我写了个迁移器来方便从cheduledMessage 生成 MessageCheck
-
-- 运行客户端
-- 工作目录切换到`YuYuWechatV2_Client`
-- 终端运行`python manage.py generate_message_checks`
-- 创建的MessageCheck数量会显示在终端上
-
-![img_22.png](img/img_22.png)
-
-这个迁移器默认会把ScheduledMessage，按照以下规则创建MessageCheck
-
-```
-is_active=scheduled_message.is_active,  # 保持与 ScheduledMessage 一致的激活状态
-
-user=scheduled_message.user,  # 关联的用户与 ScheduledMessage 相同
-
-keyword="",  # keyword 留空
-
-cron_expression=cron_expression_day_after,  # 设置为第二天 15:00 的 cron 表达式
-
-message_count=1,  # 默认仅检查一条消息
-
-report_on_found=False  # 默认不报告找到的关键词
+```cron
+* * * * *       # 每分钟
+0 * * * *       # 每小时整点
+0 9 * * *       # 每天 09:00
+0 9 * * 1       # 每周一 09:00
+*/10 * * * *    # 每 10 分钟
 ```
 
-若想自定义生成规则，可以修改`YuYuWechatV2_Client/client_app/management/commands/generate_message_checks.py`函数
+### 聊天记录检测
 
-# 5. 可靠性
- [![codecov](https://codecov.io/gh/xieyumc/YuYuWechat/branch/V2/graph/badge.svg?token=3NDJZIOERX)](https://codecov.io/gh/xieyumc/YuYuWechat)
- **微信发送的消息通常非常重要，为了确保消息的发送不会出现问题， YuYuWechat使用了多种手段保证系统的可靠性，但仍可能出现错误，若有错误，欢迎提issue**
+`MessageCheck` 会调用 V3 的聊天记录接口，并根据关键词或正则表达式决定是否生成错误日志。可使用以下命令从现有定时消息批量生成检测任务：
 
+```shell
+cd YuYuWechatV2_Client
+python manage.py generate_message_checks
+```
 
-## 错误检测
-_错误从理论上来说不可避免，所以错误检测至关重要_
-- **发送消息后检测是否成功发送**：YuYuWechat会检测发送消息后，通过读取最后一条聊天记录判断消息是否发送成功，若未发送成功，会记录错误在错误日志中
-- **定时任务检测**：YuYuWechat会通过cron表达式和上次发送日期，判断定时任务是否遗漏发送，若遗漏，会记录错误在错误日志中
-- **自动检测错误**：YuYuWechat每分钟都会检测典型的错误，如服务器连接情况，消息遗漏，若有错误会记录在错误日志中
-- **错误日志自动报警**：YuYuWechat会记录所有的错误在错误日志中，并且通过邮箱报警，可以及时处理错误
+生成规则可在 `client_app/management/commands/generate_message_checks.py` 中调整。
 
+### 邮件报警
 
-## 自动化测试
-_测试是验证代码是否按预期运行的重要手段，YuYuWechat通过GitHub action进行自动化测试，详细的测试样例请参考`.github`文件夹_
+在客户端 Admin 中配置 `EmailSettings`：
 
-#### 每次push代码后测试：
-- **单元测试**：对客户端系统进行单元测试，简单测试每个视图函数的功能是否正常
-- **docker编译测试**：对客户端使用docker编译，并且对编译后的镜像进行完整测试，包含视图的每个函数和url的测试，以及功能测试
-- **服务端自动编译测试**：对服务端使用pyinstaller编译，并且对编译后的exe进行简单的ping测试，由于GitHub action无法模拟完整的微信登录环境，所以只能简单测试
+- SMTP 主机和端口
+- TLS 或 SSL
+- 邮箱账号和授权码
+- 发件人地址
+- 逗号分隔的收件人列表
 
-#### 每次release后：
-- **自动编译**：对服务端使用pyinstaller编译，客户端使用docker编译
-- **完整测试**：基于之前的push测试，对编译后的docker镜像和exe进行完整测试
-- **自动推流**：对编译后的docker镜像和exe推流到docker hub以及release界面
+Celery 正常运行后，客户端会定期检查未发送的错误日志并发送报警邮件。
 
+## 自动领取红包和转账
 
-# 6. 感谢
+V3 可以扫描未读单聊，领取红包并收取转账。群聊红包会跳过，避免自动处理群聊资金消息。
 
-[easyChat](https://github.com/LTEnjoy/easyChat) YuYuWechatV2_Server的核心就是easyChat，请支持它
+使用方式：
 
-[NodeSupport](https://github.com/NodeSeekDev/NodeSupport)赞助了本项目
+1. 打开 V3 服务端首页 `http://127.0.0.1:8000/`。
+2. 设置微信单栏窗口尺寸、检查间隔和感谢消息。
+3. 点击“启用自动领取红包/转账”。
+4. 在首页观察累计数量、最近扫描时间、最近事件和错误信息。
 
-# 7. 其他
+感谢消息支持以下占位符：
 
-代码仅用于对UIAutomation技术的交流学习使用，禁止用于实际生产项目，请勿用于非法用途和商业用途！如因此产生任何法律纠纷，均与作者无关！
+- `{friend}` 或 `{name}`：好友名称
+- `{payment_type}`：红包或转账
+
+也可以调用 `/wechat/claim_payment/` 手动处理某位好友，或者调用 `/wechat/run_auto_payment_once/` 扫描一次未读单聊。
+
+资金相关 UI 自动化受微信界面变化、屏幕缩放和弹窗状态影响较大。首次使用必须先用测试账号和小额场景验证，不要把自动领取结果作为账务系统的唯一依据。
+
+## 日志与可靠性
+
+- 所有微信动作进入同一个服务端队列串行执行。
+- 每次服务端请求记录 `queued`、`running`、`success` 或 `failed` 状态。
+- 服务端记录请求参数、返回结果、错误、耗时和客户端 IP。
+- 发布包运行日志保存在 `logs/server.log`，单文件最大 2 MB，保留 5 个轮转文件。
+- 客户端会检测服务连通性、微信状态和定时任务遗漏，并将异常写入 `ErrorLog`。
+- 发送文本后会读取聊天记录进行结果确认；失败时客户端会记录发送错误。
+
+服务端日志可通过 Admin 或以下接口查看：
+
+```text
+GET /wechat/request_logs/?limit=100&offset=0
+```
+
+## 开发与测试
+
+### V3 服务端测试
+
+```shell
+cd YuYuWechatV3_Server
+python manage.py check
+python manage.py test wechat_app
+```
+
+服务端测试会使用 mock 验证桥接层、请求队列、媒体缓存、自动领取状态和旧接口兼容性；真实微信 UI 操作仍需要在 Windows 桌面环境手工验证。
+
+### 构建 Windows EXE
+
+必须在 Windows 上构建，并保持 `pywechat` 与 `YuYuWechatV3_Server` 为同级目录。直接运行仓库提供的构建脚本：
+
+```powershell
+cd YuYuWechatV3_Server
+.\build_pyinstaller_windows.bat
+```
+
+脚本会自动创建 `.venv-pyinstaller`、安装依赖、检查 Windows 自动化模块并调用 `YuYuWechatV3_Server.spec`。构建产物位于 `dist/YuYuWechatV3_Server/`，发布时应压缩整个目录，而不是只上传 EXE。
+
+### 客户端测试
+
+```shell
+cd YuYuWechatV2_Client
+python manage.py test client_app
+```
+
+客户端默认使用 PostgreSQL，执行测试前需要准备可连接的测试数据库。
+
+## 常见问题
+
+### `pywechat core library not found`
+
+源码部署时，确认 `pywechat/` 与 `YuYuWechatV3_Server/` 位于同一个仓库根目录。批处理生成的编译产物已经内置核心库，不需要额外复制。
+
+### `Weixin.exe path is unavailable`
+
+检查 `WeChatConfig.path`，微信 4.x 的可执行文件名是 `Weixin.exe`，不是旧版的 `WeChat.exe`。
+
+### 无法定位微信主窗口或联系人
+
+确认微信版本、简体中文界面、登录状态和桌面解锁状态。完全退出微信后，按前文流程先启动讲述人，再登录微信。
+
+### `Invalid or missing file_path`
+
+`file_path` 必须存在于运行 V3 服务端的 Windows 电脑上。客户端部署在 Docker 或其他机器时，不能直接使用客户端本地路径。
+
+### 请求长时间等待
+
+微信 UI 操作为全局串行。前一个任务未完成时，后续请求会排队，这是为避免发错联系人而设计的。
+
+### 媒体下载链接失效
+
+媒体文件保存在系统临时目录，默认 6 小时后清理。需要长期保存时，应在链接有效期内下载到自己的存储中。
+
+## 版本说明
+
+- `v3` 分支：微信 `4.1.6+`，使用 `YuYuWechatV3_Server` 和 `pyweixin`。
+- `V2` 分支：微信 3.x，使用原 `YuYuWechatV2_Server`。
+- 管理客户端目前仍为 `YuYuWechatV2_Client`，两套服务端接口保持兼容。
+
+## 致谢
+
+- [pywechat](https://github.com/Hello-Mr-Crab/pywechat)：V3 的微信 4.x UI 自动化核心。
+- [easyChat](https://github.com/LTEnjoy/easyChat)：V2 服务端早期核心实现。
+- [NodeSupport](https://github.com/NodeSeekDev/NodeSupport)：项目赞助支持。
+
+## 使用声明
+
+本项目仅用于 UI Automation 技术交流和个人学习。请遵守微信软件许可、所在地法律法规和数据隐私要求，不得用于骚扰、欺诈、非法资金操作或其他违法用途。UI 自动化无法保证在所有微信版本、屏幕缩放和系统环境中稳定运行，使用者应自行验证并承担使用风险。
